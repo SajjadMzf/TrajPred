@@ -20,8 +20,8 @@ class ExtractScenarios:
 
         self.obs_frames = p.OBS_LEN
         self.pred_frames = p.PRED_LEN
-        self.seq_len = p.SEQ_LEN
-
+        self.pre_lc_len = p.PRE_LC_LEN
+        self.post_lc_len = p.POST_LC_LEN
         self.metas = rc.read_meta_info(meta_path)
         self.fr_div = self.metas[rc.FRAME_RATE]/p.FPS
         self.track_path = track_path
@@ -43,16 +43,19 @@ class ExtractScenarios:
         
         lc_scenarios, lk_count, rlc_count, llc_count = self.get_lc_scenarios()
         self.scenarios.extend(lc_scenarios)
+        #lk_count = 25
         lk_scenarios, total_lk, lk_with_ttlc = self.get_lk_scenarios(lk_count)
         
+        print("File Number; {}, ALL extracted samples: {}, RLC: {}, LLC: {}, Balance LK: {}, ALL LK: {}, LK with TTLC:{}".format(self.file_num,rlc_count + llc_count +lk_count, rlc_count, llc_count, lk_count, total_lk, lk_with_ttlc))
         if p.UNBALANCED == False: # Check if there are enough LK scenarios for a balanced dataset
+            print(len(lk_scenarios))
             assert(lk_count ==len(lk_scenarios))
         
         self.scenarios.extend(lk_scenarios)
         file_dir = os.path.join(self.LC_states_dir, str(self.file_num).zfill(2)+ '.pickle')
-        print("File Number; {}, ALL extracted samples: {}, RLC: {}, LLC: {}, Balance LK: {}, ALL LK: {}, LK with TTLC:{}".format(self.file_num,rlc_count + llc_count +lk_count, rlc_count, llc_count, lk_count, total_lk, lk_with_ttlc))
         with open(file_dir, 'wb') as handle:
             pickle.dump(self.scenarios, handle, protocol= pickle.HIGHEST_PROTOCOL)
+        return rlc_count, llc_count, lk_count
         
 
     def get_lc_scenarios(
@@ -66,10 +69,10 @@ class ExtractScenarios:
             lc_last_idxs, labels, _ = self.get_last_idxs(tv_data, driving_dir, scenario_type = 'lc')
             
             for scenario_idx, tv_last_idx in enumerate(lc_last_idxs): # These lane_idxes are for tv_data   
-                tv_first_idx = tv_last_idx - self.seq_len
+                tv_first_idx = tv_last_idx - self.pre_lc_len
                 if self.check_scenario_validity(tv_first_idx, tv_last_idx, tv_data) == False:
                     continue
-                grid_data = np.zeros((self.seq_len, 3*13))
+                grid_data = np.zeros((self.pre_lc_len, 3*13))
                 for fr in range(tv_first_idx, tv_last_idx):
                     frame = tv_data[rc.FRAME][fr]
                     frame_data = self.data_frames[int(frame/self.fr_div -1)]
@@ -78,7 +81,7 @@ class ExtractScenarios:
                 scenario = {
                         'tv':tv_id,
                         'ttlc_available':True,
-                        'frames':tv_data[rc.FRAME][tv_first_idx:tv_last_idx], 
+                        'frames':tv_data[rc.FRAME][tv_first_idx:(tv_last_idx+self.post_lc_len)], 
                         'grid': grid_data, 
                         'label':labels[scenario_idx], 
                         'driving_dir':driving_dir,
@@ -109,13 +112,13 @@ class ExtractScenarios:
             tv_id = tv_data[rc.TRACK_ID] 
             tv_last_idx, label, known_ttlc = self.get_last_idxs(tv_data, driving_dir, scenario_type = 'lk')
                
-            tv_first_idx = tv_last_idx - self.seq_len
+            tv_first_idx = tv_last_idx - self.pre_lc_len
 
             if self.check_scenario_validity(tv_first_idx, tv_last_idx, tv_data) == False:
                     continue
             if known_ttlc:
                 known_ttlc_count += 1
-            grid_data = np.zeros((self.seq_len, 3*13))
+            grid_data = np.zeros((self.pre_lc_len, 3*13))
             for fr in range(tv_first_idx, tv_last_idx):
                 frame = tv_data[rc.FRAME][fr]
                 frame_data = self.data_frames[int(frame/self.fr_div -1)]
@@ -124,7 +127,7 @@ class ExtractScenarios:
             scenario = {
                         'tv':tv_id,
                         'ttlc_available': known_ttlc,
-                        'frames':tv_data[rc.FRAME][tv_first_idx:tv_last_idx],
+                        'frames':tv_data[rc.FRAME][tv_first_idx:(tv_last_idx+self.post_lc_len)],
                         'grid': grid_data,  
                         'label':label, 
                         'driving_dir':driving_dir,
@@ -158,6 +161,7 @@ class ExtractScenarios:
         )-> '(List of) last frame index(es) of the scenario(s)  and the labels for the scenario(s)' :
         
         tv_lane = tv_data[rc.LANE_ID]
+        total_track_len = len(tv_lane)
         tv_lane_list = list(set(tv_lane))
 
         if scenario_type == 'lc':
@@ -195,11 +199,13 @@ class ExtractScenarios:
             if len(tv_lane_list) > 1:
                 start_lane = tv_lane[0]
                 last_idxs = np.nonzero(tv_lane!= start_lane)[0][0]
-                last_idxs -= self.pred_frames
+                last_idxs -= (max(self.pred_frames, self.post_lc_len)+1)
                 known_ttlc = True
             else:
                 last_idxs = len(tv_data[rc.FRAME])
-                last_idxs -= self.pred_frames # We set the last index of LK scenario pred_frames before the end of recording, in case TV perform LC right after recording ends
+                
+                last_idxs -= (max(self.pred_frames, self.post_lc_len)+1) # We set the last index of LK scenario pred_frames before the end of recording, in case TV perform LC right after recording ends
+                #print(last_idxs)
             return last_idxs, labels, known_ttlc
         else:
             raise('Unexpected Scenario Type!')
@@ -218,6 +224,14 @@ class ExtractScenarios:
         tv_lane = tv_data[rc.LANE_ID][tv_first_idx:tv_last_idx]
         tv_lane_list = list(set(tv_lane))
         if len(tv_lane_list)>1:
+            return False
+        # 3. There should be enough frames after the LC occurrence
+        total_track_len = len(tv_data[rc.LANE_ID])
+        #print('track size')
+        #print(tv_first_idx+self.pre_lc_len+self.post_lc_len)
+        #print('total size')
+        #print(total_track_len)
+        if tv_first_idx+self.pre_lc_len+self.post_lc_len>=total_track_len:
             return False
         return True
     

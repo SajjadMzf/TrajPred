@@ -10,9 +10,11 @@ if UNBALANCED:
 
 
 # Problem definition parameters:
-SEQ_LEN = 35
+
 OBS_LEN = 10
-PRED_LEN = 25
+PRED_LEN = 20
+POST_LC_LEN = 20
+PRE_LC_LEN = OBS_LEN + PRED_LEN
 FPS = 5
 
 # Rendering params
