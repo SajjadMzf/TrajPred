@@ -141,8 +141,9 @@ class RenderScenarios:
                     post_lc_only = (fr>=self.pre_lc_len)
                     )
 
-                
                 output_states.append(output_state)
+                if fr==0:
+                    output_states.append(output_state)
                 
                 if fr < self.pre_lc_len:
                     cropped_img, whole_img, valid = self.plot_frame(
@@ -173,7 +174,9 @@ class RenderScenarios:
             self.scenarios[scenario_idx]['states_wirth'] = np.array(states_wirth)
             self.scenarios[scenario_idx]['states_shou'] = np.array(states_shou)
             self.scenarios[scenario_idx]['states_ours'] = np.array(states_ours)
-            self.scenarios[scenario_idx]['output_states'] = np.array(output_states)
+            output_states = np.array(output_states)
+            output_states = output_states[1:,:]- output_states[:-1,:]
+            self.scenarios[scenario_idx]['output_states'] = output_states
             
             saved_data_number += 1
             
