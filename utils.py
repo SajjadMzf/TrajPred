@@ -148,16 +148,16 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, task
                 target_data = data_tuple[-1]
                 target_data_in = target_data[:,(seq_itr+p.IN_SEQ_LEN-1):(seq_itr+p.IN_SEQ_LEN-1+p.TGT_SEQ_LEN)]
                 target_data_out = target_data[:,(seq_itr+p.IN_SEQ_LEN):(seq_itr+p.IN_SEQ_LEN+p.TGT_SEQ_LEN)]
-                data_tuple = data_tuple[:,-1]
-            current_data = [data[:, seq_itr:(seq_itr+p.IN_SEQ_LEN)] for data in data_tuple]
-            
+                in_data_tuple = data_tuple[:-1]
+            current_data = [data[:, seq_itr:(seq_itr+p.IN_SEQ_LEN)] for data in in_data_tuple]
+            #print(current_data)
             # 1. Clearing previous gradient values.
             optimizer.zero_grad()
             if model.__class__.__name__ == 'VanillaLSTM':
                 model.init_hidden()
             # 2. feeding data to model (forward method will be computed)
             if task == params.TRAJECTORYPRED and p.SELECTED_MODEL== 'TRANSFORMER_TRAJ':
-                output_dict = model(x = current_data, y =target_data_in, y_mask = model.y_mask(p.TGT_SEQ_LEN) )
+                output_dict = model(x = current_data, y =target_data_in, y_mask = model.get_y_mask(p.TGT_SEQ_LEN).to(device))
                 traj_pred = output_dict['traj_pred']
             else:
                 output_dict = model(current_data)
@@ -172,6 +172,7 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, task
                 lc_loss = 0
             
             if task == params.TRAJECTORYPRED:
+                traj_loss_func = nn.MSELoss()
                 traj_loss = traj_loss_func(traj_pred, target_data_out)
             else:
                 traj_loss = 0
@@ -241,14 +242,14 @@ def eval_model(p, model, lc_loss_func, task, test_loader, epoch, device, eval_ty
                 target_data = data_tuple[-1]
                 target_data_in = target_data[:,(seq_itr+p.IN_SEQ_LEN-1):(seq_itr+p.IN_SEQ_LEN-1+p.TGT_SEQ_LEN)]
                 target_data_out = target_data[:,(seq_itr+p.IN_SEQ_LEN):(seq_itr+p.IN_SEQ_LEN+p.TGT_SEQ_LEN)]
-                data_tuple = data_tuple[:,-1]
-            current_data = [data[:, seq_itr:(seq_itr+p.IN_SEQ_LEN)] for data in data_tuple]
+                in_data_tuple = data_tuple[:-1]
+            current_data = [data[:, seq_itr:(seq_itr+p.IN_SEQ_LEN)] for data in in_data_tuple]
             st_time = time()
             
             if task == params.TRAJECTORYPRED and p.SELECTED_MODEL== 'TRANSFORMER_TRAJ':
+                target_data_in = target_data[:,(seq_itr+p.IN_SEQ_LEN-1):(seq_itr+p.IN_SEQ_LEN)]   
                 for out_seq_itr in range(p.TGT_SEQ_LEN):
-                    target_data_in = target_data[:,(seq_itr+p.IN_SEQ_LEN-1):(seq_itr+p.IN_SEQ_LEN)]
-                    output_dict = model(x = current_data, y =target_data_in, y_mask = model.y_mask(target_data_in.size(1)).to(device))
+                    output_dict = model(x = current_data, y =target_data_in, y_mask = model.get_y_mask(target_data_in.size(1)).to(device))
                     traj_pred = output_dict['traj_pred']
                     traj_pred = traj_pred[:,out_seq_itr:(out_seq_itr+1)]
                     target_data_in = torch.cat((target_data_in, traj_pred), dim = 1)
@@ -265,7 +266,8 @@ def eval_model(p, model, lc_loss_func, task, test_loader, epoch, device, eval_ty
                 lc_loss = 0
             
             if task == params.TRAJECTORYPRED:
-                traj_loss = traj_loss_func(traj_pred, target_data_out)
+                traj_loss_func = nn.MSELoss()
+                traj_loss = traj_loss_func(traj_pred, target_data_out) #todo make it selectable in models dict
             else:
                 traj_loss = 0
             loss = lc_loss + traj_loss 
@@ -293,7 +295,7 @@ def eval_model(p, model, lc_loss_func, task, test_loader, epoch, device, eval_ty
     #print('Average Time per whole sequence perbatch: {}'.format(average_time/time_counter))
     #print('gf time: {}, nn time: {}'.format(gf_time, nn_time))
     
-     robust_pred_time, pred_time, accuracy, precision, recall, f1, FPR, auc, max_j= calc_metric(p, task, all_lc_preds, all_att_coef, all_labels, epoch, eval_type = eval_type, figure_name = figure_name)
+    robust_pred_time, pred_time, accuracy, precision, recall, f1, FPR, auc, max_j= calc_metric(p, task, all_lc_preds, all_att_coef, all_labels, epoch, eval_type = eval_type, figure_name = figure_name)
     avg_loss = avg_lc_loss
     print("{}: Epoch: {}, Accuracy: {:.2f}%, Robust Prediction Time: {:.2f}, Prediction Time: {:.2f}, Total LOSS: {:.2f},LC LOSS: {:.2f}, PRECISION:{}, RECALL:{}, F1:{}, FPR:{}, AUC:{}, Max J:{}".format(
         eval_type, epoch, 100. * accuracy, robust_pred_time, pred_time, avg_loss, avg_lc_loss, precision, recall, f1, FPR, auc, max_j))

@@ -15,7 +15,7 @@ import math
 
 class TransformerTraj(nn.Module): 
     def __init__(self, batch_size, device, hyperparams_dict, parameters, drop_prob = 0.1):
-        super(TransformerClassifier, self).__init__()
+        super(TransformerTraj, self).__init__()
 
         self.batch_size = batch_size
         self.device = device
@@ -35,12 +35,12 @@ class TransformerTraj(nn.Module):
         self.positional_encoder = PositionalEncoding(dim_model=self.model_dim, dropout_p=drop_prob, max_len=100)
         
         ''' 2. Transformer Encoder: '''
-        self.encoder_embedding = nn.linear(self.input_dim, self.model_dim)
+        self.encoder_embedding = nn.Linear(self.input_dim, self.model_dim)
         encoder_layers = nn.TransformerEncoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
         self.transformer_encoder = nn.TransformerEncoder(encoder_layers, self.layers_num)
         
         ''' 3. Transformer Decoder: '''
-        self.decoder_embedding = nn.linear(self.input_dim, self.model_dim)
+        self.decoder_embedding = nn.Linear(self.output_dim, self.model_dim)
         decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
         self.transformer_decoder = nn.TransformerDecoder(decoder_layers, self.layers_num)
         ''' 4. Classification Output '''
@@ -48,7 +48,7 @@ class TransformerTraj(nn.Module):
         self.classifier_fc2 = nn.Linear(self.classifier_dim,3)
 
         ''' 5. Trajectory Output '''
-        self.trajectory_fc = nn.linear(self.model_dim, self.output_dim)
+        self.trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
 
     
     def lc_forward(self, x):
@@ -59,6 +59,7 @@ class TransformerTraj(nn.Module):
         return out
     
     def forward(self, x, y, y_mask):
+        #print(len(x))
         x = x[0]
         #encoder
         x = self.encoder_embedding(x)
@@ -123,7 +124,9 @@ class PositionalEncoding(nn.Module):
         
     def forward(self, token_embedding: torch.tensor) -> torch.tensor:
         # Residual connection + pos encoding
-        return self.dropout(token_embedding + self.pos_encoding[:, :token_embedding.size(0), :])
+        #print(token_embedding.size())
+        #exit()
+        return self.dropout(token_embedding + self.pos_encoding[:, :token_embedding.size(1), :])
 
 
 class TransformerClassifier(nn.Module): 
