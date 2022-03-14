@@ -19,7 +19,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 font = {'size'   : 22}
 matplotlib.rcParams['figure.figsize'] = (18, 12)
 matplotlib.rc('font', **font)
-def eval_top_func(p, model, lc_loss_func, ttlc_loss_func, task, te_dataset, device, model_tag = ''):
+def eval_top_func(p, model, lc_loss_func, task, te_dataset, device, model_tag = ''):
     model = model.to(device)
     
     te_loader = utils_data.DataLoader(dataset = te_dataset, shuffle = True, batch_size = p.BATCH_SIZE, drop_last= True, pin_memory= True, num_workers= 12)
@@ -32,7 +32,7 @@ def eval_top_func(p, model, lc_loss_func, ttlc_loss_func, task, te_dataset, devi
     
     start = time()
     
-    robust_test_pred_time, test_pred_time, test_acc, test_loss, test_lc_loss, test_ttlc_loss, auc, max_j, precision, recall, f1 = eval_model(p,model, lc_loss_func, ttlc_loss_func, task, te_loader, ' N/A', device, eval_type = 'Test', vis_data_path = vis_data_path, figure_name = figure_name)
+    robust_test_pred_time, test_pred_time, test_acc, test_loss, test_lc_loss, auc, max_j, precision, recall, f1 = eval_model(p,model, lc_loss_func, task, te_loader, ' N/A', device, eval_type = 'Test', vis_data_path = vis_data_path, figure_name = figure_name)
     end = time()
     total_time = end-start
     #print("Test finished in:", total_time, "sec.")
@@ -43,7 +43,6 @@ def eval_top_func(p, model, lc_loss_func, ttlc_loss_func, task, te_dataset, devi
         'Test Pred Time': test_pred_time,
         'Test Total Loss': test_loss,
         'Test Classification Loss': test_lc_loss,
-        'Test Regression Loss': test_ttlc_loss,
         'AUC': auc,
         'Max Youden Index': max_j,
         'Precision': precision,
@@ -53,7 +52,7 @@ def eval_top_func(p, model, lc_loss_func, ttlc_loss_func, task, te_dataset, devi
     return result_dic
 
 
-def train_top_func(p, model, optimizer, lc_loss_func, ttlc_loss_func, task, curriculum, tr_dataset, val_dataset, device, model_tag = ''):
+def train_top_func(p, model, optimizer, lc_loss_func, task, curriculum, tr_dataset, val_dataset, device, model_tag = ''):
     
     model = model.to(device)
     
@@ -74,9 +73,9 @@ def train_top_func(p, model, optimizer, lc_loss_func, ttlc_loss_func, task, curr
     for epoch in range(p.NUM_EPOCHS):
         #print("Epoch: {} Started!".format(epoch+1))
         start = time()
-        train_model(p, model, optimizer, scheduler, tr_loader, lc_loss_func, ttlc_loss_func, task, curriculum,  epoch+1, device, calc_train_acc= False)
+        train_model(p, model, optimizer, scheduler, tr_loader, lc_loss_func, task, curriculum,  epoch+1, device, calc_train_acc= False)
         val_start = time()
-        val_avg_pred_time,_,val_acc,val_loss, val_lc_loss, val_ttlc_loss, auc, max_j, precision, recall, f1= eval_model(p, model, lc_loss_func, ttlc_loss_func, task, val_loader, epoch+1, device, eval_type = 'Validation')
+        val_avg_pred_time,_,val_acc,val_loss, val_lc_loss, auc, max_j, precision, recall, f1= eval_model(p, model, lc_loss_func, task, val_loader, epoch+1, device, eval_type = 'Validation')
         val_end = time()
         print('val_time:', val_end-val_start)
         #print("Validation Accuracy:",val_acc,' Avg Pred Time: ', val_avg_pred_time, " Avg Loss: ", val_loss," at Epoch", epoch+1)
@@ -112,7 +111,7 @@ def train_top_func(p, model, optimizer, lc_loss_func, ttlc_loss_func, task, curr
     return result_dic
 
 
-def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, ttlc_loss_func, task, curriculum, epoch, device, vis_step = 20, calc_train_acc = True):
+def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, task, curriculum, epoch, device, vis_step = 20, calc_train_acc = True):
     # Number of samples with correct classification
     # total size of train data
     total = len(train_loader.dataset)
@@ -134,45 +133,49 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, ttlc
         end_seq = p.SEQ_LEN-p.IN_SEQ_LEN+1
     
     # Training loop over batches of data on train dataset
-    for batch_idx, (data_tuple, labels,_, ttlc_status) in enumerate(train_loader):
+    for batch_idx, (data_tuple, labels,_, _) in enumerate(train_loader):
         #print('Batch: ', batch_idx)
         start = time()
         
             
         data_tuple = [data.to(device) for data in data_tuple]
         labels = labels.to(device)
-        ttlc_status = ttlc_status.to(device)
     
         #start_point = random.randint(0,p.TR_JUMP_STEP)
         for seq_itr  in range(start_seq,end_seq, p.TR_JUMP_STEP): 
+            
+            if task == params.TRAJECTORYPRED:
+                target_data = data_tuple[-1]
+                target_data_in = target_data[:,(seq_itr+p.IN_SEQ_LEN-1):(seq_itr+p.IN_SEQ_LEN-1+p.TGT_SEQ_LEN)]
+                target_data_out = target_data[:,(seq_itr+p.IN_SEQ_LEN):(seq_itr+p.IN_SEQ_LEN+p.TGT_SEQ_LEN)]
+                data_tuple = data_tuple[:,-1]
             current_data = [data[:, seq_itr:(seq_itr+p.IN_SEQ_LEN)] for data in data_tuple]
+            
             # 1. Clearing previous gradient values.
             optimizer.zero_grad()
             if model.__class__.__name__ == 'VanillaLSTM':
                 model.init_hidden()
             # 2. feeding data to model (forward method will be computed)
-            output_dict = model(current_data)
+            if task == params.TRAJECTORYPRED and p.SELECTED_MODEL== 'TRANSFORMER_TRAJ':
+                output_dict = model(x = current_data, y =target_data_in, y_mask = model.y_mask(p.TGT_SEQ_LEN) )
+                traj_pred = output_dict['traj_pred']
+            else:
+                output_dict = model(current_data)
             lc_pred = output_dict['lc_pred']
-            ttlc_pred = output_dict['ttlc_pred']
+            
 
             # 3. Calculating the loss value
-            if task == params.CLASSIFICATION or task == params.DUAL:
+            if task == params.CLASSIFICATION or task == params.DUAL or task == params.TRAJECTORYPRED:
                 lc_loss = lc_loss_func(lc_pred, labels)
+
             else:
                 lc_loss = 0
-            if task == params.REGRESSION or task == params.DUAL:
-                ttlc_label = torch.FloatTensor([(p.SEQ_LEN-seq_itr-p.IN_SEQ_LEN+1)/p.FPS]).unsqueeze(0).expand(*ttlc_pred.size()).requires_grad_().to(device)
-                ttlc_notavailable = (ttlc_status == 0).to(torch.float).unsqueeze(-1) #prev verion =>label ==0
-                ttlc_available = (ttlc_status == 1).to(torch.float).unsqueeze(-1)
-                ttlc_pred = ttlc_pred * ttlc_available + ttlc_label * ttlc_notavailable
-                ttlc_loss = ttlc_loss_func(ttlc_pred, ttlc_label)
-            else:
-                ttlc_loss = 0
             
-            if task == params.DUAL:
-                loss = lc_loss + loss_ratio*ttlc_loss
+            if task == params.TRAJECTORYPRED:
+                traj_loss = traj_loss_func(traj_pred, target_data_out)
             else:
-                loss = lc_loss + ttlc_loss
+                traj_loss = 0
+            loss = lc_loss + traj_loss 
             # 4. Calculating new grdients given the loss value
             loss.backward()
             # 5. Updating the weights
@@ -196,16 +199,14 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, ttlc
         raise('Depricated')
         
 
-def eval_model(p, model, lc_loss_func, ttlc_loss_func, task, test_loader, epoch, device, eval_type = 'Validation', vis_data_path = None, figure_name = None):
+def eval_model(p, model, lc_loss_func, task, test_loader, epoch, device, eval_type = 'Validation', vis_data_path = None, figure_name = None):
     total = len(test_loader.dataset)
     # number of batch
     num_batch = int(np.floor(total/model.batch_size))
     avg_loss = 0
     avg_lc_loss = 0
-    avg_ttlc_loss = 0
     all_lc_preds = np.zeros(((num_batch*model.batch_size), p.SEQ_LEN-p.IN_SEQ_LEN+1,3))
     all_att_coef = np.zeros(((num_batch*model.batch_size), p.SEQ_LEN-p.IN_SEQ_LEN+1,4))
-    all_ttlc_preds = np.zeros(((num_batch*model.batch_size), p.SEQ_LEN-p.IN_SEQ_LEN+1,1))
     all_labels = np.zeros(((num_batch*model.batch_size)))
     plot_dicts = []
     
@@ -215,7 +216,7 @@ def eval_model(p, model, lc_loss_func, ttlc_loss_func, task, test_loader, epoch,
     nn_time = 0
     loss_ratio = 1
     
-    for batch_idx, (data_tuple, labels, plot_info, ttlc_status) in enumerate(test_loader):
+    for batch_idx, (data_tuple, labels, plot_info, _) in enumerate(test_loader):
         #print(batch_idx, total)
         all_labels[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size)] = labels.data
         if eval_type == 'Test':
@@ -232,40 +233,58 @@ def eval_model(p, model, lc_loss_func, ttlc_loss_func, task, test_loader, epoch,
         
         data_tuple = [data.to(device) for data in data_tuple]
         labels = labels.to(device)
-        #ttlc_status = ttlc_status.to(device)
         for seq_itr  in range(0,p.SEQ_LEN-p.IN_SEQ_LEN+1):
             if model.__class__.__name__ == 'VanillaLSTM':
                     model.init_hidden()
+            
+            if task == params.TRAJECTORYPRED:
+                target_data = data_tuple[-1]
+                target_data_in = target_data[:,(seq_itr+p.IN_SEQ_LEN-1):(seq_itr+p.IN_SEQ_LEN-1+p.TGT_SEQ_LEN)]
+                target_data_out = target_data[:,(seq_itr+p.IN_SEQ_LEN):(seq_itr+p.IN_SEQ_LEN+p.TGT_SEQ_LEN)]
+                data_tuple = data_tuple[:,-1]
             current_data = [data[:, seq_itr:(seq_itr+p.IN_SEQ_LEN)] for data in data_tuple]
             st_time = time()
-            output_dict = model(current_data)
+            
+            if task == params.TRAJECTORYPRED and p.SELECTED_MODEL== 'TRANSFORMER_TRAJ':
+                for out_seq_itr in range(p.TGT_SEQ_LEN):
+                    target_data_in = target_data[:,(seq_itr+p.IN_SEQ_LEN-1):(seq_itr+p.IN_SEQ_LEN)]
+                    output_dict = model(x = current_data, y =target_data_in, y_mask = model.y_mask(target_data_in.size(1)).to(device))
+                    traj_pred = output_dict['traj_pred']
+                    traj_pred = traj_pred[:,out_seq_itr:(out_seq_itr+1)]
+                    target_data_in = torch.cat((target_data_in, traj_pred), dim = 1)
+                traj_pred = target_data_in[:,:-1]    
+            else:
+                output_dict = model(current_data)
+            
             end_time = time()-st_time
             lc_pred = output_dict['lc_pred']
-            ttlc_pred = output_dict['ttlc_pred']
             
-            if task == params.CLASSIFICATION or task == params.DUAL:
+            if task == params.CLASSIFICATION or task == params.DUAL or task == params.TRAJECTORYPRED:
                 lc_loss = lc_loss_func(lc_pred, labels)
             else:
                 lc_loss = 0
             
+            if task == params.TRAJECTORYPRED:
+                traj_loss = traj_loss_func(traj_pred, target_data_out)
+            else:
+                traj_loss = 0
+            loss = lc_loss + traj_loss 
+
             #_ , pred_labels = output.data.max(dim=1)
             #pred_labels = pred_labels.cpu()
         
             if eval_type == 'Test':
                 if task == params.CLASSIFICATION or task == params.DUAL:
                     plot_dict['preds'][:,p.IN_SEQ_LEN-1+seq_itr,:] = F.softmax(lc_pred, dim = -1).cpu().data
-                if task == params.REGRESSION or task == params.DUAL:
-                    plot_dict['ttlc_preds'][:,p.IN_SEQ_LEN-1+seq_itr] = np.squeeze(ttlc_pred.cpu().detach().numpy(), -1)
                 if 'REGIONATT' in p.SELECTED_MODEL:
                     plot_dict['att_coef'][:,p.IN_SEQ_LEN-1+seq_itr,:] = output_dict['attention'].cpu().data
             
-            if task == params.REGRESSION or task == params.DUAL:
-                all_ttlc_preds[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size), seq_itr] = ttlc_pred.cpu().data
             if task == params.CLASSIFICATION or task == params.DUAL:
                 all_lc_preds[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size), seq_itr] = F.softmax(lc_pred, dim = -1).cpu().data 
                 avg_lc_loss = avg_lc_loss + lc_loss.cpu().data / (len(test_loader)*(p.SEQ_LEN-p.IN_SEQ_LEN))
             if p.SELECTED_MODEL == 'REGIONATTCNN3':
                 all_att_coef[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size), seq_itr] = output_dict['attention'].cpu().data
+            avg_loss =  avg_loss + loss.cpu().data / (len(test_loader)*(p.SEQ_LEN-p.IN_SEQ_LEN))
         time_counter += 1
         average_time +=end_time
         if eval_type == 'Test':
@@ -274,20 +293,20 @@ def eval_model(p, model, lc_loss_func, ttlc_loss_func, task, test_loader, epoch,
     #print('Average Time per whole sequence perbatch: {}'.format(average_time/time_counter))
     #print('gf time: {}, nn time: {}'.format(gf_time, nn_time))
     
-    avg_ttlc_loss, robust_pred_time, pred_time, accuracy, precision, recall, f1, FPR, auc, max_j= calc_metric(p, task, all_lc_preds, all_ttlc_preds, all_att_coef, all_labels, epoch, eval_type = eval_type, figure_name = figure_name)
-    avg_loss = avg_ttlc_loss + avg_lc_loss
-    print("{}: Epoch: {}, Accuracy: {:.2f}%, Robust Prediction Time: {:.2f}, Prediction Time: {:.2f}, Total LOSS: {:.2f},LC LOSS: {:.2f},TTLC LOSS: {:.2f}, PRECISION:{}, RECALL:{}, F1:{}, FPR:{}, AUC:{}, Max J:{}".format(
-        eval_type, epoch, 100. * accuracy, robust_pred_time, pred_time, avg_loss, avg_lc_loss, avg_ttlc_loss, precision, recall, f1, FPR, auc, max_j))
+     robust_pred_time, pred_time, accuracy, precision, recall, f1, FPR, auc, max_j= calc_metric(p, task, all_lc_preds, all_att_coef, all_labels, epoch, eval_type = eval_type, figure_name = figure_name)
+    avg_loss = avg_lc_loss
+    print("{}: Epoch: {}, Accuracy: {:.2f}%, Robust Prediction Time: {:.2f}, Prediction Time: {:.2f}, Total LOSS: {:.2f},LC LOSS: {:.2f}, PRECISION:{}, RECALL:{}, F1:{}, FPR:{}, AUC:{}, Max J:{}".format(
+        eval_type, epoch, 100. * accuracy, robust_pred_time, pred_time, avg_loss, avg_lc_loss, precision, recall, f1, FPR, auc, max_j))
     
     if eval_type == 'Test':
         with open(vis_data_path, "wb") as fp:
             pickle.dump(plot_dicts, fp)
         
-    return robust_pred_time, pred_time, accuracy, avg_loss, avg_lc_loss, avg_ttlc_loss, auc, max_j, precision, recall, f1
+    return robust_pred_time, pred_time, accuracy, avg_loss, avg_lc_loss, auc, max_j, precision, recall, f1
 
 
 
-def calc_metric(p, task, all_lc_preds, all_ttlc_preds, all_att_coef, all_labels, epoch=None, eval_type = 'Test', figure_name= None):
+def calc_metric(p, task, all_lc_preds, all_att_coef, all_labels, epoch=None, eval_type = 'Test', figure_name= None):
    
     num_samples = all_labels.shape[0]
     prediction_seq = p.SEQ_LEN-p.IN_SEQ_LEN+1
@@ -296,18 +315,15 @@ def calc_metric(p, task, all_lc_preds, all_ttlc_preds, all_att_coef, all_labels,
     if eval_type == 'Test':
         plot_att_graphs(p, all_att_coef, prediction_seq, all_labels, all_preds, figure_name)
     if task == params.CLASSIFICATION or task == params.DUAL:
-        auc, max_j = calc_roc_n_prc(p, all_lc_preds, all_labels, all_ttlc_preds, prediction_seq, num_samples, figure_name, thr_type = 'thr', eval_type = eval_type)
-        accuracy, precision, recall, f1, FPR, all_TPs = calc_classification_metrics(p, all_preds, all_labels, all_ttlc_preds, prediction_seq, num_samples, eval_type, figure_name)
+        auc, max_j = calc_roc_n_prc(p, all_lc_preds, all_labels,  prediction_seq, num_samples, figure_name, thr_type = 'thr', eval_type = eval_type)
+        accuracy, precision, recall, f1, FPR, all_TPs = calc_classification_metrics(p, all_preds, all_labels, prediction_seq, num_samples, eval_type, figure_name)
         robust_pred_time, pred_time = calc_avg_pred_time(p, all_TPs, all_labels, prediction_seq, num_samples)
     else:
         (accuracy, precision, recall, f1, FPR, all_TPs, auc, max_j, robust_pred_time, pred_time) = (0,0,0,0,0,0,0,0,0,0)
         avg_pred_time = 0
-    if task == params.REGRESSION or task == params.DUAL:
-        avg_ttlc_loss = calc_regression_metrics(p, all_ttlc_preds, all_labels, all_preds, prediction_seq, num_samples, eval_type, figure_name)
-    else:
-        avg_ttlc_loss = 0
+    
 
-    return avg_ttlc_loss, robust_pred_time, pred_time, accuracy, precision, recall, f1, FPR, auc, max_j
+    return robust_pred_time, pred_time, accuracy, precision, recall, f1, FPR, auc, max_j
 
 
 def plot_att_graphs(p, all_att_coef, prediction_seq, all_labels, all_preds, figure_name):
@@ -419,7 +435,7 @@ def plot_att_graphs(p, all_att_coef, prediction_seq, all_labels, all_preds, figu
         pickle.dump(att_ax, fid)
     
 
-def calc_roc_n_prc(p, all_lc_preds, all_labels, all_ttlc_preds, prediction_seq, num_samples, figure_name, thr_type, eval_type):
+def calc_roc_n_prc(p, all_lc_preds, all_labels, prediction_seq, num_samples, figure_name, thr_type, eval_type):
     if thr_type == 'thr':
         
         thr_range = np.arange(0,101,1)/100
@@ -529,7 +545,7 @@ def calc_prec_recall_fpr(p, all_preds, all_labels, prediction_seq, num_samples):
     FPR = np.mean(FPR_vs_SEQ)
     recall = np.mean(recall_vs_TTLC)
     return precision, recall,FPR
-def calc_classification_metrics(p, all_preds, all_labels, all_ttlc_preds, prediction_seq, num_samples, eval_type, figure_name):
+def calc_classification_metrics(p, all_preds, all_labels, prediction_seq, num_samples, eval_type, figure_name):
     # metrics with thr
     all_hits = np.zeros_like(all_preds)
     all_TPs = np.zeros_like(all_preds)
@@ -570,7 +586,7 @@ def calc_classification_metrics(p, all_preds, all_labels, all_ttlc_preds, predic
                     all_preds[:,t]!=0)
                     )
         cur_FP_index += np.sum(FP_index[:,t])
-        FP_TTLC[prev_FP_index:cur_FP_index] = np.squeeze(all_ttlc_preds[FP_index[:,t],t], -1)
+        
 
         recall_vs_TTLC[t] = TP_vs_TTLC[t]/(TP_vs_TTLC[t] + FN_vs_TTLC[t])
         precision_vs_SEQ[t] = TP_vs_TTLC[t]/(TP_vs_TTLC[t] + FP_vs_SEQ[t])
@@ -578,7 +594,7 @@ def calc_classification_metrics(p, all_preds, all_labels, all_ttlc_preds, predic
         
         acc_vs_SEQ[t] = sum(all_hits[:,t])/num_samples
     
-    FP_TTLC = FP_TTLC[:cur_FP_index]
+    
     #print(recall_vs_TTLC)
     accuracy = np.mean(acc_vs_SEQ)
     precision = np.mean(precision_vs_SEQ)
@@ -608,40 +624,7 @@ def calc_classification_metrics(p, all_preds, all_labels, all_ttlc_preds, predic
         with open(fig_obs_dir, 'wb') as fid:
             pickle.dump(recall_ax, fid)
         
-        # Creating dirs
-        figure_dir = os.path.join(p.FIGS_DIR, 'FP_TTLC')
-        if not os.path.exists(figure_dir):
-            os.mkdir(figure_dir)
-        plot_dir = os.path.join(figure_dir, figure_name +p.unblanaced_ext+ '.png')
-        fig_obs_dir = os.path.join(figure_dir, figure_name +p.unblanaced_ext+  '.pickle')
-        fp_ax = plt.figure()
-        '''
-        ax = fp_ax.add_subplot(1, 1, 1)
-        major_ticks = np.arange(0, 1, 0.1)
-        minor_ticks = np.arange(0, 1, 0.02)
-
-        ax.set_yticks(major_ticks)
-        ax.set_yticks(minor_ticks, minor=True)
-
-        # And a corresponding grid
-        ax.grid(which='both')
-
-        # Or if you want different settings for the grids:
-        ax.grid(which='minor', alpha=0.2)
-        ax.grid(which='major', alpha=0.5)
-        '''
-        ttlc_seq = (prediction_seq-np.arange(prediction_seq))/p.FPS
-
-        # Creating Figs
-        plt.plot(np.sort(FP_TTLC), np.linspace(0, 1, len(FP_TTLC), endpoint=False), linewidth=5)
         
-        plt.xlabel('Predicted TTLC(s)')
-        plt.ylabel('Cumulative False Positive')
-        
-        plt.grid()
-        fp_ax.savefig(plot_dir)
-        with open(fig_obs_dir, 'wb') as fid:
-            pickle.dump(fp_ax, fid)
 
     
 
@@ -670,76 +653,6 @@ def calc_avg_pred_time(p, all_TPs, all_labels, prediction_seq, num_samples):
     pred_time = np.sum(last_true_preds)/(p.FPS*num_lc)
     
     return robust_pred_time, pred_time
-
-def calc_regression_metrics(p, all_ttlc_preds_orig, all_labels, all_preds, prediction_seq, num_samples, eval_type, figure_name):
-    all_ttlc_preds = np.squeeze(all_ttlc_preds_orig[all_labels!=0], -1)
-    
-    mse = np.zeros((prediction_seq))
-    for i in range(prediction_seq):
-        gt_ttlc = (prediction_seq-i)/p.FPS
-        mse[i] = ((all_ttlc_preds[:,i]- gt_ttlc)**2).mean()
-    avg_ttlc_loss = np.mean(mse)
-    rmse = np.sqrt(mse)
-    
-    
-    
-
-    if eval_type == 'Test':
-
-        '''RMSE PLOT'''
-        # Creating dirs
-        figure_dir = os.path.join(p.FIGS_DIR, 'rmse_vs_TTLC')
-        if not os.path.exists(figure_dir):
-            os.mkdir(figure_dir)
-        plot_dir = os.path.join(figure_dir, figure_name +p.unblanaced_ext+ '.png')
-        fig_obs_dir = os.path.join(figure_dir, figure_name +p.unblanaced_ext+ '.pickle')
-
-        recall_ax = plt.figure()
-        ttlc_seq = (prediction_seq-np.arange(prediction_seq))/p.FPS
-
-        # Creating Figs
-        plt.plot(ttlc_seq, rmse)
-        plt.xlim(ttlc_seq[0], ttlc_seq[-1])
-        plt.xlabel('TTLC (s)')
-        plt.ylabel('RMSE(s)')
-        plt.grid()
-        recall_ax.savefig(plot_dir)
-        with open(fig_obs_dir, 'wb') as fid:
-            pickle.dump(recall_ax, fid)
-        '''BOX PLOT'''
-        
-        box_plot_data = np.transpose(all_ttlc_preds, (1, 0))
-        ttlc_seq = (prediction_seq-np.arange(prediction_seq))/p.FPS
-        ttlc_seq_mat = np.tile(ttlc_seq, ( box_plot_data.shape[1], 1))
-        ttlc_seq_mat = np.transpose(ttlc_seq_mat, (1,0))
-        box_plot_data = box_plot_data - ttlc_seq_mat
-        print('box plot size :{}'.format(box_plot_data.shape))
-        box_plot_data = list(box_plot_data)
-        # Creating dirs
-        figure_dir = os.path.join(p.FIGS_DIR, 'box_plot_regression')
-        if not os.path.exists(figure_dir):
-            os.mkdir(figure_dir)
-        plot_dir = os.path.join(figure_dir, figure_name +p.unblanaced_ext+  '.pdf')
-        fig_obs_dir = os.path.join(figure_dir, figure_name +p.unblanaced_ext+  '.pickle')
-        with PdfPages(plot_dir) as export_pdf:
-            recall_ax = plt.figure()
-            ttlc_seq = (prediction_seq-np.arange(prediction_seq))/p.FPS
-
-            # Creating Figs
-            plt.boxplot(box_plot_data, labels = ttlc_seq, showfliers=False, widths = 0.3, patch_artist=True)
-            #plt.plot(ttlc_seq,ttlc_seq)
-            plt.xlabel('Actual TTLC (s)')
-            plt.ylabel('TTLC Error(s)')
-            plt.xticks(rotation=90)
-            plt.grid()
-            plt.tight_layout()
-            #plt.show()
-            export_pdf.savefig()
-            with open(fig_obs_dir, 'wb') as fid:
-                pickle.dump(recall_ax, fid)
-        
-
-    return avg_ttlc_loss
 
 def update_tag(model_dict):
     hyperparam_str = ''

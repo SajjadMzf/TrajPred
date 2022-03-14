@@ -39,8 +39,9 @@ class Parameters:
 
         # Prediction Problem Hyperparameters:
         self.FPS = 5
-        self.SEQ_LEN = 35
+        self.SEQ_LEN = 20
         self.IN_SEQ_LEN = 10
+        self.TGT_SEQ_LEN = 20
 
         # Metrics Hyperparameters:
         self.ACCEPTED_GAP = 0
@@ -151,7 +152,8 @@ class Parameters:
 # Different Tasks
 CLASSIFICATION = 0
 REGRESSION = 1
-DUAL = 2    
+DUAL = 2 
+TRAJECTORYPRED = 3   
             
         
             

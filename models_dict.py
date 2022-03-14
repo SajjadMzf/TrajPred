@@ -139,6 +139,7 @@ MODELS = {
             'feedforward dim': 128,
             'classifier dim': 128,
             'head number': 8,
+            'task': params.TRAJECTORYPRED
         },
         'optimizer': torch.optim.Adam,
         'lc loss function': torch.nn.CrossEntropyLoss,

@@ -81,6 +81,22 @@ class TransformerTraj(nn.Module):
         traj_pred = self.trajectory_fc(decoder_out)
         
         return {'lc_pred':lc_pred, 'traj_pred':traj_pred}
+    
+    def get_y_mask(self, size) -> torch.tensor:
+        # Generates a squeare matrix where the each row allows one word more to be seen
+        mask = torch.tril(torch.ones(size, size) == 1) # Lower triangular matrix
+        mask = mask.float()
+        mask = mask.masked_fill(mask == 0, float('-inf')) # Convert zeros to -inf
+        mask = mask.masked_fill(mask == 1, float(0.0)) # Convert ones to 0
+        
+        # EX for size=5:
+        # [[0., -inf, -inf, -inf, -inf],
+        #  [0.,   0., -inf, -inf, -inf],
+        #  [0.,   0.,   0., -inf, -inf],
+        #  [0.,   0.,   0.,   0., -inf],
+        #  [0.,   0.,   0.,   0.,   0.]]
+        
+        return mask
 
 
 class PositionalEncoding(nn.Module):
