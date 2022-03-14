@@ -128,4 +128,22 @@ MODELS = {
         'data type': 'state',
         'state type': '',
     },
+    'TRANSFORMER_TRAJ': {
+        'name': 'TRANSFORMER_TRAJ',
+        'ref':models.TransformerTraj,
+        'disc':'',
+        'tag': '',
+        'hyperparams':{
+            'layer number': 3,
+            'model dim':512,
+            'feedforward dim': 128,
+            'classifier dim': 128,
+            'head number': 8,
+        },
+        'optimizer': torch.optim.Adam,
+        'lc loss function': torch.nn.CrossEntropyLoss,
+        'ttlc loss function': torch.nn.MSELoss,
+        'data type': 'state',
+        'state type': '',
+    },
 }
