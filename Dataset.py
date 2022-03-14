@@ -5,7 +5,18 @@ import numpy as np
 import h5py
 import matplotlib.pyplot as plt
 class LCDataset(Dataset):
-    def __init__(self, dataset_dir, data_files, data_type, state_type = '', keep_plot_info = True, traj_output = False, states_min = 0, states_max = 0):
+    def __init__(self, 
+    dataset_dir, 
+    data_files, 
+    data_type, 
+    state_type = '', 
+    keep_plot_info = True, 
+    traj_output = False, 
+    states_min = 0, 
+    states_max = 0, 
+    output_states_min = 0, 
+    output_states_max = 0):
+
         super(LCDataset, self).__init__()
         self.data_files = data_files
         self.dataset_dirs = [os.path.join(dataset_dir, data_file) for data_file in data_files]
@@ -31,25 +42,34 @@ class LCDataset(Dataset):
         self.file_size = np.array(self.file_size)
         if data_type == 'state':
             if np.all(states_min) == 0 or np.all(states_max) == 0:
-                self.states_min, self.states_max = self.get_features_range()
+                self.states_min, self.states_max = self.get_features_range(self.state_data_name)
             else:
                 self.states_min = states_min
                 self.states_max = states_max
         else:
             self.states_min = 0
             self.states_max = 1
-
+        
+        if traj_output:
+            if np.all(output_states_min) == 0 or np.all(output_states_max) == 0:
+                self.output_states_min, self.output_states_max = self.get_features_range('output_states_data')
+            else:
+                self.output_states_min = output_states_min
+                self.output_states_max = output_states_max
+        else:
+            self.output_states_min = 0
+            self.output_states_max = 1
 
     def __len__(self):
         return self.dataset_size
 
-    def get_features_range(self):
+    def get_features_range(self , feature_name):
         for dataset_dir in self.dataset_dirs:
             states_min = []
             states_max = []
             with h5py.File(dataset_dir, 'r') as f:
                 
-                state_data = f[self.state_data_name]
+                state_data = f[feature_name]
                 #state_data = state_data.reshape((state_data.shape[0]*state_data.shape[1],state_data.shape[2]))
                 states_min.append(np.min(np.min(state_data, axis = 0), axis = 0))
                 states_max.append(np.max(np.max(state_data, axis = 0), axis = 0))
@@ -104,6 +124,8 @@ class LCDataset(Dataset):
             if self.traj_output:
                 output_state_data = f['output_states_data']
                 output_states = output_state_data[sample_itr]
+                output_states = (output_states-self.output_states_min)/(self.output_states_max-self.output_states_min)
+                output_states = torch.from_numpy(output_states.astype(np.float32))
                 data_output.append(output_states)
 
             label = labels_data[sample_itr].astype(np.long)
