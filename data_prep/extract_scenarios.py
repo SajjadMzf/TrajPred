@@ -90,6 +90,7 @@ class ExtractScenarios:
                         'states_wirth': None,
                         'states_shou': None,
                         'states_ours': None,
+                        'output_states': None,
                         }
                 scenarios.append(scenario)
         
@@ -136,6 +137,7 @@ class ExtractScenarios:
                         'states_wirth': None,
                         'states_shou': None,
                         'states_ours': None,
+                        'output_states': None,
                         }
             scenarios.append(scenario)
 

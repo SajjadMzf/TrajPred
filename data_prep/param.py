@@ -1,7 +1,7 @@
 
 DATASET = "Processed_highD"
 UNBALANCED = False
-
+STATE_ONLY = False # There will be no rendering if set to True
 dir_ext = ''
 if UNBALANCED:
     dir_ext += 'U'

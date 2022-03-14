@@ -5,7 +5,7 @@ import numpy as np
 import h5py
 import matplotlib.pyplot as plt
 class LCDataset(Dataset):
-    def __init__(self, dataset_dir, data_files, data_type, state_type = '', keep_plot_info = True, states_min = 0, states_max = 0):
+    def __init__(self, dataset_dir, data_files, data_type, state_type = '', keep_plot_info = True, traj_output = False, states_min = 0, states_max = 0):
         super(LCDataset, self).__init__()
         self.data_files = data_files
         self.dataset_dirs = [os.path.join(dataset_dir, data_file) for data_file in data_files]
@@ -13,6 +13,7 @@ class LCDataset(Dataset):
         self.dataset_size = 0
         self.state_data_name = 'state_'+ state_type + '_data'
         self.data_type= data_type
+        self.traj_output = traj_output
         if data_type == 'image':
             self.image_only = True
             self.state_only = False
@@ -100,7 +101,11 @@ class LCDataset(Dataset):
                 images = torch.from_numpy(image_data[sample_itr].astype(np.float32))
                 states = torch.from_numpy(states.astype(np.float32))
                 data_output = [images, states]
-                
+            if self.traj_output:
+                output_state_data = f['output_states_data']
+                output_states = output_state_data[sample_itr]
+                data_output.append(output_states)
+
             label = labels_data[sample_itr].astype(np.long)
             ttlc_status = ttlc_available[sample_itr].astype(np.long)          
         return data_output, label, plot_output, ttlc_status
