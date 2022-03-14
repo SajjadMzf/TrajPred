@@ -52,7 +52,7 @@ def eval_top_func(p, model, lc_loss_func, task, te_dataset, device, model_tag = 
     return result_dic
 
 
-def train_top_func(p, model, optimizer, lc_loss_func, task, curriculum, tr_dataset, val_dataset, device, model_tag = ''):
+def train_top_func(p, model, optimizer, lc_loss_func, task, tr_dataset, val_dataset, device, model_tag = ''):
     
     model = model.to(device)
     
@@ -69,17 +69,16 @@ def train_top_func(p, model, optimizer, lc_loss_func, task, curriculum, tr_datas
     best_val_pred_time = 0
     best_epoch = 0
     total_time = 0
-    curriculum_flag = curriculum['loss'] or curriculum['seq'] or curriculum['virtual']
     for epoch in range(p.NUM_EPOCHS):
         #print("Epoch: {} Started!".format(epoch+1))
         start = time()
-        train_model(p, model, optimizer, scheduler, tr_loader, lc_loss_func, task, curriculum,  epoch+1, device, calc_train_acc= False)
+        train_model(p, model, optimizer, scheduler, tr_loader, lc_loss_func, task,  epoch+1, device, calc_train_acc= False)
         val_start = time()
         val_avg_pred_time,_,val_acc,val_loss, val_lc_loss, auc, max_j, precision, recall, f1= eval_model(p, model, lc_loss_func, task, val_loader, epoch+1, device, eval_type = 'Validation')
         val_end = time()
         print('val_time:', val_end-val_start)
         #print("Validation Accuracy:",val_acc,' Avg Pred Time: ', val_avg_pred_time, " Avg Loss: ", val_loss," at Epoch", epoch+1)
-        if epoch<p.CL_EPOCH and curriculum_flag:
+        if epoch<p.CL_EPOCH :
             print("No Early Stopping in CL Epochs.")
             continue
         if val_loss<best_val_loss:
@@ -111,7 +110,7 @@ def train_top_func(p, model, optimizer, lc_loss_func, task, curriculum, tr_datas
     return result_dic
 
 
-def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, task, curriculum, epoch, device, vis_step = 20, calc_train_acc = True):
+def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, task, epoch, device, vis_step = 20, calc_train_acc = True):
     # Number of samples with correct classification
     # total size of train data
     total = len(train_loader.dataset)
@@ -119,18 +118,15 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, task
     num_batch = int(np.floor(total/model.batch_size))
     model_time = 0
     avg_loss = 0
+    avg_lc_loss = 0
+    avg_traj_loss = 0
     all_start = time()
-    if curriculum['loss']:
-        loss_ratio = p.LOSS_RATIO_CL[epoch-1]
-    else:
-        loss_ratio = p.LOSS_RATIO_NoCL
     
-    if curriculum['seq']:
-        start_seq = int(p.START_SEQ_CL[epoch-1])
-        end_seq = int(p.END_SEQ_CL[epoch-1])
-    else:
-        start_seq = 0
-        end_seq = p.SEQ_LEN-p.IN_SEQ_LEN+1
+    loss_ratio = p.LOSS_RATIO_NoCL
+    
+    
+    start_seq = 0
+    end_seq = p.SEQ_LEN-p.IN_SEQ_LEN+1
     
     # Training loop over batches of data on train dataset
     for batch_idx, (data_tuple, labels,_, _) in enumerate(train_loader):
@@ -149,6 +145,8 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, task
                 target_data_in = target_data[:,(seq_itr+p.IN_SEQ_LEN-1):(seq_itr+p.IN_SEQ_LEN-1+p.TGT_SEQ_LEN)]
                 target_data_out = target_data[:,(seq_itr+p.IN_SEQ_LEN):(seq_itr+p.IN_SEQ_LEN+p.TGT_SEQ_LEN)]
                 in_data_tuple = data_tuple[:-1]
+            else:
+                in_data_tuple = data_tuple
             current_data = [data[:, seq_itr:(seq_itr+p.IN_SEQ_LEN)] for data in in_data_tuple]
             #print(current_data)
             # 1. Clearing previous gradient values.
@@ -162,7 +160,9 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, task
             else:
                 output_dict = model(current_data)
             lc_pred = output_dict['lc_pred']
-            
+            #print(lc_pred)
+            #print(traj_pred)
+            #exit()
 
             # 3. Calculating the loss value
             if task == params.CLASSIFICATION or task == params.DUAL or task == params.TRAJECTORYPRED:
@@ -182,7 +182,9 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, task
             # 5. Updating the weights
             optimizer.step()
         
-            
+
+            avg_traj_loss += traj_loss.data/(len(train_loader))
+            avg_lc_loss += lc_loss.data/(len(train_loader))
             avg_loss += loss.data/(len(train_loader))
         #if (batch_idx+1) % 100 == 0:
         #    print('Epoch: ',epoch, ' Batch: ', batch_idx+1, ' Training Loss: ', avg_loss.cpu().numpy())
@@ -191,7 +193,8 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, task
         model_time += end-start
     all_end = time()
     all_time = all_end - all_start
-    print('model time: ', model_time, 'all training time: ', all_time, 'average training loss', avg_loss)
+    #print('model time: ', model_time, 'all training time: ', all_time, 'average training lc loss', avg_loss, 'average training')
+    print('Total Training loss: {}, Training LC Loss: {}, Training Traj Loss: {}'.format(avg_loss, avg_lc_loss, avg_traj_loss))
     scheduler.step()
     all_preds = np.zeros(((num_batch*model.batch_size), p.SEQ_LEN-p.IN_SEQ_LEN+1, 3))
     all_labels = np.zeros((num_batch*model.batch_size))
@@ -206,6 +209,7 @@ def eval_model(p, model, lc_loss_func, task, test_loader, epoch, device, eval_ty
     num_batch = int(np.floor(total/model.batch_size))
     avg_loss = 0
     avg_lc_loss = 0
+    avg_traj_loss = 0
     all_lc_preds = np.zeros(((num_batch*model.batch_size), p.SEQ_LEN-p.IN_SEQ_LEN+1,3))
     all_att_coef = np.zeros(((num_batch*model.batch_size), p.SEQ_LEN-p.IN_SEQ_LEN+1,4))
     all_labels = np.zeros(((num_batch*model.batch_size)))
@@ -243,6 +247,8 @@ def eval_model(p, model, lc_loss_func, task, test_loader, epoch, device, eval_ty
                 target_data_in = target_data[:,(seq_itr+p.IN_SEQ_LEN-1):(seq_itr+p.IN_SEQ_LEN-1+p.TGT_SEQ_LEN)]
                 target_data_out = target_data[:,(seq_itr+p.IN_SEQ_LEN):(seq_itr+p.IN_SEQ_LEN+p.TGT_SEQ_LEN)]
                 in_data_tuple = data_tuple[:-1]
+            else:
+                in_data_tuple = data_tuple
             current_data = [data[:, seq_itr:(seq_itr+p.IN_SEQ_LEN)] for data in in_data_tuple]
             st_time = time()
             
@@ -259,12 +265,13 @@ def eval_model(p, model, lc_loss_func, task, test_loader, epoch, device, eval_ty
             
             end_time = time()-st_time
             lc_pred = output_dict['lc_pred']
-            
+            #print(lc_pred)
+            #exit()
             if task == params.CLASSIFICATION or task == params.DUAL or task == params.TRAJECTORYPRED:
                 lc_loss = lc_loss_func(lc_pred, labels)
             else:
                 lc_loss = 0
-            
+
             if task == params.TRAJECTORYPRED:
                 traj_loss_func = nn.MSELoss()
                 traj_loss = traj_loss_func(traj_pred, target_data_out) #todo make it selectable in models dict
@@ -276,16 +283,17 @@ def eval_model(p, model, lc_loss_func, task, test_loader, epoch, device, eval_ty
             #pred_labels = pred_labels.cpu()
         
             if eval_type == 'Test':
-                if task == params.CLASSIFICATION or task == params.DUAL:
+                if task == params.CLASSIFICATION or task == params.DUAL or task == params.TRAJECTORYPRED:
                     plot_dict['preds'][:,p.IN_SEQ_LEN-1+seq_itr,:] = F.softmax(lc_pred, dim = -1).cpu().data
                 if 'REGIONATT' in p.SELECTED_MODEL:
                     plot_dict['att_coef'][:,p.IN_SEQ_LEN-1+seq_itr,:] = output_dict['attention'].cpu().data
             
-            if task == params.CLASSIFICATION or task == params.DUAL:
+            if task == params.CLASSIFICATION or task == params.DUAL or task == params.TRAJECTORYPRED:
                 all_lc_preds[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size), seq_itr] = F.softmax(lc_pred, dim = -1).cpu().data 
                 avg_lc_loss = avg_lc_loss + lc_loss.cpu().data / (len(test_loader)*(p.SEQ_LEN-p.IN_SEQ_LEN))
             if p.SELECTED_MODEL == 'REGIONATTCNN3':
                 all_att_coef[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size), seq_itr] = output_dict['attention'].cpu().data
+            avg_traj_loss += traj_loss.cpu().data / (len(test_loader)*(p.SEQ_LEN-p.IN_SEQ_LEN))
             avg_loss =  avg_loss + loss.cpu().data / (len(test_loader)*(p.SEQ_LEN-p.IN_SEQ_LEN))
         time_counter += 1
         average_time +=end_time
@@ -316,7 +324,7 @@ def calc_metric(p, task, all_lc_preds, all_att_coef, all_labels, epoch=None, eva
     
     if eval_type == 'Test':
         plot_att_graphs(p, all_att_coef, prediction_seq, all_labels, all_preds, figure_name)
-    if task == params.CLASSIFICATION or task == params.DUAL:
+    if task == params.CLASSIFICATION or task == params.DUAL or task == params.TRAJECTORYPRED:
         auc, max_j = calc_roc_n_prc(p, all_lc_preds, all_labels,  prediction_seq, num_samples, figure_name, thr_type = 'thr', eval_type = eval_type)
         accuracy, precision, recall, f1, FPR, all_TPs = calc_classification_metrics(p, all_preds, all_labels, prediction_seq, num_samples, eval_type, figure_name)
         robust_pred_time, pred_time = calc_avg_pred_time(p, all_TPs, all_labels, prediction_seq, num_samples)

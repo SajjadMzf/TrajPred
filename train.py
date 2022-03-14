@@ -46,10 +46,7 @@ def train_model_dict(model_dict, p):
     lc_loss_func = model_dict['lc loss function']()
     ttlc_loss_func = model_dict['ttlc loss function']()
     task = model_dict['hyperparams']['task']
-    curriculum_loss = model_dict['hyperparams']['curriculum loss']
-    curriculum_seq = model_dict['hyperparams']['curriculum seq']
-    curriculum_virtual = model_dict['hyperparams']['curriculum virtual']
-    curriculum= {'seq':curriculum_seq, 'loss':curriculum_loss, 'virtual': curriculum_virtual}
+    
     # Instantiate Dataset: 
     tr_dataset = Dataset.LCDataset(p.TRAIN_DATASET_DIR, p.TR_DATA_FILES, data_type = model_dict['data type'], state_type = model_dict['state type'], keep_plot_info= False, traj_output = (task==params.TRAJECTORYPRED))
     #print(tr_dataset.states_max-tr_dataset.states_min)
@@ -62,7 +59,7 @@ def train_model_dict(model_dict, p):
     #print(te_dataset.__len__())
     #exit()
     # Train/Evaluate:
-    val_result_dic = utils.train_top_func(p, model, optimizer, lc_loss_func, task, curriculum, tr_dataset, val_dataset,device, model_tag = model_dict['tag'])    
+    val_result_dic = utils.train_top_func(p, model, optimizer, lc_loss_func, task, tr_dataset, val_dataset,device, model_tag = model_dict['tag'])    
     te_result_dic = utils.eval_top_func(p, model, lc_loss_func, task, te_dataset, device, model_tag = model_dict['tag'])
     
     # Save results:
@@ -91,9 +88,6 @@ if __name__ == '__main__':
     model_dict = m.MODELS[p.SELECTED_MODEL]
 
     model_dict['hyperparams']['task'] = params.TRAJECTORYPRED
-    model_dict['hyperparams']['curriculum loss'] = False
-    model_dict['hyperparams']['curriculum seq'] = False
-    model_dict['hyperparams']['curriculum virtual'] = False
     model_dict['state type'] = 'wirth'
     model_dict['tag'] = utils.update_tag(model_dict)
 

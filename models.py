@@ -51,13 +51,6 @@ class TransformerTraj(nn.Module):
         self.trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
 
     
-    def lc_forward(self, x):
-        x = self.dropout(x)
-        out = F.relu(self.fc1(x))
-        out = self.dropout(out)
-        out = self.fc2(out)
-        return out
-    
     def forward(self, x, y, y_mask):
         #print(len(x))
         x = x[0]
