@@ -79,6 +79,7 @@ class RenderScenarios:
         state_wirth_data = hf.create_dataset('state_wirth_data', shape = (data_num, self.pre_lc_len, 18), dtype = np.float32)
         state_shou_data = hf.create_dataset('state_shou_data', shape = (data_num, self.pre_lc_len, 18), dtype = np.float32)
         state_ours_data = hf.create_dataset('state_ours_data', shape = (data_num, self.pre_lc_len, 18), dtype = np.float32)
+        
         output_states_data = hf.create_dataset('output_states_data', shape = (data_num, self.pre_lc_len+self.post_lc_len, 2), dtype = np.float32)
         ttlc_available = hf.create_dataset('ttlc_available', shape = (data_num,), dtype = np.bool)
         

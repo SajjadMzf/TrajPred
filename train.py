@@ -51,6 +51,7 @@ def train_model_dict(model_dict, p):
     tr_dataset = Dataset.LCDataset(p.TRAIN_DATASET_DIR, p.TR_DATA_FILES, data_type = model_dict['data type'], state_type = model_dict['state type'], keep_plot_info= False, traj_output = (task==params.TRAJECTORYPRED))
     #print(tr_dataset.states_max-tr_dataset.states_min)
     #assert np.all((tr_dataset.states_max-tr_dataset.states_min)>0)
+    #print('output state min: {}, output state max: {}'.format(tr_dataset.output_states_min, tr_dataset.output_states_max))
     #exit()
     val_dataset = Dataset.LCDataset(p.TRAIN_DATASET_DIR, p.VAL_DATA_FILES,  data_type = model_dict['data type'], state_type = model_dict['state type'], keep_plot_info= False, traj_output = (task==params.TRAJECTORYPRED), states_min = tr_dataset.states_min, states_max = tr_dataset.states_max, output_states_min = tr_dataset.output_states_min, output_states_max = tr_dataset.output_states_max)
     te_dataset = Dataset.LCDataset(p.TEST_DATASET_DIR, p.TE_DATA_FILES,  data_type = model_dict['data type'], state_type = model_dict['state type'], keep_plot_info= True, traj_output = (task==params.TRAJECTORYPRED), states_min = tr_dataset.states_min, states_max = tr_dataset.states_max, output_states_min = tr_dataset.output_states_min, output_states_max = tr_dataset.output_states_max)
@@ -60,7 +61,7 @@ def train_model_dict(model_dict, p):
     #exit()
     # Train/Evaluate:
     val_result_dic = utils.train_top_func(p, model, optimizer, lc_loss_func, task, tr_dataset, val_dataset,device, model_tag = model_dict['tag'])    
-    te_result_dic = utils.eval_top_func(p, model, lc_loss_func, task, te_dataset, device, model_tag = model_dict['tag'])
+    te_result_dic, traj_df = utils.eval_top_func(p, model, lc_loss_func, task, te_dataset, device, model_tag = model_dict['tag'])
     
     # Save results:
     log_file_dir = p.TABLES_DIR + p.SELECTED_DATASET + '_' + model_dict['name'] + '.csv'  

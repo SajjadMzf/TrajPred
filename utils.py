@@ -14,6 +14,7 @@ import math
 from time import time
 import params
 from sklearn import metrics
+import pandas as pd
 import matplotlib
 from matplotlib.backends.backend_pdf import PdfPages
 font = {'size'   : 22}
@@ -32,7 +33,7 @@ def eval_top_func(p, model, lc_loss_func, task, te_dataset, device, model_tag = 
     
     start = time()
     
-    robust_test_pred_time, test_pred_time, test_acc, test_loss, test_lc_loss, auc, max_j, precision, recall, f1 = eval_model(p,model, lc_loss_func, task, te_loader, ' N/A', device, eval_type = 'Test', vis_data_path = vis_data_path, figure_name = figure_name)
+    robust_test_pred_time, test_pred_time, test_acc, test_loss, test_lc_loss, auc, max_j, precision, recall, f1, rmse, fde, traj_df = eval_model(p,model, lc_loss_func, task, te_loader, te_dataset, ' N/A', device, eval_type = 'Test', vis_data_path = vis_data_path, figure_name = figure_name)
     end = time()
     total_time = end-start
     #print("Test finished in:", total_time, "sec.")
@@ -47,9 +48,11 @@ def eval_top_func(p, model, lc_loss_func, task, te_dataset, device, model_tag = 
         'Max Youden Index': max_j,
         'Precision': precision,
         'Recall': recall,
-        'F1':f1
+        'F1':f1,
+        'rmse':rmse,
+        'fde': fde,
     }
-    return result_dic
+    return result_dic, traj_df
 
 
 def train_top_func(p, model, optimizer, lc_loss_func, task, tr_dataset, val_dataset, device, model_tag = ''):
@@ -74,7 +77,7 @@ def train_top_func(p, model, optimizer, lc_loss_func, task, tr_dataset, val_data
         start = time()
         train_model(p, model, optimizer, scheduler, tr_loader, lc_loss_func, task,  epoch+1, device, calc_train_acc= False)
         val_start = time()
-        val_avg_pred_time,_,val_acc,val_loss, val_lc_loss, auc, max_j, precision, recall, f1= eval_model(p, model, lc_loss_func, task, val_loader, epoch+1, device, eval_type = 'Validation')
+        val_avg_pred_time,_,val_acc,val_loss, val_lc_loss, auc, max_j, precision, recall, f1, rmse, fde, traj_df = eval_model(p, model, lc_loss_func, task, val_loader, val_dataset, epoch+1, device, eval_type = 'Validation')
         val_end = time()
         print('val_time:', val_end-val_start)
         #print("Validation Accuracy:",val_acc,' Avg Pred Time: ', val_avg_pred_time, " Avg Loss: ", val_loss," at Epoch", epoch+1)
@@ -203,7 +206,7 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, task
         raise('Depricated')
         
 
-def eval_model(p, model, lc_loss_func, task, test_loader, epoch, device, eval_type = 'Validation', vis_data_path = None, figure_name = None):
+def eval_model(p, model, lc_loss_func, task, test_loader, test_dataset, epoch, device, eval_type = 'Validation', vis_data_path = None, figure_name = None):
     total = len(test_loader.dataset)
     # number of batch
     num_batch = int(np.floor(total/model.batch_size))
@@ -211,6 +214,8 @@ def eval_model(p, model, lc_loss_func, task, test_loader, epoch, device, eval_ty
     avg_lc_loss = 0
     avg_traj_loss = 0
     all_lc_preds = np.zeros(((num_batch*model.batch_size), p.SEQ_LEN-p.IN_SEQ_LEN+1,3))
+    all_traj_preds = np.zeros(((num_batch*model.batch_size), p.SEQ_LEN-p.IN_SEQ_LEN+1,p.TGT_SEQ_LEN,2))
+    all_traj_labels = np.zeros(((num_batch*model.batch_size), p.SEQ_LEN-p.IN_SEQ_LEN+1,p.TGT_SEQ_LEN,2))
     all_att_coef = np.zeros(((num_batch*model.batch_size), p.SEQ_LEN-p.IN_SEQ_LEN+1,4))
     all_labels = np.zeros(((num_batch*model.batch_size)))
     plot_dicts = []
@@ -259,7 +264,7 @@ def eval_model(p, model, lc_loss_func, task, test_loader, epoch, device, eval_ty
                     traj_pred = output_dict['traj_pred']
                     traj_pred = traj_pred[:,out_seq_itr:(out_seq_itr+1)]
                     target_data_in = torch.cat((target_data_in, traj_pred), dim = 1)
-                traj_pred = target_data_in[:,:-1]    
+                traj_pred = target_data_in[:,1:]    
             else:
                 output_dict = model(current_data)
             
@@ -291,6 +296,9 @@ def eval_model(p, model, lc_loss_func, task, test_loader, epoch, device, eval_ty
             if task == params.CLASSIFICATION or task == params.DUAL or task == params.TRAJECTORYPRED:
                 all_lc_preds[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size), seq_itr] = F.softmax(lc_pred, dim = -1).cpu().data 
                 avg_lc_loss = avg_lc_loss + lc_loss.cpu().data / (len(test_loader)*(p.SEQ_LEN-p.IN_SEQ_LEN))
+            if task == params.TRAJECTORYPRED:
+                all_traj_preds[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size), seq_itr,:,:] = traj_pred.cpu().data
+                all_traj_labels[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size), seq_itr,:,:] = target_data_out.cpu().data
             if p.SELECTED_MODEL == 'REGIONATTCNN3':
                 all_att_coef[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size), seq_itr] = output_dict['attention'].cpu().data
             avg_traj_loss += traj_loss.cpu().data / (len(test_loader)*(p.SEQ_LEN-p.IN_SEQ_LEN))
@@ -303,20 +311,25 @@ def eval_model(p, model, lc_loss_func, task, test_loader, epoch, device, eval_ty
     #print('Average Time per whole sequence perbatch: {}'.format(average_time/time_counter))
     #print('gf time: {}, nn time: {}'.format(gf_time, nn_time))
     
-    robust_pred_time, pred_time, accuracy, precision, recall, f1, FPR, auc, max_j= calc_metric(p, task, all_lc_preds, all_att_coef, all_labels, epoch, eval_type = eval_type, figure_name = figure_name)
+    robust_pred_time, pred_time, accuracy, precision, recall, f1, FPR, auc, max_j, rmse, fde, traj_df = calc_metric(p, task, all_lc_preds, all_att_coef, all_labels, all_traj_preds, all_traj_labels, test_dataset.output_states_min, test_dataset.output_states_max, epoch, eval_type = eval_type, figure_name = figure_name)
     avg_loss = avg_lc_loss
-    print("{}: Epoch: {}, Accuracy: {:.2f}%, Robust Prediction Time: {:.2f}, Prediction Time: {:.2f}, Total LOSS: {:.2f},LC LOSS: {:.2f}, PRECISION:{}, RECALL:{}, F1:{}, FPR:{}, AUC:{}, Max J:{}".format(
-        eval_type, epoch, 100. * accuracy, robust_pred_time, pred_time, avg_loss, avg_lc_loss, precision, recall, f1, FPR, auc, max_j))
+    print('                                   ')
+    print("{}: Epoch: {}, Accuracy: {:.2f}%, Robust Prediction Time: {:.2f}, Prediction Time: {:.2f}, Total LOSS: {:.2f},LC LOSS: {:.2f}, PRECISION:{}, RECALL:{}, F1:{}, FPR:{}, AUC:{}, Max J:{}, RMSE:{}, FDE:{}".format(
+        eval_type, epoch, 100. * accuracy, robust_pred_time, pred_time, avg_loss, avg_lc_loss, precision, recall, f1, FPR, auc, max_j, rmse, fde))
+    print('                                   ')
+    print('-----------------------------------')
+    print('                                   ')
+    print(traj_df)
     
     if eval_type == 'Test':
         with open(vis_data_path, "wb") as fp:
             pickle.dump(plot_dicts, fp)
         
-    return robust_pred_time, pred_time, accuracy, avg_loss, avg_lc_loss, auc, max_j, precision, recall, f1
+    return robust_pred_time, pred_time, accuracy, avg_loss, avg_lc_loss, auc, max_j, precision, recall, f1, rmse, fde, traj_df
 
 
 
-def calc_metric(p, task, all_lc_preds, all_att_coef, all_labels, epoch=None, eval_type = 'Test', figure_name= None):
+def calc_metric(p, task, all_lc_preds, all_att_coef, all_labels, all_traj_preds, all_traj_labels, traj_label_min, traj_label_max, epoch=None, eval_type = 'Test', figure_name= None):
    
     num_samples = all_labels.shape[0]
     prediction_seq = p.SEQ_LEN-p.IN_SEQ_LEN+1
@@ -332,9 +345,48 @@ def calc_metric(p, task, all_lc_preds, all_att_coef, all_labels, epoch=None, eva
         (accuracy, precision, recall, f1, FPR, all_TPs, auc, max_j, robust_pred_time, pred_time) = (0,0,0,0,0,0,0,0,0,0)
         avg_pred_time = 0
     
+    if task == params.TRAJECTORYPRED:
+        rmse, fde, traj_df = calc_traj_metrics(p, all_traj_preds, all_traj_labels, traj_label_min, traj_label_max)
+    else:
+        rmse = 0
+        fde = 0
 
-    return robust_pred_time, pred_time, accuracy, precision, recall, f1, FPR, auc, max_j
+    return robust_pred_time, pred_time, accuracy, precision, recall, f1, FPR, auc, max_j, rmse, fde, traj_df
 
+
+def calc_traj_metrics(p, traj_preds, traj_labels, traj_min, traj_max):
+    #traj_preds [number of samples, sequence of prediction, target sequence length, number of output states]
+    #1. denormalise
+    traj_preds = traj_preds*(traj_max-traj_min) + traj_min
+    traj_labels = traj_labels*(traj_max-traj_min) + traj_min
+    #2. from diff to actual
+    traj_preds = np.cumsum(traj_preds, axis = 2)
+    traj_labels = np.cumsum(traj_labels, axis = 2)
+    # 3. fde
+    fde = np.mean(np.absolute(traj_preds[:,:,-1,:]-traj_labels[:,:,-1,:]))
+    # 4. rmse
+    rmse = np.sqrt(((traj_preds-traj_labels)**2).mean())
+    # 5. fde, rmse table
+    prediction_ts = int(p.TGT_SEQ_LEN/p.FPS)
+    if (p.TGT_SEQ_LEN/p.FPS) % 1 != 0:
+        raise(ValueError('Target sequence length not dividable by FPS'))
+    columns = ['<{} sec'.format(ts+1) for ts in range(prediction_ts)]
+    index = ['FDE_lat', 'FDE_long', 'FDE', 'RMSE_lat', 'RMSE_long', 'RMSE']
+    data = np.zeros((6, prediction_ts))
+    for ts in range(prediction_ts):
+        ts_index = (ts+1)*p.FPS
+        #fde
+        data[0,ts] = np.mean(np.absolute(traj_preds[:,:,ts_index-1,0]-traj_labels[:,:,ts_index-1,0])) # 0 is laterel, 1 is longitudinal
+        data[1,ts] = np.mean(np.absolute(traj_preds[:,:,ts_index-1,1]-traj_labels[:,:,ts_index-1,1])) # 0 is laterel, 1 is longitudinal
+        data[2,ts] = np.mean(np.absolute(traj_preds[:,:,ts_index-1,:]-traj_labels[:,:,ts_index-1,:])) # 0 is laterel, 1 is longitudinal
+        #rmse
+        data[3,ts] = np.sqrt(((traj_preds[:,:,:ts_index,0]-traj_labels[:,:,:ts_index,0])**2).mean())
+        data[4,ts] = np.sqrt(((traj_preds[:,:,:ts_index,1]-traj_labels[:,:,:ts_index,1])**2).mean())
+        data[5,ts] = np.sqrt(((traj_preds[:,:,:ts_index,:]-traj_labels[:,:,:ts_index,:])**2).mean())
+
+    result_df = pd.DataFrame(data=  data, columns = columns, index= index)
+    
+    return rmse, fde, result_df
 
 def plot_att_graphs(p, all_att_coef, prediction_seq, all_labels, all_preds, figure_name):
     sum_att_coef = np.zeros((3,prediction_seq, 4))
