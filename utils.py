@@ -307,8 +307,12 @@ def eval_model(p, model, lc_loss_func, task, test_loader, test_dataset, epoch, d
                 all_lc_preds[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size), seq_itr] = F.softmax(lc_pred, dim = -1).cpu().data 
                 avg_lc_loss = avg_lc_loss + lc_loss.cpu().data / (len(test_loader)*(p.SEQ_LEN-p.IN_SEQ_LEN))
             if task == params.TRAJECTORYPRED:
-                all_traj_preds[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size), seq_itr,:,:] = traj_pred.cpu().data
-                all_traj_labels[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size), seq_itr,:,:] = target_data_out.cpu().data
+                traj_min = test_dataset.output_states_min
+                traj_max = test_dataset.output_states_max
+                unnormalised_traj_pred = traj_pred.cpu().data*(traj_max-traj_min) + traj_min
+                unnormalised_traj_label = target_data_out.cpu().data*(traj_max-traj_min) + traj_min
+                all_traj_preds[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size), seq_itr,:,:] = unnormalised_traj_pred
+                all_traj_labels[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size), seq_itr,:,:] = unnormalised_traj_label
             if p.SELECTED_MODEL == 'REGIONATTCNN3':
                 all_att_coef[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size), seq_itr] = output_dict['attention'].cpu().data
             avg_traj_loss += traj_loss.cpu().data / (len(test_loader)*(p.SEQ_LEN-p.IN_SEQ_LEN))
