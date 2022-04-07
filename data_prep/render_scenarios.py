@@ -319,7 +319,7 @@ class RenderScenarios:
         ## Output States:
         output_state = np.zeros((2))
         output_state[0] = lateral_pos_centre_line(tv_itr, tv_lane_ind)
-        output_state[1] = frame_data[rc.X][tv_itr]
+        output_state[1] = fix_sign(frame_data[rc.X][tv_itr])
         if post_lc_only:
             return 0, 0, 0, output_state, tv_lane_ind
         
