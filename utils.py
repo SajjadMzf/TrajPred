@@ -238,6 +238,8 @@ def eval_model(p, model, lc_loss_func, task, test_loader, test_dataset, epoch, d
                 'ttlc_preds': np.zeros((plot_info[1].shape[0], plot_info[1].shape[1])),
                 'att_coef': np.zeros((plot_info[1].shape[0], plot_info[1].shape[1], 4)),
                 'att_mask': np.zeros((plot_info[1].shape[0], plot_info[1].shape[1], 11, 26)),
+                'traj_labels': np.zeros((plot_info[1].shape[0], plot_info[1].shape[1], p.TGT_SEQ_LEN, 2)),
+                'traj_preds': np.zeros((plot_info[1].shape[0], plot_info[1].shape[1], p.TGT_SEQ_LEN, 2)),
                 'labels':labels.numpy(),
                 'data_file': plot_info[2]
             }
@@ -296,6 +298,10 @@ def eval_model(p, model, lc_loss_func, task, test_loader, test_dataset, epoch, d
                     plot_dict['preds'][:,p.IN_SEQ_LEN-1+seq_itr,:] = F.softmax(lc_pred, dim = -1).cpu().data
                 if 'REGIONATT' in p.SELECTED_MODEL:
                     plot_dict['att_coef'][:,p.IN_SEQ_LEN-1+seq_itr,:] = output_dict['attention'].cpu().data
+                if task == params.TRAJECTORYPRED:
+                    plot_dict['traj_labels'][:,p.IN_SEQ_LEN-1+seq_itr,:,:] = target_data_out.cpu().data
+                    plot_dict['traj_preds'][:,p.IN_SEQ_LEN-1+seq_itr,:,:] = traj_pred.cpu().data
+                    
             
             if task == params.CLASSIFICATION or task == params.DUAL or task == params.TRAJECTORYPRED:
                 all_lc_preds[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size), seq_itr] = F.softmax(lc_pred, dim = -1).cpu().data 
