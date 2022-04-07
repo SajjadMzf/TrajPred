@@ -147,4 +147,19 @@ MODELS = {
         'data type': 'state',
         'state type': '',
     },
+    'CONSTANT_PARAMETER': {
+        'name': 'CONSTANT_PARAMETER',
+        'ref':models.ConstantX,
+        'disc':'',
+        'tag': '',
+        'hyperparams':{
+            'parameter': 'Last Velocity', #Options: Last Velocity, Last Acceleration, Mean Velocity, Mean Acceleration
+            'task': params.TRAJECTORYPRED
+        },
+        'optimizer': torch.optim.Adam,
+        'lc loss function': torch.nn.CrossEntropyLoss,
+        'ttlc loss function': torch.nn.MSELoss,
+        'data type': 'state',
+        'state type': 'ours',
+    },
 }

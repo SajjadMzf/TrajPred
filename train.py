@@ -82,7 +82,6 @@ def train_model_dict(model_dict, p):
 if __name__ == '__main__':
     
     
-
     p = params.Parameters(SELECTED_MODEL = 'TRANSFORMER_TRAJ', SELECTED_DATASET = 'HIGHD', UNBALANCED = False, ABLATION = False)
 
     #1
@@ -95,7 +94,7 @@ if __name__ == '__main__':
     train_model_dict(model_dict, p)
     
     exit()
-
+'''
    
     
    
