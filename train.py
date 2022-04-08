@@ -93,10 +93,3 @@ if __name__ == '__main__':
 
     train_model_dict(model_dict, p)
     
-    exit()
-'''
-   
-    
-   
-
-    

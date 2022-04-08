@@ -269,7 +269,7 @@ def eval_model(p, model, lc_loss_func, task, test_loader, test_dataset, epoch, d
                     target_data_in = torch.cat((target_data_in, traj_pred), dim = 1)
                 traj_pred = target_data_in[:,1:]    
             elif task == params.TRAJECTORYPRED and p.SELECTED_MODEL== 'CONSTANT_PARAMETER':
-                output_dict = model(current_data, test_dataset.states_min, test_dataset.states_max, test_dataset.output_states_min, test_dataset.output_states_max)
+                output_dict = model(current_data, test_dataset.states_min, test_dataset.states_max, test_dataset.output_states_min, test_dataset.output_states_max, target_data_in)
                 traj_pred = output_dict['traj_pred']
             else:
                 output_dict = model(current_data)

@@ -31,10 +31,10 @@ class ConstantX(nn.Module):
         self.lc_pred = np.zeros((self.batch_size, 3))
         self.lc_pred[:,0] = 1.
         self.lc_pred = torch.tensor(self.lc_pred, requires_grad = False)
-        self.traj_pred = torch.ones((self.batch_size, self.out_seq_len, 2), requires_grad = False )
 
         self.unused_layer = nn.Linear(1,1)   
-    def forward(self, x, states_min, states_max, output_states_min, output_states_max):
+    def forward(self, x, states_min, states_max, output_states_min, output_states_max, traj_labels):
+        traj_pred = torch.ones((self.batch_size, self.out_seq_len, 2), requires_grad = False )
         #print(len(x))
         x = x[0]
         x = x.cpu()
@@ -61,18 +61,34 @@ class ConstantX(nn.Module):
             long_dist_unnormalised = long_vel_unnormalised/self.fps
             #print(self.traj_pred.shape)
             #exit()
-            self.traj_pred[:,:,0] *= lat_dist_unnormalised.unsqueeze(-1)
-            self.traj_pred[:,:,1] *= long_dist_unnormalised.unsqueeze(-1)
+
+            traj_pred[:,:,0] *= lat_dist_unnormalised.unsqueeze(-1)
+            traj_pred[:,:,1] *= long_dist_unnormalised.unsqueeze(-1)
+            
         elif self.constant_parameter == 'Mean Velocity':
-            raise ValueError('TBD')
+            lat_vel_unnormalised = (lat_vel_max-lat_vel_min)*lat_vel.mean(-1) + lat_vel_min
+            long_vel_unnormalised = (long_vel_max-long_vel_min)*long_vel.mean(-1) + long_vel_min
+            lat_dist_unnormalised = lat_vel_unnormalised/self.fps
+            long_dist_unnormalised = long_vel_unnormalised/self.fps
+            #print(self.traj_pred.shape)
+            #exit()
+
+            traj_pred[:,:,0] *= lat_dist_unnormalised.unsqueeze(-1)
+            traj_pred[:,:,1] *= long_dist_unnormalised.unsqueeze(-1)
         elif self.constant_parameter == 'Last Acceleration':
             raise ValueError('TBD')
         elif self.constant_parameter == 'Mean Acceleration':
             raise ValueError('TBD')
         
-        self.traj_pred = (self.traj_pred-output_states_min)/(output_states_max-output_states_min)
-
-        return {'lc_pred':self.lc_pred.to(self.device), 'traj_pred':self.traj_pred.to(self.device)}
+        traj_pred = (traj_pred-output_states_min)/(output_states_max-output_states_min)
+        
+        
+        #traj_pred *= traj_labels[:,0:1,:].to(self.device)
+        #print('traj label')
+        #print(traj_labels[0])
+        #print(self.traj_pred[0])
+        #exit()
+        return {'lc_pred':self.lc_pred.to(self.device), 'traj_pred':traj_pred.to(self.device)}
 
 class TransformerTraj(nn.Module): 
     def __init__(self, batch_size, device, hyperparams_dict, parameters, drop_prob = 0.1):
