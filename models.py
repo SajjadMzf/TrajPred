@@ -103,6 +103,7 @@ class TransformerTraj(nn.Module):
         self.layers_num = hyperparams_dict['layer number']
         self.head_num = hyperparams_dict['head number']
         self.task = hyperparams_dict['task']
+        self.multi_modal = hyperparams_dict['multi modal']
         self.in_seq_len = parameters.IN_SEQ_LEN
         self.input_dim = 18
         self.output_dim = 2
@@ -118,15 +119,28 @@ class TransformerTraj(nn.Module):
         
         ''' 3. Transformer Decoder: '''
         self.decoder_embedding = nn.Linear(self.output_dim, self.model_dim)
-        decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
-        self.transformer_decoder = nn.TransformerDecoder(decoder_layers, self.layers_num)
+        if self.multi_modal == False:
+            decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
+            self.transformer_decoder = nn.TransformerDecoder(decoder_layers, self.layers_num)
+        else:
+            lk_decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
+            rlc_decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
+            llc_decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
+            
+            self.lk_transformer_decoder = nn.TransformerDecoder(lk_decoder_layers, self.layers_num)
+            self.rlc_transformer_decoder = nn.TransformerDecoder(rlc_decoder_layers, self.layers_num)
+            self.llc_transformer_decoder = nn.TransformerDecoder(llc_decoder_layers, self.layers_num)
         ''' 4. Classification Output '''
         self.classifier_fc1 = nn.Linear(self.model_dim, self.classifier_dim)
         self.classifier_fc2 = nn.Linear(self.classifier_dim,3)
 
         ''' 5. Trajectory Output '''
-        self.trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
-
+        if self.multi_modal == False:
+            self.trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
+        else:
+            self.lk_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
+            self.rlc_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
+            self.llc_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
     
     def forward(self, x, y, y_mask):
         #print(len(x))
@@ -137,10 +151,23 @@ class TransformerTraj(nn.Module):
         encoder_out = self.transformer_encoder(x)
         
         #decoder
-        y = self.decoder_embedding(y)
-        y = self.positional_encoder(y)
-        decoder_out = self.transformer_decoder(y, encoder_out, tgt_mask = y_mask)
-        
+        if self.multi_modal == False:
+            y = self.decoder_embedding(y[:,0])
+            y = self.positional_encoder(y)
+            decoder_out = self.transformer_decoder(y, encoder_out, tgt_mask = y_mask)
+        else:
+            lk_y = self.decoder_embedding(y[:,0])
+            lk_y = self.positional_encoder(lk_y)
+            lk_decoder_out = self.lk_transformer_decoder(lk_y, encoder_out, tgt_mask = y_mask)
+            
+            rlc_y = self.decoder_embedding(y[:,1])
+            rlc_y = self.positional_encoder(rlc_y)
+            rlc_decoder_out = self.rlc_transformer_decoder(rlc_y, encoder_out, tgt_mask = y_mask)
+            
+            llc_y = self.decoder_embedding(y[:,2])
+            llc_y = self.positional_encoder(llc_y)
+            llc_decoder_out = self.llc_transformer_decoder(llc_y, encoder_out, tgt_mask = y_mask)
+            
         
         #classification
         lc_pred = encoder_out.mean(dim = 1)
@@ -149,9 +176,15 @@ class TransformerTraj(nn.Module):
         lc_pred = self.classifier_fc2(lc_pred)
 
         #trajectory prediction
-        traj_pred = self.trajectory_fc(decoder_out)
-        
-        return {'lc_pred':lc_pred, 'traj_pred':traj_pred}
+        if self.multi_modal == False:
+            traj_pred = self.trajectory_fc(decoder_out)
+            traj_pred = torch.stack([traj_pred], dim=1)
+        else:
+            lk_traj_pred = self.lk_trajectory_fc(lk_decoder_out)
+            rlc_traj_pred = self.rlc_trajectory_fc(rlc_decoder_out)
+            llc_traj_pred = self.llc_trajectory_fc(llc_decoder_out)
+            traj_pred = torch.stack([lk_traj_pred, rlc_traj_pred, llc_traj_pred], dim=1) # lk =0, rlc=1, llc=2
+        return {'lc_pred':lc_pred, 'traj_pred':traj_pred, 'multi_modal': self.multi_modal}
     
     def get_y_mask(self, size) -> torch.tensor:
         # Generates a squeare matrix where the each row allows one word more to be seen

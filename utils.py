@@ -159,8 +159,11 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, task
                 model.init_hidden()
             # 2. feeding data to model (forward method will be computed)
             if task == params.TRAJECTORYPRED and p.SELECTED_MODEL== 'TRANSFORMER_TRAJ':
+                
+                target_data_in = torch.stack([target_data_in,target_data_in,target_data_in], dim = 1)
                 output_dict = model(x = current_data, y =target_data_in, y_mask = model.get_y_mask(p.TGT_SEQ_LEN).to(device))
                 traj_pred = output_dict['traj_pred']
+                multi_modal = output_dict['multi_modal']
             else:
                 output_dict = model(current_data)
             lc_pred = output_dict['lc_pred']
@@ -177,10 +180,20 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, task
             
             if task == params.TRAJECTORYPRED:
                 traj_loss_func = nn.MSELoss()
+                #print(traj_pred.size())
+                if multi_modal == True:
+                    manouvre_index = labels#F.one_hot(labels)
+                    #print(manouvre_index.size())
+                    #print(manouvre_index)
+                    traj_pred = traj_pred[np.arange(traj_pred.shape[0]), manouvre_index]
+                else:
+                    traj_pred = torch.squeeze(traj_pred, dim =1)
+                #print(traj_pred.size())
+                #exit()
                 traj_loss = traj_loss_func(traj_pred, target_data_out)
             else:
                 traj_loss = 0
-            loss = lc_loss + traj_loss 
+            loss = lc_loss + 1000*traj_loss 
             # 4. Calculating new grdients given the loss value
             loss.backward()
             # 5. Updating the weights
@@ -226,7 +239,7 @@ def eval_model(p, model, lc_loss_func, task, test_loader, test_dataset, epoch, d
     gf_time = 0
     nn_time = 0
     loss_ratio = 1
-    
+    multi_modal = False
     for batch_idx, (data_tuple, labels, plot_info, _) in enumerate(test_loader):
         #print(batch_idx, total)
         all_labels[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size)] = labels.data
@@ -262,15 +275,21 @@ def eval_model(p, model, lc_loss_func, task, test_loader, test_dataset, epoch, d
             
             if task == params.TRAJECTORYPRED and p.SELECTED_MODEL== 'TRANSFORMER_TRAJ':
                 target_data_in = target_data[:,(seq_itr+p.IN_SEQ_LEN-1):(seq_itr+p.IN_SEQ_LEN)]   
+                target_data_in = torch.stack([target_data_in,target_data_in,target_data_in], dim = 1)
+                #print(target_data_in.size())
                 for out_seq_itr in range(p.TGT_SEQ_LEN):
-                    output_dict = model(x = current_data, y =target_data_in, y_mask = model.get_y_mask(target_data_in.size(1)).to(device))
+                    output_dict = model(x = current_data, y =target_data_in, y_mask = model.get_y_mask(target_data_in.size(2)).to(device))
                     traj_pred = output_dict['traj_pred']
-                    traj_pred = traj_pred[:,out_seq_itr:(out_seq_itr+1)]
-                    target_data_in = torch.cat((target_data_in, traj_pred), dim = 1)
-                traj_pred = target_data_in[:,1:]    
+                    multi_modal = output_dict['multi_modal']
+                    traj_pred = traj_pred[:,:,out_seq_itr:(out_seq_itr+1)]
+                    if not multi_modal:
+                        traj_pred = torch.stack([traj_pred, traj_pred, traj_pred], dim = 1)
+                    target_data_in = torch.cat((target_data_in, traj_pred), dim = 2)
+                traj_pred = target_data_in[:,:,1:]    
             elif task == params.TRAJECTORYPRED and p.SELECTED_MODEL== 'CONSTANT_PARAMETER':
                 output_dict = model(current_data, test_dataset.states_min, test_dataset.states_max, test_dataset.output_states_min, test_dataset.output_states_max, target_data_in)
                 traj_pred = output_dict['traj_pred']
+                traj_pred.unsqueeze(1)
             else:
                 output_dict = model(current_data)
             
@@ -285,10 +304,16 @@ def eval_model(p, model, lc_loss_func, task, test_loader, test_dataset, epoch, d
 
             if task == params.TRAJECTORYPRED:
                 traj_loss_func = nn.MSELoss()
-                traj_loss = traj_loss_func(traj_pred, target_data_out) #todo make it selectable in models dict
+                if multi_modal == True:
+                    predicted_labels = F.softmax(lc_pred, dim = -1).argmax(dim = -1)
+                    manouvre_index = predicted_labels #in eval we use predicted label instead of ground truth.
+                    traj_pred = traj_pred[np.arange(traj_pred.shape[0]), manouvre_index]
+                else:
+                    traj_pred = torch.squeeze(traj_pred, dim =1)
+                traj_loss = traj_loss_func(traj_pred, target_data_out) #TODO: make it selectable in models dict
             else:
                 traj_loss = 0
-            loss = lc_loss + traj_loss 
+            loss = lc_loss + 1000*traj_loss 
 
             #_ , pred_labels = output.data.max(dim=1)
             #pred_labels = pred_labels.cpu()
