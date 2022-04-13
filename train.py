@@ -88,7 +88,7 @@ if __name__ == '__main__':
     model_dict = m.MODELS[p.SELECTED_MODEL]
 
     model_dict['hyperparams']['task'] = params.TRAJECTORYPRED
-    model_dict['state type'] = 'wirth'
+    model_dict['state type'] = 'ours'
     model_dict['tag'] = utils.update_tag(model_dict)
 
     train_model_dict(model_dict, p)

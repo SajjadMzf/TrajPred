@@ -351,10 +351,9 @@ def eval_model(p, model, lc_loss_func, task, test_loader, test_dataset, epoch, d
     #print('gf time: {}, nn time: {}'.format(gf_time, nn_time))
     
     robust_pred_time, pred_time, accuracy, precision, recall, f1, FPR, auc, max_j, rmse, fde, traj_df = calc_metric(p, task, all_lc_preds, all_att_coef, all_labels, all_traj_preds, all_traj_labels, test_dataset.output_states_min, test_dataset.output_states_max, epoch, eval_type = eval_type, figure_name = figure_name)
-    avg_loss = avg_lc_loss
     print('                                   ')
-    print("{}: Epoch: {}, Accuracy: {:.2f}%, Robust Prediction Time: {:.2f}, Prediction Time: {:.2f}, Total LOSS: {:.2f},LC LOSS: {:.2f}, PRECISION:{}, RECALL:{}, F1:{}, FPR:{}, AUC:{}, Max J:{}, RMSE:{}, FDE:{}".format(
-        eval_type, epoch, 100. * accuracy, robust_pred_time, pred_time, avg_loss, avg_lc_loss, precision, recall, f1, FPR, auc, max_j, rmse, fde))
+    print("{}: Epoch: {}, Accuracy: {:.2f}%, Robust Prediction Time: {:.2f}, Prediction Time: {:.2f}, Total LOSS: {:.2f},LC LOSS: {:.2f},TRAJ LOSS: {:.5f}, PRECISION:{}, RECALL:{}, F1:{}, FPR:{}, AUC:{}, Max J:{}, RMSE:{}, FDE:{}".format(
+        eval_type, epoch, 100. * accuracy, robust_pred_time, pred_time, avg_loss, avg_lc_loss, avg_traj_loss, precision, recall, f1, FPR, auc, max_j, rmse, fde))
     print('                                   ')
     print('-----------------------------------')
     print('                                   ')
