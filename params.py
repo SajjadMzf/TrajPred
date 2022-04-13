@@ -68,7 +68,7 @@ class Parameters:
         self.MAX_PRED_TIME = self.SEQ_LEN-self.IN_SEQ_LEN + 1
         self.cl_step = 1
         self.start_seq_arange = np.arange(self.MAX_PRED_TIME-1,0, -1* self.cl_step)
-        self.CL_EPOCH  = len(self.start_seq_arange)
+        self.CL_EPOCH  = 0#len(self.start_seq_arange)
         self.START_SEQ_CL = np.concatenate((self.start_seq_arange, np.zeros((self.NUM_EPOCHS-len(self.start_seq_arange)))), axis = 0)
         self.END_SEQ_CL = np.ones((self.NUM_EPOCHS))*(self.SEQ_LEN-self.IN_SEQ_LEN+1)
         
