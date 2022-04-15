@@ -13,6 +13,7 @@ import params
 import utils
 import math
 
+
 class ConstantX(nn.Module):
     def __init__(self, batch_size, device, hyperparams_dict, parameters, drop_prob = 0.1):
         super(ConstantX, self).__init__()

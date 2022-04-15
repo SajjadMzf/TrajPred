@@ -82,9 +82,6 @@ def train_top_func(p, model, optimizer, lc_loss_func, traj_loss_func, task, tr_d
         val_end = time()
         print('val_time:', val_end-val_start)
         #print("Validation Accuracy:",val_acc,' Avg Pred Time: ', val_avg_pred_time, " Avg Loss: ", val_loss," at Epoch", epoch+1)
-        if epoch<p.CL_EPOCH :
-            print("No Early Stopping in CL Epochs.")
-            continue
         if val_loss<best_val_loss:
             best_val_loss = val_loss
             best_val_acc = val_acc
