@@ -49,8 +49,21 @@ def test_model_dict(model_dict, p):
     task = model_dict['hyperparams']['task']
     # Instantiate Dataset: 
     tr_dataset = Dataset.LCDataset(p.TRAIN_DATASET_DIR, p.TR_DATA_FILES, data_type = model_dict['data type'], state_type = model_dict['state type'], keep_plot_info= False, traj_output = (task==params.TRAJECTORYPRED))
-    te_dataset = Dataset.LCDataset(p.TEST_DATASET_DIR, p.TE_DATA_FILES,  data_type = model_dict['data type'], state_type = model_dict['state type'], keep_plot_info= True, traj_output = (task==params.TRAJECTORYPRED), states_min = tr_dataset.states_min, states_max = tr_dataset.states_max,output_states_min = tr_dataset.output_states_min, output_states_max = tr_dataset.output_states_max)
-
+    #val_dataset = Dataset.LCDataset(p.TRAIN_DATASET_DIR, p.VAL_DATA_FILES,  data_type = model_dict['data type'], state_type = model_dict['state type'], keep_plot_info= False, traj_output = (task==params.TRAJECTORYPRED), states_min = tr_dataset.states_min, states_max = tr_dataset.states_max, output_states_min = tr_dataset.output_states_min, output_states_max = tr_dataset.output_states_max)
+    
+    te_dataset = Dataset.LCDataset(p.TEST_DATASET_DIR, p.TE_DATA_FILES,  data_type = model_dict['data type'], state_type = model_dict['state type'], keep_plot_info= True, traj_output = (task==params.TRAJECTORYPRED))#, states_min = tr_dataset.states_min, states_max = tr_dataset.states_max,output_states_min = tr_dataset.output_states_min, output_states_max = tr_dataset.output_states_max)
+    '''
+    print('training')
+    print(tr_dataset.states_max)
+    print(tr_dataset.states_min)
+    print('validation')
+    print(val_dataset.states_max)
+    print(val_dataset.states_min)
+    print('test')
+    print(te_dataset.states_max)
+    print(te_dataset.states_min)
+    exit()
+    '''
     # Evaluate:
     te_result_dic, traj_df = utils.eval_top_func(p, model, lc_loss_func, traj_loss_func, task, te_dataset, device, model_tag = model_dict['tag'])
     

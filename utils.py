@@ -76,7 +76,7 @@ def train_top_func(p, model, optimizer, lc_loss_func, traj_loss_func, task, tr_d
     for epoch in range(p.NUM_EPOCHS):
         #print("Epoch: {} Started!".format(epoch+1))
         start = time()
-        train_model(p, model, optimizer, scheduler, tr_loader, lc_loss_func, task,  epoch+1, device, calc_train_acc= False)
+        train_model(p, model, optimizer, scheduler, tr_loader, lc_loss_func, traj_loss_func, task,  epoch+1, device, calc_train_acc= False)
         val_start = time()
         val_avg_pred_time,_,val_acc,val_loss, val_lc_loss, auc, max_j, precision, recall, f1, rmse, fde, traj_df = eval_model(p, model, lc_loss_func, traj_loss_func, task, val_loader, val_dataset, epoch+1, device, eval_type = 'Validation')
         val_end = time()
@@ -126,7 +126,6 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, traj
     avg_traj_loss = 0
     all_start = time()
     
-    loss_ratio = p.LOSS_RATIO_NoCL
     
     
     start_seq = 0
