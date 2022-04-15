@@ -20,7 +20,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 font = {'size'   : 22}
 matplotlib.rcParams['figure.figsize'] = (18, 12)
 matplotlib.rc('font', **font)
-def eval_top_func(p, model, lc_loss_func, task, te_dataset, device, model_tag = ''):
+def eval_top_func(p, model, lc_loss_func, traj_loss_func, task, te_dataset, device, model_tag = ''):
     model = model.to(device)
     
     te_loader = utils_data.DataLoader(dataset = te_dataset, shuffle = True, batch_size = p.BATCH_SIZE, drop_last= True, pin_memory= True, num_workers= 12)
@@ -34,7 +34,7 @@ def eval_top_func(p, model, lc_loss_func, task, te_dataset, device, model_tag = 
     
     start = time()
     
-    robust_test_pred_time, test_pred_time, test_acc, test_loss, test_lc_loss, auc, max_j, precision, recall, f1, rmse, fde, traj_df = eval_model(p,model, lc_loss_func, task, te_loader, te_dataset, ' N/A', device, eval_type = 'Test', vis_data_path = vis_data_path, figure_name = figure_name)
+    robust_test_pred_time, test_pred_time, test_acc, test_loss, test_lc_loss, auc, max_j, precision, recall, f1, rmse, fde, traj_df = eval_model(p,model, lc_loss_func, traj_loss_func, task, te_loader, te_dataset, ' N/A', device, eval_type = 'Test', vis_data_path = vis_data_path, figure_name = figure_name)
     end = time()
     total_time = end-start
     #print("Test finished in:", total_time, "sec.")
@@ -56,7 +56,7 @@ def eval_top_func(p, model, lc_loss_func, task, te_dataset, device, model_tag = 
     return result_dic, traj_df
 
 
-def train_top_func(p, model, optimizer, lc_loss_func, task, tr_dataset, val_dataset, device, model_tag = ''):
+def train_top_func(p, model, optimizer, lc_loss_func, traj_loss_func, task, tr_dataset, val_dataset, device, model_tag = ''):
     
     model = model.to(device)
     
@@ -78,7 +78,7 @@ def train_top_func(p, model, optimizer, lc_loss_func, task, tr_dataset, val_data
         start = time()
         train_model(p, model, optimizer, scheduler, tr_loader, lc_loss_func, task,  epoch+1, device, calc_train_acc= False)
         val_start = time()
-        val_avg_pred_time,_,val_acc,val_loss, val_lc_loss, auc, max_j, precision, recall, f1, rmse, fde, traj_df = eval_model(p, model, lc_loss_func, task, val_loader, val_dataset, epoch+1, device, eval_type = 'Validation')
+        val_avg_pred_time,_,val_acc,val_loss, val_lc_loss, auc, max_j, precision, recall, f1, rmse, fde, traj_df = eval_model(p, model, lc_loss_func, traj_loss_func, task, val_loader, val_dataset, epoch+1, device, eval_type = 'Validation')
         val_end = time()
         print('val_time:', val_end-val_start)
         #print("Validation Accuracy:",val_acc,' Avg Pred Time: ', val_avg_pred_time, " Avg Loss: ", val_loss," at Epoch", epoch+1)
@@ -114,7 +114,7 @@ def train_top_func(p, model, optimizer, lc_loss_func, task, tr_dataset, val_data
     return result_dic
 
 
-def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, task, epoch, device, vis_step = 20, calc_train_acc = True):
+def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, traj_loss_func, task, epoch, device, vis_step = 20, calc_train_acc = True):
     # Number of samples with correct classification
     # total size of train data
     total = len(train_loader.dataset)
@@ -179,7 +179,7 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, task
                 lc_loss = 0
             
             if task == params.TRAJECTORYPRED:
-                traj_loss_func = nn.MSELoss()
+                #traj_loss_func = nn.MSELoss()
                 #print(traj_pred.size())
                 if multi_modal == True:
                     manouvre_index = labels#F.one_hot(labels)
@@ -193,7 +193,7 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, task
                 traj_loss = traj_loss_func(traj_pred, target_data_out)
             else:
                 traj_loss = 0
-            loss = lc_loss + 1000*traj_loss 
+            loss = lc_loss + p.TRAJ2CLASS_LOSS_RATIO*traj_loss 
             # 4. Calculating new grdients given the loss value
             loss.backward()
             # 5. Updating the weights
@@ -220,7 +220,7 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, task
         raise('Depricated')
         
 
-def eval_model(p, model, lc_loss_func, task, test_loader, test_dataset, epoch, device, eval_type = 'Validation', vis_data_path = None, figure_name = None):
+def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_dataset, epoch, device, eval_type = 'Validation', vis_data_path = None, figure_name = None):
     total = len(test_loader.dataset)
     # number of batch
     num_batch = int(np.floor(total/model.batch_size))
@@ -283,7 +283,7 @@ def eval_model(p, model, lc_loss_func, task, test_loader, test_dataset, epoch, d
                     multi_modal = output_dict['multi_modal']
                     traj_pred = traj_pred[:,:,out_seq_itr:(out_seq_itr+1)]
                     if not multi_modal:
-                        traj_pred = torch.stack([traj_pred, traj_pred, traj_pred], dim = 1)
+                        traj_pred = torch.cat([traj_pred, traj_pred, traj_pred], dim = 1)
                     target_data_in = torch.cat((target_data_in, traj_pred), dim = 2)
                 traj_pred = target_data_in[:,:,1:]    
             elif task == params.TRAJECTORYPRED and p.SELECTED_MODEL== 'CONSTANT_PARAMETER':
@@ -303,17 +303,18 @@ def eval_model(p, model, lc_loss_func, task, test_loader, test_dataset, epoch, d
                 lc_loss = 0
 
             if task == params.TRAJECTORYPRED:
-                traj_loss_func = nn.MSELoss()
+                #traj_loss_func = nn.MSELoss()
                 if multi_modal == True:
                     predicted_labels = F.softmax(lc_pred, dim = -1).argmax(dim = -1)
                     manouvre_index = predicted_labels #in eval we use predicted label instead of ground truth.
                     traj_pred = traj_pred[np.arange(traj_pred.shape[0]), manouvre_index]
                 else:
-                    traj_pred = torch.squeeze(traj_pred, dim =1)
+                    traj_pred = traj_pred[:,0]
+                #print(traj_pred.size())
                 traj_loss = traj_loss_func(traj_pred, target_data_out) #TODO: make it selectable in models dict
             else:
                 traj_loss = 0
-            loss = lc_loss + 1000*traj_loss 
+            loss = lc_loss + p.TRAJ2CLASS_LOSS_RATIO*traj_loss 
 
             #_ , pred_labels = output.data.max(dim=1)
             #pred_labels = pred_labels.cpu()
@@ -349,7 +350,6 @@ def eval_model(p, model, lc_loss_func, task, test_loader, test_dataset, epoch, d
     
     #print('Average Time per whole sequence perbatch: {}'.format(average_time/time_counter))
     #print('gf time: {}, nn time: {}'.format(gf_time, nn_time))
-    
     robust_pred_time, pred_time, accuracy, precision, recall, f1, FPR, auc, max_j, rmse, fde, traj_df = calc_metric(p, task, all_lc_preds, all_att_coef, all_labels, all_traj_preds, all_traj_labels, test_dataset.output_states_min, test_dataset.output_states_max, epoch, eval_type = eval_type, figure_name = figure_name)
     print('                                   ')
     print("{}: Epoch: {}, Accuracy: {:.2f}%, Robust Prediction Time: {:.2f}, Prediction Time: {:.2f}, Total LOSS: {:.2f},LC LOSS: {:.2f},TRAJ LOSS: {:.5f}, PRECISION:{}, RECALL:{}, F1:{}, FPR:{}, AUC:{}, Max J:{}, RMSE:{}, FDE:{}".format(

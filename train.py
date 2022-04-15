@@ -44,6 +44,7 @@ def train_model_dict(model_dict, p):
     model = model_dict['ref'](p.BATCH_SIZE, device, model_dict['hyperparams'], p)
     optimizer = model_dict['optimizer'](params = model.parameters(), lr = p.LR)
     lc_loss_func = model_dict['lc loss function']()
+    traj_loss_func = model_dict['traj loss function']()
     ttlc_loss_func = model_dict['ttlc loss function']()
     task = model_dict['hyperparams']['task']
     
@@ -60,8 +61,8 @@ def train_model_dict(model_dict, p):
     #print(te_dataset.__len__())
     #exit()
     # Train/Evaluate:
-    val_result_dic = utils.train_top_func(p, model, optimizer, lc_loss_func, task, tr_dataset, val_dataset,device, model_tag = model_dict['tag'])    
-    te_result_dic, traj_df = utils.eval_top_func(p, model, lc_loss_func, task, te_dataset, device, model_tag = model_dict['tag'])
+    val_result_dic = utils.train_top_func(p, model, optimizer, lc_loss_func, traj_loss_func, task, tr_dataset, val_dataset,device, model_tag = model_dict['tag'])    
+    te_result_dic, traj_df = utils.eval_top_func(p, model, lc_loss_func, traj_loss_func, task, te_dataset, device, model_tag = model_dict['tag'])
     
     # Save results:
     log_file_dir = p.TABLES_DIR + p.SELECTED_DATASET + '_' + model_dict['name'] + '.csv'  
@@ -88,7 +89,8 @@ if __name__ == '__main__':
     model_dict = m.MODELS[p.SELECTED_MODEL]
 
     model_dict['hyperparams']['task'] = params.TRAJECTORYPRED
-    model_dict['state type'] = 'ours'
+    model_dict['hyperparams']['multi modal'] = True
+    model_dict['state type'] = 'wirth'
     model_dict['tag'] = utils.update_tag(model_dict)
 
     train_model_dict(model_dict, p)

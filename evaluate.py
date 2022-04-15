@@ -44,6 +44,7 @@ def test_model_dict(model_dict, p):
     model = model_dict['ref'](p.BATCH_SIZE, device, model_dict['hyperparams'], p)
     optimizer = model_dict['optimizer'](params = model.parameters(), lr = p.LR)
     lc_loss_func = model_dict['lc loss function']()
+    traj_loss_func = model_dict['traj loss function']()
     ttlc_loss_func = model_dict['ttlc loss function']()
     task = model_dict['hyperparams']['task']
     # Instantiate Dataset: 
@@ -51,12 +52,12 @@ def test_model_dict(model_dict, p):
     te_dataset = Dataset.LCDataset(p.TEST_DATASET_DIR, p.TE_DATA_FILES,  data_type = model_dict['data type'], state_type = model_dict['state type'], keep_plot_info= True, traj_output = (task==params.TRAJECTORYPRED), states_min = tr_dataset.states_min, states_max = tr_dataset.states_max,output_states_min = tr_dataset.output_states_min, output_states_max = tr_dataset.output_states_max)
 
     # Evaluate:
-    te_result_dic, traj_df = utils.eval_top_func(p, model, lc_loss_func, task, te_dataset, device, model_tag = model_dict['tag'])
+    te_result_dic, traj_df = utils.eval_top_func(p, model, lc_loss_func, traj_loss_func, task, te_dataset, device, model_tag = model_dict['tag'])
     
 
 if __name__ == '__main__':
     
-    
+    '''
     p = params.Parameters(SELECTED_MODEL = 'CONSTANT_PARAMETER', SELECTED_DATASET = 'HIGHD', UNBALANCED = False, ABLATION = False)
 
     model_dict = m.MODELS[p.SELECTED_MODEL]
@@ -69,7 +70,8 @@ if __name__ == '__main__':
 
     model_dict = m.MODELS[p.SELECTED_MODEL]
     model_dict['hyperparams']['task'] = params.TRAJECTORYPRED
-    model_dict['state type'] = 'wirth'
+    model_dict['hyperparams']['multi modal'] = False
+    model_dict['state type'] = 'ours'
     model_dict['tag'] = utils.update_tag(model_dict)
     test_model_dict(model_dict, p)
-    '''
+    

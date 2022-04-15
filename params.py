@@ -51,11 +51,12 @@ class Parameters:
         self.CUDA = True
         self.BATCH_SIZE = 32 #64
         self.LR = 0.0001#  0.001
+        self.TRAJ2CLASS_LOSS_RATIO = 1000
         self.LR_DECAY = 1
         self.LR_DECAY_EPOCH = 10
         self.NUM_EPOCHS = 50
         self.PATIENCE =3
-        self.TR_JUMP_STEP =1 # was 10!
+        self.TR_JUMP_STEP =1 
 
         if self.UNBALANCED:
             self.unblanaced_ext = 'U'
@@ -64,17 +65,6 @@ class Parameters:
         self.TRAIN_DATASET_DIR = '../../Dataset/Processed_highD/RenderedDataset/'
         self.TEST_DATASET_DIR = '../../Dataset/Processed_highD/RenderedDataset{}/'.format(self.unblanaced_ext)
         
-        # CL Params
-        self.MAX_PRED_TIME = self.SEQ_LEN-self.IN_SEQ_LEN + 1
-        self.cl_step = 1
-        self.start_seq_arange = np.arange(self.MAX_PRED_TIME-1,0, -1* self.cl_step)
-        self.CL_EPOCH  = 0#len(self.start_seq_arange)
-        self.START_SEQ_CL = np.concatenate((self.start_seq_arange, np.zeros((self.NUM_EPOCHS-len(self.start_seq_arange)))), axis = 0)
-        self.END_SEQ_CL = np.ones((self.NUM_EPOCHS))*(self.SEQ_LEN-self.IN_SEQ_LEN+1)
-        
-        self.LOSS_RATIO_CL = np.concatenate((np.arange(self.CL_EPOCH)/self.CL_EPOCH, np.ones((self.NUM_EPOCHS-self.CL_EPOCH))), axis = 0)
-        
-        self.LOSS_RATIO_NoCL = 1
 
         self.MODELS_DIR = 'models/'
         self.RESULTS_DIR = 'results/'
