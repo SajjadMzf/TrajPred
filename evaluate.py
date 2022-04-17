@@ -51,7 +51,7 @@ def test_model_dict(model_dict, p):
     tr_dataset = Dataset.LCDataset(p.TRAIN_DATASET_DIR, p.TR_DATA_FILES, data_type = model_dict['data type'], state_type = model_dict['state type'], keep_plot_info= False, traj_output = (task==params.TRAJECTORYPRED))
     #val_dataset = Dataset.LCDataset(p.TRAIN_DATASET_DIR, p.VAL_DATA_FILES,  data_type = model_dict['data type'], state_type = model_dict['state type'], keep_plot_info= False, traj_output = (task==params.TRAJECTORYPRED), states_min = tr_dataset.states_min, states_max = tr_dataset.states_max, output_states_min = tr_dataset.output_states_min, output_states_max = tr_dataset.output_states_max)
     
-    te_dataset = Dataset.LCDataset(p.TEST_DATASET_DIR, p.TE_DATA_FILES,  data_type = model_dict['data type'], state_type = model_dict['state type'], keep_plot_info= True, traj_output = (task==params.TRAJECTORYPRED))#, states_min = tr_dataset.states_min, states_max = tr_dataset.states_max,output_states_min = tr_dataset.output_states_min, output_states_max = tr_dataset.output_states_max)
+    te_dataset = Dataset.LCDataset(p.TEST_DATASET_DIR, p.TE_DATA_FILES,  data_type = model_dict['data type'], state_type = model_dict['state type'], keep_plot_info= True, traj_output = (task==params.TRAJECTORYPRED), states_min = tr_dataset.states_min, states_max = tr_dataset.states_max,output_states_min = tr_dataset.output_states_min, output_states_max = tr_dataset.output_states_max)
     '''
     print('training')
     print(tr_dataset.states_max)
@@ -69,8 +69,8 @@ def test_model_dict(model_dict, p):
     
 
 if __name__ == '__main__':
+
     
-    '''
     p = params.Parameters(SELECTED_MODEL = 'CONSTANT_PARAMETER', SELECTED_DATASET = 'HIGHD', UNBALANCED = False, ABLATION = False)
 
     model_dict = m.MODELS[p.SELECTED_MODEL]
@@ -87,4 +87,4 @@ if __name__ == '__main__':
     model_dict['state type'] = 'ours'
     model_dict['tag'] = utils.update_tag(model_dict)
     test_model_dict(model_dict, p)
-    
+    '''

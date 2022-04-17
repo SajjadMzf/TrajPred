@@ -150,6 +150,29 @@ MODELS = {
         'data type': 'state',
         'state type': '',
     },
+    'NOVEL_TRANSFORMER_TRAJ': {
+        'name': 'NOVEL_TRANSFORMER_TRAJ',
+        'ref':models.NovelTransformerTraj,
+        'disc':'',
+        'tag': '',
+        'hyperparams':{
+            'layer number': 3,
+            'model dim':512,
+            'feedforward dim': 128,
+            'classifier dim': 128,
+            'head number': 8,
+            'multi modal': False,
+            'task': params.TRAJECTORYPRED
+        },
+        'optimizer': torch.optim.Adam,
+        'lc loss function': torch.nn.CrossEntropyLoss,
+        'ttlc loss function': torch.nn.MSELoss,
+        'traj loss function': torch.nn.MSELoss,
+        'data type': 'state',
+        'state type': '',
+    },
+
+
     'CONSTANT_PARAMETER': {
         'name': 'CONSTANT_PARAMETER',
         'ref':models.ConstantX,

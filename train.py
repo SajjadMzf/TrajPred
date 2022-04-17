@@ -82,16 +82,23 @@ def train_model_dict(model_dict, p):
 
 if __name__ == '__main__':
     
+    #        'layer number': 3,
+    #        'model dim':512,
+    #        'feedforward dim': 128,
+    #        'classifier dim': 128,
+    #        'head number': 8,
     
+    print('---------------------------------------------------------------------------------------')
+    print('---------------------------------------------------------------------------------------')
     p = params.Parameters(SELECTED_MODEL = 'TRANSFORMER_TRAJ', SELECTED_DATASET = 'HIGHD', UNBALANCED = False, ABLATION = False)
 
     #1
     model_dict = m.MODELS[p.SELECTED_MODEL]
 
     model_dict['hyperparams']['task'] = params.TRAJECTORYPRED
-    model_dict['hyperparams']['multi modal'] = True
+    model_dict['hyperparams']['multi modal'] = False
+    model_dict['hyperparams']['layer number'] = 1
     model_dict['state type'] = 'ours'
     model_dict['tag'] = utils.update_tag(model_dict)
 
     train_model_dict(model_dict, p)
-    

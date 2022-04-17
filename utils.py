@@ -154,7 +154,7 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, traj
             if model.__class__.__name__ == 'VanillaLSTM':
                 model.init_hidden()
             # 2. feeding data to model (forward method will be computed)
-            if task == params.TRAJECTORYPRED and p.SELECTED_MODEL== 'TRANSFORMER_TRAJ':
+            if task == params.TRAJECTORYPRED and 'TRANSFORMER_TRAJ' in p.SELECTED_MODEL:
                 
                 target_data_in = torch.stack([target_data_in,target_data_in,target_data_in], dim = 1)
                 output_dict = model(x = current_data, y =target_data_in, y_mask = model.get_y_mask(p.TGT_SEQ_LEN).to(device))
@@ -189,7 +189,7 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, traj
                 traj_loss = traj_loss_func(traj_pred, target_data_out)
             else:
                 traj_loss = 0
-            loss = lc_loss + p.TRAJ2CLASS_LOSS_RATIO*traj_loss 
+            loss = traj_loss#lc_loss + p.TRAJ2CLASS_LOSS_RATIO*traj_loss 
             # 4. Calculating new grdients given the loss value
             loss.backward()
             # 5. Updating the weights
@@ -269,7 +269,7 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_d
             current_data = [data[:, seq_itr:(seq_itr+p.IN_SEQ_LEN)] for data in in_data_tuple]
             st_time = time()
             
-            if task == params.TRAJECTORYPRED and p.SELECTED_MODEL== 'TRANSFORMER_TRAJ':
+            if task == params.TRAJECTORYPRED and 'TRANSFORMER_TRAJ' in p.SELECTED_MODEL:
                 target_data_in = target_data[:,(seq_itr+p.IN_SEQ_LEN-1):(seq_itr+p.IN_SEQ_LEN)]   
                 target_data_in = torch.stack([target_data_in,target_data_in,target_data_in], dim = 1)
                 #print(target_data_in.size())
@@ -285,7 +285,9 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_d
             elif task == params.TRAJECTORYPRED and p.SELECTED_MODEL== 'CONSTANT_PARAMETER':
                 output_dict = model(current_data, test_dataset.states_min, test_dataset.states_max, test_dataset.output_states_min, test_dataset.output_states_max, target_data_in)
                 traj_pred = output_dict['traj_pred']
-                traj_pred.unsqueeze(1)
+                #print(traj_pred.size())
+                traj_pred = traj_pred.unsqueeze(1)
+                #print(traj_pred.size())
             else:
                 output_dict = model(current_data)
             
@@ -307,10 +309,11 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_d
                 else:
                     traj_pred = traj_pred[:,0]
                 #print(traj_pred.size())
-                traj_loss = traj_loss_func(traj_pred, target_data_out) #TODO: make it selectable in models dict
+                #exit() 
+                traj_loss = traj_loss_func(traj_pred, target_data_out) 
             else:
                 traj_loss = 0
-            loss = lc_loss + p.TRAJ2CLASS_LOSS_RATIO*traj_loss 
+            loss = traj_loss#lc_loss + p.TRAJ2CLASS_LOSS_RATIO*traj_loss 
 
             #_ , pred_labels = output.data.max(dim=1)
             #pred_labels = pred_labels.cpu()

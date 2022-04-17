@@ -13,6 +13,156 @@ import params
 import utils
 import math
 
+class NovelTransformerTraj(nn.Module): 
+    def __init__(self, batch_size, device, hyperparams_dict, parameters, drop_prob = 0.1):
+        super(NovelTransformerTraj, self).__init__()
+
+        self.batch_size = batch_size
+        self.device = device
+        
+        self.model_dim = hyperparams_dict['model dim']# Dimension of transformer model ()
+        self.ff_dim = hyperparams_dict['feedforward dim']
+        self.classifier_dim = hyperparams_dict['classifier dim']
+        self.layers_num = hyperparams_dict['layer number']
+        self.head_num = hyperparams_dict['head number']
+        self.task = hyperparams_dict['task']
+        self.multi_modal = hyperparams_dict['multi modal']
+        self.in_seq_len = parameters.IN_SEQ_LEN
+        self.input_dim = 18
+        self.output_dim = 2
+        self.dropout = nn.Dropout(drop_prob)
+        
+        ''' 1. Positional encoder: '''
+        self.positional_encoder = PositionalEncoding(dim_model=self.model_dim, dropout_p=drop_prob, max_len=100)
+        
+        ''' 2.a Temporal Transformer Encoder: '''
+        self.temp_encoder_embedding = nn.Linear(self.input_dim, self.model_dim)
+        temp_encoder_layers = nn.TransformerEncoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
+        self.temp_transformer_encoder = nn.TransformerEncoder(temp_encoder_layers, self.layers_num)
+        
+        ''' 2.b Spatial Transformer Encoder: '''
+        self.spat_encoder_embedding = nn.Linear(self.in_seq_len, self.model_dim)
+        spat_encoder_layers = nn.TransformerEncoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
+        self.spat_transformer_encoder = nn.TransformerEncoder(spat_encoder_layers, self.layers_num)
+        
+
+        self.decoder_embedding = nn.Linear(self.output_dim, self.model_dim)
+        ''' 3.a Temporal Transformer Decoder: '''
+        if self.multi_modal == False:
+            temp_decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
+            self.temp_transformer_decoder = nn.TransformerDecoder(temp_decoder_layers, self.layers_num)
+        else:
+            temp_lk_decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
+            temp_rlc_decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
+            temp_llc_decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
+            
+            self.temp_lk_transformer_decoder = nn.TransformerDecoder(temp_lk_decoder_layers, self.layers_num)
+            self.temp_rlc_transformer_decoder = nn.TransformerDecoder(temp_rlc_decoder_layers, self.layers_num)
+            self.temp_llc_transformer_decoder = nn.TransformerDecoder(temp_llc_decoder_layers, self.layers_num)
+        
+        ''' 3.b Spatial Transformer Decoder: '''
+        if self.multi_modal == False:
+            spat_decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
+            self.spat_transformer_decoder = nn.TransformerDecoder(spat_decoder_layers, self.layers_num)
+        else:
+            spat_lk_decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
+            spat_rlc_decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
+            spat_llc_decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
+            
+            self.spat_lk_transformer_decoder = nn.TransformerDecoder(spat_lk_decoder_layers, self.layers_num)
+            self.spat_rlc_transformer_decoder = nn.TransformerDecoder(spat_rlc_decoder_layers, self.layers_num)
+            self.spat_llc_transformer_decoder = nn.TransformerDecoder(spat_llc_decoder_layers, self.layers_num)
+        
+        ''' 4. Classification Output '''
+        self.classifier_fc1 = nn.Linear(self.model_dim, self.classifier_dim)
+        self.classifier_fc2 = nn.Linear(self.classifier_dim,3)
+
+        ''' 5. Trajectory Output '''
+        if self.multi_modal == False:
+            self.trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
+        else:
+            self.lk_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
+            self.rlc_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
+            self.llc_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
+    
+    def forward(self, x, y, y_mask):
+        #print(len(x))
+        x = x[0]
+        #temporal encoder
+        x = self.temp_encoder_embedding(x)
+        x = self.positional_encoder(x)
+        temp_encoder_out = self.temp_transformer_encoder(x)
+        #spatial encoder
+        print(x.size())
+        exit()
+        spatial_x = torch.permute(x, (0, 1, 3, 2))
+        spatial_x = self.spat_encoder_embedding(spatial_x)
+        spatial_x = self.positional_encoder(spatial_x)
+        spat_encoder_out = self.spat_transformer_encoder(spatial_x)
+
+
+        #temp decoder
+        if self.multi_modal == False:
+            y = self.decoder_embedding(y[:,0])
+            y = self.positional_encoder(y)
+            temp_decoder_out = self.transformer_decoder(y, temp_encoder_out, tgt_mask = y_mask)
+        else:
+            lk_y = self.decoder_embedding(y[:,0])
+            lk_y = self.positional_encoder(lk_y)
+            temp_lk_decoder_out = self.lk_transformer_decoder(lk_y, temp_encoder_out, tgt_mask = y_mask)
+            
+            rlc_y = self.decoder_embedding(y[:,1])
+            rlc_y = self.positional_encoder(rlc_y)
+            temp_rlc_decoder_out = self.rlc_transformer_decoder(rlc_y, temp_encoder_out, tgt_mask = y_mask)
+            
+            llc_y = self.decoder_embedding(y[:,2])
+            llc_y = self.positional_encoder(llc_y)
+            temp_llc_decoder_out = self.llc_transformer_decoder(llc_y, temp_encoder_out, tgt_mask = y_mask)
+            
+        # spat decoder
+        if self.multi_modal == False:
+            spat_decoder_out = self.transformer_decoder(temp_decoder_out, spat_encoder_out, tgt_mask = y_mask)
+        else:
+            
+            spat_lk_decoder_out = self.lk_transformer_decoder(temp_lk_decoder_out, spat_encoder_out, tgt_mask = y_mask)
+            spat_rlc_decoder_out = self.rlc_transformer_decoder(temp_rlc_decoder_out, spat_encoder_out, tgt_mask = y_mask)
+            spat_llc_decoder_out = self.llc_transformer_decoder(temp_llc_decoder_out, spat_encoder_out, tgt_mask = y_mask)
+
+
+        #classification
+        lc_pred = temp_encoder_out.mean(dim = 1)
+        lc_pred = F.relu(self.classifier_fc1(lc_pred))
+        lc_pred = self.dropout(lc_pred)
+        lc_pred = self.classifier_fc2(lc_pred)
+
+        #trajectory prediction
+        if self.multi_modal == False:
+            traj_pred = self.trajectory_fc(spat_decoder_out)
+            traj_pred = torch.stack([traj_pred], dim=1)
+        else:
+            lk_traj_pred = self.lk_trajectory_fc(spat_lk_decoder_out)
+            rlc_traj_pred = self.rlc_trajectory_fc(spat_rlc_decoder_out)
+            llc_traj_pred = self.llc_trajectory_fc(spat_llc_decoder_out)
+            traj_pred = torch.stack([lk_traj_pred, rlc_traj_pred, llc_traj_pred], dim=1) # lk =0, rlc=1, llc=2
+        return {'lc_pred':lc_pred, 'traj_pred':traj_pred, 'multi_modal': self.multi_modal}
+    
+    def get_y_mask(self, size) -> torch.tensor:
+        # Generates a squeare matrix where the each row allows one word more to be seen
+        mask = torch.tril(torch.ones(size, size) == 1) # Lower triangular matrix
+        mask = mask.float()
+        mask = mask.masked_fill(mask == 0, float('-inf')) # Convert zeros to -inf
+        mask = mask.masked_fill(mask == 1, float(0.0)) # Convert ones to 0
+        
+        # EX for size=5:
+        # [[0., -inf, -inf, -inf, -inf],
+        #  [0.,   0., -inf, -inf, -inf],
+        #  [0.,   0.,   0., -inf, -inf],
+        #  [0.,   0.,   0.,   0., -inf],
+        #  [0.,   0.,   0.,   0.,   0.]]
+        
+        return mask
+
+
 
 class ConstantX(nn.Module):
     def __init__(self, batch_size, device, hyperparams_dict, parameters, drop_prob = 0.1):
@@ -89,7 +239,7 @@ class ConstantX(nn.Module):
         #print(traj_labels[0])
         #print(self.traj_pred[0])
         #exit()
-        return {'lc_pred':self.lc_pred.to(self.device), 'traj_pred':traj_pred.to(self.device)}
+        return {'lc_pred':self.lc_pred.to(self.device), 'traj_pred':traj_pred.to(self.device), 'multi_modal': False}
 
 class TransformerTraj(nn.Module): 
     def __init__(self, batch_size, device, hyperparams_dict, parameters, drop_prob = 0.1):
