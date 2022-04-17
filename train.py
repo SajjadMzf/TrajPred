@@ -68,11 +68,13 @@ def train_model_dict(model_dict, p):
     tb = SummaryWriter()
     val_result_dic = utils.train_top_func(p, model, optimizer, lc_loss_func, traj_loss_func, task, tr_dataset, val_dataset,device, model_tag = model_dict['tag'], tensorboard = tb)    
     te_result_dic, traj_df = utils.eval_top_func(p, model, lc_loss_func, traj_loss_func, task, te_dataset, device, model_tag = model_dict['tag'], tensorboard = tb)
-    tb.close()
+    
+    
     # Save results:
     log_file_dir = p.TABLES_DIR + p.SELECTED_DATASET + '_' + model_dict['name'] + '.csv'  
     log_dict = model_dict['hyperparams'].copy()
     log_dict['state type'] = model_dict['state type']
+    tb_hp_dic = log_dict.copy()
     log_dict.update(val_result_dic)
     log_dict.update(te_result_dic)
     log_columns = [key for key in log_dict]
@@ -84,6 +86,11 @@ def train_model_dict(model_dict, p):
     with open(log_file_dir, 'a') as f:
         f.write(result_line)
 
+    tb.add_hparams(
+            tb_hp_dic,
+            te_result_dic
+        )
+    tb.close()
 
 if __name__ == '__main__':
     
