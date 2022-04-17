@@ -201,7 +201,7 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, traj
                 traj_loss = traj_loss_func(traj_pred, target_data_out)
             else:
                 traj_loss = 0
-            loss = traj_loss#lc_loss + p.TRAJ2CLASS_LOSS_RATIO*traj_loss 
+            loss = lc_loss + p.TRAJ2CLASS_LOSS_RATIO*traj_loss 
             # 4. Calculating new grdients given the loss value
             loss.backward()
             # 5. Updating the weights
@@ -326,7 +326,7 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_d
                 traj_loss = traj_loss_func(traj_pred, target_data_out) 
             else:
                 traj_loss = 0
-            loss = traj_loss#lc_loss + p.TRAJ2CLASS_LOSS_RATIO*traj_loss 
+            loss = lc_loss + p.TRAJ2CLASS_LOSS_RATIO*traj_loss 
 
             #_ , pred_labels = output.data.max(dim=1)
             #pred_labels = pred_labels.cpu()

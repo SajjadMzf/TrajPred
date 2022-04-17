@@ -89,13 +89,13 @@ class NovelTransformerTraj(nn.Module):
         #print(len(x))
         x = x[0]
         #temporal encoder
-        x = self.temp_encoder_embedding(x)
-        x = self.positional_encoder(x)
-        temp_encoder_out = self.temp_transformer_encoder(x)
+        temp_x = self.temp_encoder_embedding(x)
+        temp_x = self.positional_encoder(temp_x)
+        temp_encoder_out = self.temp_transformer_encoder(temp_x)
         #spatial encoder
-        print(x.size())
-        exit()
-        spatial_x = torch.permute(x, (0, 1, 3, 2))
+        #print(x.size())
+        #exit()
+        spatial_x = torch.permute(x, (0, 2, 1))
         spatial_x = self.spat_encoder_embedding(spatial_x)
         spatial_x = self.positional_encoder(spatial_x)
         spat_encoder_out = self.spat_transformer_encoder(spatial_x)
@@ -105,28 +105,28 @@ class NovelTransformerTraj(nn.Module):
         if self.multi_modal == False:
             y = self.decoder_embedding(y[:,0])
             y = self.positional_encoder(y)
-            temp_decoder_out = self.transformer_decoder(y, temp_encoder_out, tgt_mask = y_mask)
+            temp_decoder_out = self.temp_transformer_decoder(y, temp_encoder_out, tgt_mask = y_mask)
         else:
             lk_y = self.decoder_embedding(y[:,0])
             lk_y = self.positional_encoder(lk_y)
-            temp_lk_decoder_out = self.lk_transformer_decoder(lk_y, temp_encoder_out, tgt_mask = y_mask)
+            temp_lk_decoder_out = self.temp_lk_transformer_decoder(lk_y, temp_encoder_out, tgt_mask = y_mask)
             
             rlc_y = self.decoder_embedding(y[:,1])
             rlc_y = self.positional_encoder(rlc_y)
-            temp_rlc_decoder_out = self.rlc_transformer_decoder(rlc_y, temp_encoder_out, tgt_mask = y_mask)
+            temp_rlc_decoder_out = self.temp_rlc_transformer_decoder(rlc_y, temp_encoder_out, tgt_mask = y_mask)
             
             llc_y = self.decoder_embedding(y[:,2])
             llc_y = self.positional_encoder(llc_y)
-            temp_llc_decoder_out = self.llc_transformer_decoder(llc_y, temp_encoder_out, tgt_mask = y_mask)
+            temp_llc_decoder_out = self.temp_llc_transformer_decoder(llc_y, temp_encoder_out, tgt_mask = y_mask)
             
         # spat decoder
         if self.multi_modal == False:
-            spat_decoder_out = self.transformer_decoder(temp_decoder_out, spat_encoder_out, tgt_mask = y_mask)
+            spat_decoder_out = self.spat_transformer_decoder(temp_decoder_out, spat_encoder_out, tgt_mask = y_mask)
         else:
             
-            spat_lk_decoder_out = self.lk_transformer_decoder(temp_lk_decoder_out, spat_encoder_out, tgt_mask = y_mask)
-            spat_rlc_decoder_out = self.rlc_transformer_decoder(temp_rlc_decoder_out, spat_encoder_out, tgt_mask = y_mask)
-            spat_llc_decoder_out = self.llc_transformer_decoder(temp_llc_decoder_out, spat_encoder_out, tgt_mask = y_mask)
+            spat_lk_decoder_out = self.spat_lk_transformer_decoder(temp_lk_decoder_out, spat_encoder_out, tgt_mask = y_mask)
+            spat_rlc_decoder_out = self.spat_rlc_transformer_decoder(temp_rlc_decoder_out, spat_encoder_out, tgt_mask = y_mask)
+            spat_llc_decoder_out = self.spat_llc_transformer_decoder(temp_llc_decoder_out, spat_encoder_out, tgt_mask = y_mask)
 
 
         #classification
