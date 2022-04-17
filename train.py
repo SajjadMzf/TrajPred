@@ -19,8 +19,12 @@ import params
 import models_dict as m
 import utils
 
+
+from torch.utils.tensorboard import SummaryWriter
+
 import torch.multiprocessing
 torch.multiprocessing.set_sharing_strategy('file_system')
+
 
 
 import matplotlib.colors as mcolors
@@ -61,9 +65,10 @@ def train_model_dict(model_dict, p):
     #print(te_dataset.__len__())
     #exit()
     # Train/Evaluate:
-    val_result_dic = utils.train_top_func(p, model, optimizer, lc_loss_func, traj_loss_func, task, tr_dataset, val_dataset,device, model_tag = model_dict['tag'])    
-    te_result_dic, traj_df = utils.eval_top_func(p, model, lc_loss_func, traj_loss_func, task, te_dataset, device, model_tag = model_dict['tag'])
-    
+    tb = SummaryWriter()
+    val_result_dic = utils.train_top_func(p, model, optimizer, lc_loss_func, traj_loss_func, task, tr_dataset, val_dataset,device, model_tag = model_dict['tag'], tensorboard = tb)    
+    te_result_dic, traj_df = utils.eval_top_func(p, model, lc_loss_func, traj_loss_func, task, te_dataset, device, model_tag = model_dict['tag'], tensorboard = tb)
+    tb.close()
     # Save results:
     log_file_dir = p.TABLES_DIR + p.SELECTED_DATASET + '_' + model_dict['name'] + '.csv'  
     log_dict = model_dict['hyperparams'].copy()

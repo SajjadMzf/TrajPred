@@ -17,10 +17,11 @@ from sklearn import metrics
 import pandas as pd
 import matplotlib
 from matplotlib.backends.backend_pdf import PdfPages
+
 font = {'size'   : 22}
 matplotlib.rcParams['figure.figsize'] = (18, 12)
 matplotlib.rc('font', **font)
-def eval_top_func(p, model, lc_loss_func, traj_loss_func, task, te_dataset, device, model_tag = ''):
+def eval_top_func(p, model, lc_loss_func, traj_loss_func, task, te_dataset, device, model_tag = '', tensorboard = None):
     model = model.to(device)
     
     te_loader = utils_data.DataLoader(dataset = te_dataset, shuffle = True, batch_size = p.BATCH_SIZE, drop_last= True, pin_memory= True, num_workers= 12)
@@ -34,7 +35,7 @@ def eval_top_func(p, model, lc_loss_func, traj_loss_func, task, te_dataset, devi
     
     start = time()
     
-    robust_test_pred_time, test_pred_time, test_acc, test_loss, test_lc_loss, auc, max_j, precision, recall, f1, rmse, fde, traj_df = eval_model(p,model, lc_loss_func, traj_loss_func, task, te_loader, te_dataset, ' N/A', device, eval_type = 'Test', vis_data_path = vis_data_path, figure_name = figure_name)
+    robust_test_pred_time, test_pred_time, test_acc, test_loss, test_lc_loss, test_traj_loss, auc, max_j, precision, recall, f1, rmse, fde, traj_df = eval_model(p,model, lc_loss_func, traj_loss_func, task, te_loader, te_dataset, ' N/A', device, eval_type = 'Test', vis_data_path = vis_data_path, figure_name = figure_name)
     end = time()
     total_time = end-start
     #print("Test finished in:", total_time, "sec.")
@@ -56,7 +57,7 @@ def eval_top_func(p, model, lc_loss_func, traj_loss_func, task, te_dataset, devi
     return result_dic, traj_df
 
 
-def train_top_func(p, model, optimizer, lc_loss_func, traj_loss_func, task, tr_dataset, val_dataset, device, model_tag = ''):
+def train_top_func(p, model, optimizer, lc_loss_func, traj_loss_func, task, tr_dataset, val_dataset, device, model_tag = '', tensorboard = None):
     
     model = model.to(device)
     
@@ -76,12 +77,23 @@ def train_top_func(p, model, optimizer, lc_loss_func, traj_loss_func, task, tr_d
     for epoch in range(p.NUM_EPOCHS):
         #print("Epoch: {} Started!".format(epoch+1))
         start = time()
-        train_model(p, model, optimizer, scheduler, tr_loader, lc_loss_func, traj_loss_func, task,  epoch+1, device, calc_train_acc= False)
+        tr_loss, tr_lc_loss, tr_traj_loss = train_model(p, model, optimizer, scheduler, tr_loader, lc_loss_func, traj_loss_func, task,  epoch+1, device, calc_train_acc= False)
         val_start = time()
-        val_avg_pred_time,_,val_acc,val_loss, val_lc_loss, auc, max_j, precision, recall, f1, rmse, fde, traj_df = eval_model(p, model, lc_loss_func, traj_loss_func, task, val_loader, val_dataset, epoch+1, device, eval_type = 'Validation')
+        val_avg_pred_time,_,val_acc,val_loss, val_lc_loss, val_traj_loss, auc, max_j, precision, recall, f1, rmse, fde, traj_df = eval_model(p, model, lc_loss_func, traj_loss_func, task, val_loader, val_dataset, epoch+1, device, eval_type = 'Validation')
         val_end = time()
         print('val_time:', val_end-val_start)
         #print("Validation Accuracy:",val_acc,' Avg Pred Time: ', val_avg_pred_time, " Avg Loss: ", val_loss," at Epoch", epoch+1)
+        if tensorboard != None:
+            
+            tensorboard.add_scalar('tr_total_loss', tr_loss, epoch+1)
+            tensorboard.add_scalar('tr_lc_loss', tr_lc_loss, epoch+1)
+            tensorboard.add_scalar('tr_traj_loss', tr_traj_loss, epoch+1)
+
+            tensorboard.add_scalar('val_total_loss', val_loss, epoch+1)
+            tensorboard.add_scalar('val_lc_loss', val_lc_loss, epoch+1)
+            tensorboard.add_scalar('val_traj_loss', val_traj_loss, epoch+1)
+            tensorboard.add_scalar('val_rmse', rmse, epoch+1)
+            tensorboard.add_scalar('val_fde', fde, epoch+1)
         if val_loss<best_val_loss:
             best_val_loss = val_loss
             best_val_acc = val_acc
@@ -214,6 +226,7 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, traj
     # Validation Phase on train dataset
     if calc_train_acc == True:
         raise('Depricated')
+    return avg_loss, avg_lc_loss, avg_traj_loss
         
 
 def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_dataset, epoch, device, eval_type = 'Validation', vis_data_path = None, figure_name = None):
@@ -362,7 +375,7 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_d
         with open(vis_data_path, "wb") as fp:
             pickle.dump(plot_dicts, fp)
         
-    return robust_pred_time, pred_time, accuracy, avg_loss, avg_lc_loss, auc, max_j, precision, recall, f1, rmse, fde, traj_df
+    return robust_pred_time, pred_time, accuracy, avg_loss, avg_lc_loss, avg_traj_loss, auc, max_j, precision, recall, f1, rmse, fde, traj_df
 
 
 
