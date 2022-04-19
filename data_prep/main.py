@@ -12,9 +12,6 @@ np.set_printoptions(threshold=sys.maxsize)
 def extract(core_num, file_numbers):
     start = time.time()
     seq_lens = []
-    rlc_counts = 0
-    llc_counts = 0
-    lk_counts = 0
     for file_number in file_numbers:
         print('Core number: ', core_num, ' started on file number: ', file_number)
         
@@ -26,13 +23,10 @@ def extract(core_num, file_numbers):
             p.static_paths[file_number],
             p.meta_paths[file_number],
             p.DATASET)
-        rlc_count, llc_count, lk_count = extractor.extract_and_save() 
-        rlc_counts += rlc_count
-        llc_counts +=llc_count
-        lk_counts += lk_count
+        extractor.extract_and_save() 
+        
     end = time.time()
     print('Core Number: ', core_num, ' Ended in: ', end-start, ' s.')
-    print('total rlc: {}, total llc: {}, total lk: {}'.format(rlc_counts, llc_counts, lk_counts))
 def render(core_num, file_numbers):
     for file_number in file_numbers:
         print('Core number: ', core_num, ' started on file number: ', file_number)
@@ -63,7 +57,7 @@ if __name__ =="__main__":
     
     # Single Core (For Debugging purposes)
     
-    i = np.arange(1,2)
+    i = np.arange(1,60)
     extract(1, i)    
     #render(1, i)
     exit()

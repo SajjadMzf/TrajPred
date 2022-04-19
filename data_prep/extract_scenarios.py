@@ -60,6 +60,8 @@ class ExtractScenarios:
         
         scenarios = []
         for tv_idx, tv_data in enumerate(self.data_tracks):
+            if tv_idx%500 == 0:
+                print('Scenario {} out of: {}'.format(tv_idx, len(self.data_tracks)))
             driving_dir = self.statics[tv_idx+1][rc.DRIVING_DIRECTION] # statics is 1-based array
             tv_id = tv_data[rc.TRACK_ID] 
             total_frames = len(tv_data[rc.FRAME])
