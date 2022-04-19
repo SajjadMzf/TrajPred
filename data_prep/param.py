@@ -25,7 +25,7 @@ image_scaleW = 1
 
 GENERATE_IMAGE_DATA = False
 LINFIT_WINDOW = 5 
-PLOT_LABELS = True
+PLOT_LABELS = False
 # parameters of CS-LSTM model
 grid_max_x = 100
 

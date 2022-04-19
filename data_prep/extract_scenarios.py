@@ -79,7 +79,6 @@ class ExtractScenarios:
             label_array =  self.get_label(tv_idx, tv_data, driving_dir)
             scenario = {
                     'file': self.file_num,
-                    'id': tv_idx,
                     'tv':tv_id,
                     'ttlc_available':True,
                     'frames':tv_data[rc.FRAME], 

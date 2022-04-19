@@ -71,42 +71,50 @@ class RenderScenarios:
         npy_dir = os.path.join(self.LC_image_dataset_dir, str(self.file_num).zfill(2) + '.npy')
         hf = h5py.File(file_dir, 'w')
         if p.GENERATE_IMAGE_DATA:
-            valid_itrs = [False if scenario['images'] is None else True for scenario in self.scenarios]
-            data_num = valid_itrs.count(True)
+            valid_itrs = [False if scenario['images'] is None else True for scenario in self.scenarios] 
         else:
-            data_num == len(self.scenarios)
-        if p.GENERATE_IMAGE_DATA:
-            image_data = hf.create_dataset('image_data', shape = (data_num, self.pre_lc_len, 3, self.cropped_height, self.cropped_width), dtype = np.bool)
-        frame_data = hf.create_dataset('frame_data', shape = (data_num, self.pre_lc_len+self.post_lc_len), dtype = np.float32)       
-        tv_data = hf.create_dataset('tv_data', shape = (data_num,), dtype = np.int)
-        labels = hf.create_dataset('labels', shape = (data_num,), dtype = np.float32)
-        state_wirth_data = hf.create_dataset('state_wirth_data', shape = (data_num, self.pre_lc_len, 18), dtype = np.float32)
-        state_shou_data = hf.create_dataset('state_shou_data', shape = (data_num, self.pre_lc_len, 18), dtype = np.float32)
-        state_ours_data = hf.create_dataset('state_ours_data', shape = (data_num, self.pre_lc_len, 18), dtype = np.float32)
-        
-        output_states_data = hf.create_dataset('output_states_data', shape = (data_num, self.pre_lc_len+self.post_lc_len, 2), dtype = np.float32)
-        ttlc_available = hf.create_dataset('ttlc_available', shape = (data_num,), dtype = np.bool)
-        
-
-        data_itr = 0
+            valid_itrs = [True for scenario in self.scenarios]
+        data_num = valid_itrs.count(True)
+        total_frames = 0  
         for itr, validity in enumerate(valid_itrs):
+            total_frames += len(self.scenarios[itr]['frames'])
+
+        if p.GENERATE_IMAGE_DATA:
+            image_data = hf.create_dataset('image_data', shape = (total_frames, 3, self.cropped_height, self.cropped_width), dtype = np.bool)
+        frame_data = hf.create_dataset('frame_data', shape = (total_frames,), dtype = np.float32)       
+        file_ids = hf.create_dataset('file_ids', shape = (total_frames,), dtype = np.int)
+        tv_data = hf.create_dataset('tv_data', shape = (total_frames,), dtype = np.int)
+        labels = hf.create_dataset('labels', shape = (total_frames,), dtype = np.float32)
+        state_wirth_data = hf.create_dataset('state_wirth_data', shape = (total_frames, 18), dtype = np.float32)
+        state_shou_data = hf.create_dataset('state_shou_data', shape = (total_frames, 18), dtype = np.float32)
+        state_ours_data = hf.create_dataset('state_ours_data', shape = (total_frames, 18), dtype = np.float32)
+        
+        output_states_data = hf.create_dataset('output_states_data', shape = (total_frames, 2), dtype = np.float32)
+        ttlc_available = hf.create_dataset('ttlc_available', shape = (total_frames,), dtype = np.bool)
+        
+        cur_frame = 0
+        for itr, validity in enumerate(valid_itrs):
+            scenario_length = len(self.scenarios[itr]['frames'])
             if validity == False:
                 continue
             if p.GENERATE_IMAGE_DATA:
                 temp = self.scenarios[itr]['images']
                 temp = np.transpose(temp,[0,3,1,2])# Chanel first
-                image_data[data_itr, :] = temp
-            state_wirth_data[data_itr, :] = self.scenarios[itr]['states_wirth']
-            state_shou_data[data_itr, :] = self.scenarios[itr]['states_shou']
-            state_ours_data[data_itr, :] = self.scenarios[itr]['states_ours']
-            output_states_data[data_itr,:] = self.scenarios[itr]['output_states']
-            frame_data[data_itr, :] = self.scenarios[itr]['frames']
-            tv_data[data_itr] = self.scenarios[itr]['tv']
-            labels[data_itr] = self.scenarios[itr]['label']
-            ttlc_available[data_itr] = self.scenarios[itr]['ttlc_available']
-            data_itr += 1
+                image_data[cur_frame:(cur_frame+scenario_length), :] = temp
+            state_wirth_data[cur_frame:(cur_frame+scenario_length), :] = self.scenarios[itr]['states_wirth']
+            state_shou_data[cur_frame:(cur_frame+scenario_length), :] = self.scenarios[itr]['states_shou']
+            state_ours_data[cur_frame:(cur_frame+scenario_length), :] = self.scenarios[itr]['states_ours']
+            output_states_data[cur_frame:(cur_frame+scenario_length), :] = self.scenarios[itr]['output_states']
+            frame_data[cur_frame:(cur_frame+scenario_length)] = self.scenarios[itr]['frames']
+            tv_data[cur_frame:(cur_frame+scenario_length)] = self.scenarios[itr]['tv']
+            file_ids[cur_frame:(cur_frame+scenario_length)] = self.scenarios[itr]['file']
+            labels[cur_frame:(cur_frame+scenario_length)] = self.scenarios[itr]['label']
+            ttlc_available[cur_frame:(cur_frame+scenario_length)] = self.scenarios[itr]['ttlc_available']
+            cur_frame +=scenario_length
+            
+        assert(cur_frame == total_frames)
         hf.close()
-        np.save(npy_dir, data_itr) 
+        np.save(npy_dir, total_frames) 
     
       
 
@@ -116,11 +124,11 @@ class RenderScenarios:
         saved_data_number = 0
         
         for scenario_idx, scenario in enumerate(self.scenarios):
-            
+            if scenario_idx%500 == 0:
+                print('Scenario {} out of: {}'.format(scenario_idx, len(self.scenarios)))
             tv_id = scenario['tv']
-            label = scenario['label']
+            label = max(scenario['label']) # TODO: this can be improved affecting where a scenario is saved
             driving_dir = scenario['driving_dir']
-
             scene_cropped_imgs = []
             whole_imgs = []
             img_frames = []
@@ -130,6 +138,7 @@ class RenderScenarios:
             output_states = []
             number_of_fr = len(scenario['frames'])
             tv_lane_ind = None
+            valid = True
             for fr in range(number_of_fr):
                 frame = scenario['frames'][fr]
                 img_frames.append(frame)
@@ -142,7 +151,7 @@ class RenderScenarios:
                     driving_dir,
                     frame,
                     tv_lane_ind,
-                    post_lc_only = (fr>=self.pre_lc_len)
+                    post_lc_only = False
                     )
 
                 output_states.append(output_state)
