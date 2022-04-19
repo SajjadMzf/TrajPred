@@ -4,7 +4,13 @@ import pickle
 
 import read_csv as rc
 import param as p
+import matplotlib
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
+font = {'size'   : 24}
+matplotlib.rcParams['figure.figsize'] = (16, 12)
 
+matplotlib.rc('font', **font)
 class ExtractScenarios:
     """This class is for extracting LC and LK scenarios from HighD dataset recording files (needs to be instantiated seperately for each recording).
     """
@@ -32,7 +38,6 @@ class ExtractScenarios:
         self.LC_states_dir = "../../Dataset/"+ dataset_name +"/Scenarios"+ p.dir_ext
         if not os.path.exists(self.LC_states_dir):
             os.makedirs(self.LC_states_dir)
-        self.scenarios = []
         self.data_tracks, _ = rc.read_track_csv(track_path, track_pickle_path, group_by = 'tracks', reload = False, fr_div = self.fr_div)
         self.data_frames, _ = rc.read_track_csv(track_path, frame_pickle_path, group_by = 'frames', reload = False, fr_div = self.fr_div)
         
@@ -41,202 +46,179 @@ class ExtractScenarios:
 
     def extract_and_save(self): 
         
-        lc_scenarios, lk_count, rlc_count, llc_count = self.get_lc_scenarios()
-        self.scenarios.extend(lc_scenarios)
-        #lk_count = 25
-        lk_scenarios, total_lk, lk_with_ttlc = self.get_lk_scenarios(lk_count)
-        
-        print("File Number; {}, ALL extracted samples: {}, RLC: {}, LLC: {}, Balance LK: {}, ALL LK: {}, LK with TTLC:{}".format(self.file_num,rlc_count + llc_count +lk_count, rlc_count, llc_count, lk_count, total_lk, lk_with_ttlc))
-        if p.UNBALANCED == False: # Check if there are enough LK scenarios for a balanced dataset
-            print(len(lk_scenarios))
-            assert(lk_count ==len(lk_scenarios))
-        
-        self.scenarios.extend(lk_scenarios)
+        scenarios = self.get_scenarios()
+        print("File Number; {}, ALL extracted scenarios: {}, ".format(self.file_num,len(scenarios)))
         file_dir = os.path.join(self.LC_states_dir, str(self.file_num).zfill(2)+ '.pickle')
         with open(file_dir, 'wb') as handle:
-            pickle.dump(self.scenarios, handle, protocol= pickle.HIGHEST_PROTOCOL)
-        return rlc_count, llc_count, lk_count
+            pickle.dump(scenarios, handle, protocol= pickle.HIGHEST_PROTOCOL)
+        return len(scenarios)
         
 
-    def get_lc_scenarios(
-        self, 
-        )-> 'List of dicts containing LC scenarios and required number of LK scenarios (undersampling LK scenarios)':
+    def get_scenarios(
+        self
+        )-> 'List of dicts containing scenarios':
         
         scenarios = []
         for tv_idx, tv_data in enumerate(self.data_tracks):
             driving_dir = self.statics[tv_idx+1][rc.DRIVING_DIRECTION] # statics is 1-based array
             tv_id = tv_data[rc.TRACK_ID] 
-            lc_last_idxs, labels, _ = self.get_last_idxs(tv_data, driving_dir, scenario_type = 'lc')
-            
-            for scenario_idx, tv_last_idx in enumerate(lc_last_idxs): # These lane_idxes are for tv_data   
-                tv_first_idx = tv_last_idx - self.pre_lc_len
-                if self.check_scenario_validity(tv_first_idx, tv_last_idx, tv_data) == False:
-                    continue
-                grid_data = np.zeros((self.pre_lc_len, 3*13))
-                for fr in range(tv_first_idx, tv_last_idx):
-                    frame = tv_data[rc.FRAME][fr]
-                    frame_data = self.data_frames[int(frame/self.fr_div -1)]
-                    grid_data[fr- tv_first_idx] = self.get_grid_data(tv_id, frame_data, driving_dir)
-
-                scenario = {
-                        'tv':tv_id,
-                        'ttlc_available':True,
-                        'frames':tv_data[rc.FRAME][tv_first_idx:(tv_last_idx+self.post_lc_len)], 
-                        'grid': grid_data, 
-                        'label':labels[scenario_idx], 
-                        'driving_dir':driving_dir,
-                        'svs': self.get_svs(tv_data, tv_first_idx, tv_last_idx),
-                        'images': None,
-                        'states_wirth': None,
-                        'states_shou': None,
-                        'states_ours': None,
-                        'output_states': None,
-                        }
-                scenarios.append(scenario)
-        
-        lc_labels = [ lc_scenario['label'] for lc_scenario in scenarios]
-        rlc_count = lc_labels.count(1)
-        llc_count = lc_labels.count(2)
-        lk_count = int((rlc_count+llc_count)/2)
-        return scenarios, lk_count, rlc_count, llc_count
-
-    def get_lk_scenarios(
-        self, 
-        lk_count:'a limit on number of LK scenarios'
-        )-> 'List of dicts containing LC scenarios for the specific ev_poistion':
-
-        scenarios = []
-        known_ttlc_count = 0
-        # We didnt shuffle tvs because there is no difference between tv number 1 and number x in terms of being random
-        for tv_idx, tv_data in enumerate(self.data_tracks):
-            driving_dir = self.statics[tv_idx+1][rc.DRIVING_DIRECTION]  # statics is 1-based array
-            tv_id = tv_data[rc.TRACK_ID] 
-            tv_last_idx, label, known_ttlc = self.get_last_idxs(tv_data, driving_dir, scenario_type = 'lk')
-               
-            tv_first_idx = tv_last_idx - self.pre_lc_len
-
-            if self.check_scenario_validity(tv_first_idx, tv_last_idx, tv_data) == False:
-                    continue
-            if known_ttlc:
-                known_ttlc_count += 1
-            grid_data = np.zeros((self.pre_lc_len, 3*13))
-            for fr in range(tv_first_idx, tv_last_idx):
-                frame = tv_data[rc.FRAME][fr]
+            total_frames = len(tv_data[rc.FRAME])
+            grid_data = np.zeros((total_frames, 3*13))
+            for fr_indx in range(total_frames):
+                frame = tv_data[rc.FRAME][fr_indx]
                 frame_data = self.data_frames[int(frame/self.fr_div -1)]
-                grid_data[fr - tv_first_idx] = self.get_grid_data(tv_id, frame_data, driving_dir)
+                grid_data[fr_indx] = self.get_grid_data(tv_id, frame_data, driving_dir)
+            
 
             scenario = {
-                        'tv':tv_id,
-                        'ttlc_available': known_ttlc,
-                        'frames':tv_data[rc.FRAME][tv_first_idx:(tv_last_idx+self.post_lc_len)],
-                        'grid': grid_data,  
-                        'label':label, 
-                        'driving_dir':driving_dir,
-                        'svs': self.get_svs(tv_data, tv_first_idx, tv_last_idx),
-                        'images': None,
-                        'states_wirth': None,
-                        'states_shou': None,
-                        'states_ours': None,
-                        'output_states': None,
-                        }
-            scenarios.append(scenario)
+                    'file': self.file_num,
+                    'id': tv_idx,
+                    'tv':tv_id,
+                    'ttlc_available':True,
+                    'frames':tv_data[rc.FRAME], 
+                    'grid': grid_data, 
+                    'label': self.get_label(tv_idx, tv_data, driving_dir), 
+                    'driving_dir':driving_dir,
+                    'svs': self.get_svs(tv_data, 0, total_frames),
+                    'images': None,
+                    'states_wirth': None,
+                    'states_shou': None,
+                    'states_ours': None,
+                    'output_states': None,
 
-        selected_scenarios = [scenario for scenario in scenarios if scenario['ttlc_available']==True]
-        unselected_scenarios = [scenario for scenario in scenarios if scenario['ttlc_available']==False]
-        remaining_lk_count = lk_count - len(selected_scenarios)
-        if p.UNBALANCED:
-            selected_scenarios.extend(unselected_scenarios)
-        elif remaining_lk_count>0:
-            selected_scenarios.extend(unselected_scenarios[:remaining_lk_count])
-        else:
-            selected_scenarios = selected_scenarios[:lk_count]
-        if  len(scenarios) < lk_count:
-            print('Warning: There is not sufficient LK scenarios in ', self.track_path )
-        return selected_scenarios, len(scenarios), known_ttlc_count
-    
-    
-    def get_last_idxs(
-        self, 
-        tv_data:'Array containing track data of the TV', 
-        driving_dir:'Driving direction of the TV', 
-        scenario_type:'LC or LK'
-        )-> '(List of) last frame index(es) of the scenario(s)  and the labels for the scenario(s)' :
+                    }
+            scenarios.append(scenario)
         
+        return scenarios
+
+    
+    
+    def get_label(self, tv_idx, tv_data, driving_dir):
         tv_lane = tv_data[rc.LANE_ID]
         total_track_len = len(tv_lane)
         tv_lane_list = list(set(tv_lane))
-
-        if scenario_type == 'lc':
-            last_idxs = []
-            labels = []
-            if len(tv_lane_list) == 1:
-                return last_idxs, labels, True
-            
-            tv_lane_mem = tv_lane
-            prev_last_idx = 0
-            while True:
-                start_lane = tv_lane[0]
-                last_idxs.append(prev_last_idx + np.nonzero(tv_lane!= start_lane)[0][0]) # the idx of the first element in tv_lane which is not equal to start_lane
-                prev_last_idx = last_idxs[-1]
-                tv_lane = tv_lane_mem[prev_last_idx:]
-                cur_lane = tv_lane[0]
-                if driving_dir == 1:
-                    if  cur_lane < start_lane:
-                        label = 1 # right lane change
-                    elif cur_lane > start_lane:
-                        label = 2 # left lane change                      
-                elif driving_dir == 2:
-                    if cur_lane > start_lane:
-                        label = 1 # right lane change
-                    elif cur_lane < start_lane:
-                        label = 2 # left lane change
-                labels.append(label)
-                if np.all(tv_lane == tv_lane[0]):
-                    break
-            return last_idxs, labels, True
+        last_idxs = []
+        labels = []
+        label_array = np.zeros((total_track_len))
+        if len(tv_lane_list) == 1:
+            return label_array
         
-        elif scenario_type == 'lk':
-            labels = 0
-            known_ttlc = False
-            if len(tv_lane_list) > 1:
-                start_lane = tv_lane[0]
-                last_idxs = np.nonzero(tv_lane!= start_lane)[0][0]
-                last_idxs -= (max(self.pred_frames, self.post_lc_len)+1)
-                known_ttlc = True
-            else:
-                last_idxs = len(tv_data[rc.FRAME])
+        tv_lane_mem = tv_lane
+        prev_last_idx = 0
+        while True:
+            start_lane = tv_lane[0]
+            last_idxs.append(prev_last_idx + np.nonzero(tv_lane!= start_lane)[0][0]) # the idx of the first element in tv_lane which is not equal to start_lane
+            prev_last_idx = last_idxs[-1]
+            tv_lane = tv_lane_mem[prev_last_idx:]
+            cur_lane = tv_lane[0]
+            if driving_dir == 1:
+                if  cur_lane < start_lane:
+                    label = 1 # right lane change
+                elif cur_lane > start_lane:
+                    label = 2 # left lane change                      
+            elif driving_dir == 2:
+                if cur_lane > start_lane:
+                    label = 1 # right lane change
+                elif cur_lane < start_lane:
+                    label = 2 # left lane change
+            labels.append(label)
+            if np.all(tv_lane == tv_lane[0]):
+                break
+        
+        tv_x = tv_data[rc.X]
+        tv_y = tv_data[rc.Y]
+        '''
+        driving dir =2
+        left lane change (label=1)
+        => gradient>0
+
+        driving dir =2
+        right lane change (label=2)
+        => gradient<0
+
+      
+        driving dir =1
+        left lane change (label=1)
+        => gradient>0
+
+        driving dir =1
+        right lane change (label=2)
+        => gradient<0
+
+        '''
+        gradients = [np.polyfit(tv_x[i:i+p.LINFIT_WINDOW], tv_y[i:i+p.LINFIT_WINDOW], deg=1 )[0] for i in range(0, total_track_len-p.LINFIT_WINDOW)]#tv_y - tv_y[last_idxs[0]]#[tv_y[i+p.LINFIT_WINDOW]-tv_y[i] for i in range(0, total_track_len-p.LINFIT_WINDOW)]
+        biases = [np.polyfit(tv_x[i:i+p.LINFIT_WINDOW], tv_y[i:i+p.LINFIT_WINDOW], deg=1 )[1] for i in range(0, total_track_len-p.LINFIT_WINDOW)]#tv_y - tv_y[last_idxs[0]]#[tv_y[i+p.LINFIT_WINDOW]-tv_y[i] for i in range(0, total_track_len-p.LINFIT_WINDOW)]
+        
+        
+        for i in range(p.LINFIT_WINDOW):
+            gradients.append(gradients[-1])
+            biases.append(biases[-1])
+        #print(driving_dir)
+        #print(last_idxs)
+        #print(gradients)
+        indexes = np.arange(len(gradients))
+        gradients = np.array(gradients)
+        biases = np.array(biases)
+        non_lc_gradient = lambda gradient_array, label: gradient_array<=0 if label == 1 else gradient_array>=0
+        for idx, last_idx in enumerate(last_idxs):
+            non_lc_points_after_crossing = non_lc_gradient(gradients[last_idx:], labels[idx])
+            if np.any(non_lc_points_after_crossing):
+                end_point = last_idx + np.nonzero(non_lc_points_after_crossing)[0][0]-1
+            else: 
+                end_point = total_track_len
                 
-                last_idxs -= (max(self.pred_frames, self.post_lc_len)+1) # We set the last index of LK scenario pred_frames before the end of recording, in case TV perform LC right after recording ends
-                #print(last_idxs)
-            return last_idxs, labels, known_ttlc
-        else:
-            raise('Unexpected Scenario Type!')
-
-    def check_scenario_validity(
-        self, 
-        tv_first_idx:'First frame index of the scenario', 
-        tv_last_idx:'Last frame index of the scenario', 
-        tv_data:'Array containing track data of the TV'
-        )->'True if valid, False if not':
-        # 1. There should be enough frames in the selected scenario.
-        if tv_first_idx < 0:
-            return False 
-
-        # 2. TV should not change its lane during input seq period
-        tv_lane = tv_data[rc.LANE_ID][tv_first_idx:tv_last_idx]
-        tv_lane_list = list(set(tv_lane))
-        if len(tv_lane_list)>1:
-            return False
-        # 3. There should be enough frames after the LC occurrence
-        total_track_len = len(tv_data[rc.LANE_ID])
-        #print('track size')
-        #print(tv_first_idx+self.pre_lc_len+self.post_lc_len)
-        #print('total size')
-        #print(total_track_len)
-        if tv_first_idx+self.pre_lc_len+self.post_lc_len>=total_track_len:
-            return False
-        return True
-    
+            
+            non_lc_points_before_crossing = non_lc_gradient(gradients[:last_idx], labels[idx])
+            if np.any(non_lc_points_before_crossing):
+                start_point = np.nonzero(non_lc_points_before_crossing)[0][-1]
+            else: 
+                start_point = 0
+                
+            #print(last_idx,start_point, end_point)
+            #print(non_lc_points_before_crossing)
+            #print(np.nonzero(non_lc_points_before_crossing))
+            #if np.any(non_lc_points_before_crossing):
+            #    print(np.nonzero(non_lc_points_before_crossing)[0][-1])
+            label_array[start_point:end_point]= np.ones((end_point-start_point))*labels[idx]
+        
+        for last_idx in last_idxs:
+            label_array[last_idx] *= -1
+            
+            
+        if p.PLOT_LABELS:
+            plt.subplot(3,1,1)
+            plt.plot(indexes, gradients, linewidth = 5)
+            plt.plot(indexes, np.zeros_like(gradients),'--', linewidth = 3)
+            plt.xlabel('Frame')
+            plt.ylabel('Gradients')
+            
+            #plt.plot(indexes, gradients)
+            for last_idx in last_idxs:
+                plt.plot(last_idx, gradients[last_idx], marker='o', markersize = 10)
+            plt.grid()
+            plt.subplot(3,1,2)
+            plt.plot(tv_x, tv_y, linewidth = 5)
+            plt.xlabel('X (m)')
+            plt.ylabel('Y (m)')
+            
+            #for i in range(0, total_track_len-p.LINFIT_WINDOW):
+            #    plt.plot(tv_x[i:i+p.LINFIT_WINDOW], gradients[i]*tv_x[i:i+p.LINFIT_WINDOW] + biases[i])
+            if driving_dir == 1:
+                plt.gca().invert_xaxis()
+            plt.grid()
+            plt.subplot(3,1,3)
+            plt.plot(indexes, abs(label_array), linewidth = 5)
+            plt.xlabel('Frame')
+            plt.ylabel('Label')
+            plt.grid()
+            #plt.show()
+            if os.path.exists('./labelling_figures/') == False:
+                os.makedirs('./labelling_figures/')
+            figure_name = 'labelling_figures/{}_{}.png'.format(self.file_num, tv_idx)
+            plt.savefig(figure_name)
+            plt.close()
+            
+        return label_array
     def get_svs(
         self, 
         tv_data:'Array containing track data of the TV', 

@@ -23,8 +23,8 @@ save_cropped_imgs = False
 image_scaleH = 4
 image_scaleW = 1
 
-
-
+LINFIT_WINDOW = 5 
+PLOT_LABELS = True
 # parameters of CS-LSTM model
 grid_max_x = 100
 

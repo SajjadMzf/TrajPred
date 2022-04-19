@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 
 def extract_seq_len(file_numbers):
     
+    seq_lens = []
     for file_number in file_numbers:
         
         track_path = p.track_paths[file_number], 
