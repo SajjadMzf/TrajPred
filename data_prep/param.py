@@ -23,8 +23,9 @@ save_cropped_imgs = False
 image_scaleH = 4
 image_scaleW = 1
 
+GENERATE_IMAGE_DATA = False
 LINFIT_WINDOW = 5 
-PLOT_LABELS = False
+PLOT_LABELS = True
 # parameters of CS-LSTM model
 grid_max_x = 100
 

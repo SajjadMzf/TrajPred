@@ -60,18 +60,23 @@ class ExtractScenarios:
         
         scenarios = []
         for tv_idx, tv_data in enumerate(self.data_tracks):
+            #print('tv idx: {}'.format(tv_idx))
             if tv_idx%500 == 0:
                 print('Scenario {} out of: {}'.format(tv_idx, len(self.data_tracks)))
+            
             driving_dir = self.statics[tv_idx+1][rc.DRIVING_DIRECTION] # statics is 1-based array
             tv_id = tv_data[rc.TRACK_ID] 
             total_frames = len(tv_data[rc.FRAME])
+            if total_frames<= p.LINFIT_WINDOW:
+                print('{} has short length({})'.format(tv_idx, total_frames))
+                continue
             grid_data = np.zeros((total_frames, 3*13))
             for fr_indx in range(total_frames):
                 frame = tv_data[rc.FRAME][fr_indx]
                 frame_data = self.data_frames[int(frame/self.fr_div -1)]
                 grid_data[fr_indx] = self.get_grid_data(tv_id, frame_data, driving_dir)
             
-
+            label_array =  self.get_label(tv_idx, tv_data, driving_dir)
             scenario = {
                     'file': self.file_num,
                     'id': tv_idx,
@@ -79,7 +84,7 @@ class ExtractScenarios:
                     'ttlc_available':True,
                     'frames':tv_data[rc.FRAME], 
                     'grid': grid_data, 
-                    'label': self.get_label(tv_idx, tv_data, driving_dir), 
+                    'label':label_array, 
                     'driving_dir':driving_dir,
                     'svs': self.get_svs(tv_data, 0, total_frames),
                     'images': None,
@@ -101,9 +106,10 @@ class ExtractScenarios:
         tv_lane_list = list(set(tv_lane))
         last_idxs = []
         labels = []
-        label_array = np.zeros((total_track_len))
+        label_array_y = np.zeros((total_track_len))
+        
         if len(tv_lane_list) == 1:
-            return label_array
+            return label_array_y
         
         tv_lane_mem = tv_lane
         prev_last_idx = 0
@@ -129,89 +135,65 @@ class ExtractScenarios:
         
         tv_x = tv_data[rc.X]
         tv_y = tv_data[rc.Y]
-        '''
-        driving dir =2
-        left lane change (label=1)
-        => gradient>0
-
-        driving dir =2
-        right lane change (label=2)
-        => gradient<0
-
-      
-        driving dir =1
-        left lane change (label=1)
-        => gradient>0
-
-        driving dir =1
-        right lane change (label=2)
-        => gradient<0
-
-        '''
-        gradients = [np.polyfit(tv_x[i:i+p.LINFIT_WINDOW], tv_y[i:i+p.LINFIT_WINDOW], deg=1 )[0] for i in range(0, total_track_len-p.LINFIT_WINDOW)]#tv_y - tv_y[last_idxs[0]]#[tv_y[i+p.LINFIT_WINDOW]-tv_y[i] for i in range(0, total_track_len-p.LINFIT_WINDOW)]
-        biases = [np.polyfit(tv_x[i:i+p.LINFIT_WINDOW], tv_y[i:i+p.LINFIT_WINDOW], deg=1 )[1] for i in range(0, total_track_len-p.LINFIT_WINDOW)]#tv_y - tv_y[last_idxs[0]]#[tv_y[i+p.LINFIT_WINDOW]-tv_y[i] for i in range(0, total_track_len-p.LINFIT_WINDOW)]
         
+        indexes = np.arange(total_track_len)
+        y_gradients = [np.polynomial.polynomial.polyfit(indexes[i:i+p.LINFIT_WINDOW], tv_y[i:i+p.LINFIT_WINDOW], deg=1 )[1] for i in range(0, total_track_len-p.LINFIT_WINDOW)]#tv_y - tv_y[last_idxs[0]]#[tv_y[i+p.LINFIT_WINDOW]-tv_y[i] for i in range(0, total_track_len-p.LINFIT_WINDOW)]
         
         for i in range(p.LINFIT_WINDOW):
-            gradients.append(gradients[-1])
-            biases.append(biases[-1])
-        #print(driving_dir)
-        #print(last_idxs)
-        #print(gradients)
-        indexes = np.arange(len(gradients))
-        gradients = np.array(gradients)
-        biases = np.array(biases)
-        non_lc_gradient = lambda gradient_array, label: gradient_array<=0 if label == 1 else gradient_array>=0
+            y_gradients.append(y_gradients[-1])
+        
+        y_gradients = np.array(y_gradients)
+        non_lc_y_gradient = lambda gradient_array, label, driving_dir: gradient_array<=0 if (label == 2 and driving_dir==1) or (label == 1 and driving_dir==2)   else gradient_array>=0
         for idx, last_idx in enumerate(last_idxs):
-            non_lc_points_after_crossing = non_lc_gradient(gradients[last_idx:], labels[idx])
-            if np.any(non_lc_points_after_crossing):
-                end_point = last_idx + np.nonzero(non_lc_points_after_crossing)[0][0]-1
+            non_lc_points_after_crossing_y = non_lc_y_gradient(y_gradients[last_idx:], labels[idx], driving_dir)
+            if np.any(non_lc_points_after_crossing_y):
+                end_point = last_idx + np.nonzero(non_lc_points_after_crossing_y)[0][0]-1
             else: 
                 end_point = total_track_len
                 
             
-            non_lc_points_before_crossing = non_lc_gradient(gradients[:last_idx], labels[idx])
-            if np.any(non_lc_points_before_crossing):
-                start_point = np.nonzero(non_lc_points_before_crossing)[0][-1]
+            non_lc_points_before_crossing_y = non_lc_y_gradient(y_gradients[:last_idx], labels[idx], driving_dir)
+            if np.any(non_lc_points_before_crossing_y):
+                start_point = np.nonzero(non_lc_points_before_crossing_y)[0][-1]
             else: 
                 start_point = 0
                 
-            #print(last_idx,start_point, end_point)
-            #print(non_lc_points_before_crossing)
-            #print(np.nonzero(non_lc_points_before_crossing))
-            #if np.any(non_lc_points_before_crossing):
-            #    print(np.nonzero(non_lc_points_before_crossing)[0][-1])
-            label_array[start_point:end_point]= np.ones((end_point-start_point))*labels[idx]
+            label_array_y[start_point:end_point]= np.ones((end_point-start_point))*labels[idx]
         
         for last_idx in last_idxs:
-            label_array[last_idx] *= -1
+            label_array_y[last_idx] *= -1
             
             
         if p.PLOT_LABELS:
+            
             plt.subplot(3,1,1)
-            plt.plot(indexes, gradients, linewidth = 5)
-            plt.plot(indexes, np.zeros_like(gradients),'--', linewidth = 3)
+            plt.plot(indexes, y_gradients, linewidth = 5)
+            plt.plot(indexes, np.zeros_like(y_gradients),'--', linewidth = 3)
             plt.xlabel('Frame')
-            plt.ylabel('Gradients')
+            plt.ylabel('y_Gradients')
+            
             
             #plt.plot(indexes, gradients)
             for last_idx in last_idxs:
-                plt.plot(last_idx, gradients[last_idx], marker='o', markersize = 10)
+                plt.plot(last_idx, y_gradients[last_idx], marker='o', markersize = 10)
             plt.grid()
             plt.subplot(3,1,2)
-            plt.plot(tv_x, tv_y, linewidth = 5)
-            plt.xlabel('X (m)')
+            plt.plot(indexes, tv_y, linewidth = 5)
+            for last_idx in last_idxs:
+                plt.plot(indexes, np.ones_like(tv_y)*tv_y[last_idx],'--', linewidth = 3)
+            plt.xlabel('Frame')
             plt.ylabel('Y (m)')
             
             #for i in range(0, total_track_len-p.LINFIT_WINDOW):
-            #    plt.plot(tv_x[i:i+p.LINFIT_WINDOW], gradients[i]*tv_x[i:i+p.LINFIT_WINDOW] + biases[i])
-            if driving_dir == 1:
-                plt.gca().invert_xaxis()
+            #    plt.plot(tv_x[i:i+p.LINFIT_WINDOW], y_gradients[i]*tv_x[i:i+p.LINFIT_WINDOW] + biases[i])
+            #if driving_dir == 1:
+            #    plt.gca().invert_xaxis()
             plt.grid()
+            
             plt.subplot(3,1,3)
-            plt.plot(indexes, abs(label_array), linewidth = 5)
+            plt.plot(indexes, abs(label_array_y), linewidth = 5)
             plt.xlabel('Frame')
-            plt.ylabel('Label')
+            plt.ylabel('Label_y')
             plt.grid()
             #plt.show()
             if os.path.exists('./labelling_figures/') == False:
@@ -220,7 +202,7 @@ class ExtractScenarios:
             plt.savefig(figure_name)
             plt.close()
             
-        return label_array
+        return label_array_y
     def get_svs(
         self, 
         tv_data:'Array containing track data of the TV', 

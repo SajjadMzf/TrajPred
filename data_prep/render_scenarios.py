@@ -70,9 +70,13 @@ class RenderScenarios:
         file_dir = os.path.join(self.LC_image_dataset_dir, str(self.file_num).zfill(2) + '.h5')
         npy_dir = os.path.join(self.LC_image_dataset_dir, str(self.file_num).zfill(2) + '.npy')
         hf = h5py.File(file_dir, 'w')
-        valid_itrs = [False if scenario['images'] is None else True for scenario in self.scenarios]
-        data_num = valid_itrs.count(True)
-        image_data = hf.create_dataset('image_data', shape = (data_num, self.pre_lc_len, 3, self.cropped_height, self.cropped_width), dtype = np.bool)
+        if p.GENERATE_IMAGE_DATA:
+            valid_itrs = [False if scenario['images'] is None else True for scenario in self.scenarios]
+            data_num = valid_itrs.count(True)
+        else:
+            data_num == len(self.scenarios)
+        if p.GENERATE_IMAGE_DATA:
+            image_data = hf.create_dataset('image_data', shape = (data_num, self.pre_lc_len, 3, self.cropped_height, self.cropped_width), dtype = np.bool)
         frame_data = hf.create_dataset('frame_data', shape = (data_num, self.pre_lc_len+self.post_lc_len), dtype = np.float32)       
         tv_data = hf.create_dataset('tv_data', shape = (data_num,), dtype = np.int)
         labels = hf.create_dataset('labels', shape = (data_num,), dtype = np.float32)
@@ -88,9 +92,10 @@ class RenderScenarios:
         for itr, validity in enumerate(valid_itrs):
             if validity == False:
                 continue
-            temp = self.scenarios[itr]['images']
-            temp = np.transpose(temp,[0,3,1,2])# Chanel first
-            image_data[data_itr, :] = temp
+            if p.GENERATE_IMAGE_DATA:
+                temp = self.scenarios[itr]['images']
+                temp = np.transpose(temp,[0,3,1,2])# Chanel first
+                image_data[data_itr, :] = temp
             state_wirth_data[data_itr, :] = self.scenarios[itr]['states_wirth']
             state_shou_data[data_itr, :] = self.scenarios[itr]['states_shou']
             state_ours_data[data_itr, :] = self.scenarios[itr]['states_ours']
@@ -123,15 +128,13 @@ class RenderScenarios:
             states_shou = []
             states_ours = []
             output_states = []
-            number_of_fr = self.pre_lc_len + self.post_lc_len
+            number_of_fr = len(scenario['frames'])
             tv_lane_ind = None
             for fr in range(number_of_fr):
                 frame = scenario['frames'][fr]
                 img_frames.append(frame)
-                if fr< self.pre_lc_len:
-                    svs_ids = scenario['svs']['id'][:,fr]
-                else:
-                    svs_ids = 0
+                
+                svs_ids = scenario['svs']['id'][:,fr]
                 state_wirth, state_shou,state_ours, output_state, tv_lane_ind = self.calc_states(
                     self.frames_data[int(frame/self.fr_div -1)],
                     tv_id, 
@@ -146,7 +149,7 @@ class RenderScenarios:
                 if fr==0:
                     output_states.append(output_state)
                 
-                if fr < self.pre_lc_len:
+                if p.GENERATE_IMAGE_DATA:
                     cropped_img, whole_img, valid = self.plot_frame(
                         self.frames_data[int(frame/self.fr_div -1)],
                         tv_id, 
@@ -158,9 +161,10 @@ class RenderScenarios:
                     if not valid: # Being valid is about width of TV not being less than 2 pixels
                         print('Invalid frame:', fr+1, ' of scenario: ', scenario_idx+1, ' of ', len(self.scenarios))
                         break
-                    states_wirth.append(state_wirth)
-                    states_shou.append(state_shou)
-                    states_ours.append(state_ours)
+                states_wirth.append(state_wirth)
+                states_shou.append(state_shou)
+                states_ours.append(state_ours)
+                if p.GENERATE_IMAGE_DATA:
                     scene_cropped_imgs.append(cropped_img)
                     whole_imgs.append(whole_img)
                 
@@ -170,8 +174,9 @@ class RenderScenarios:
             #print(self.scenarios[scenario_idx]['label'])
             #print(output_states)
             #exit()
-            scene_cropped_imgs = np.array(scene_cropped_imgs, dtype = self.dtype)
-            self.scenarios[scenario_idx]['images'] = scene_cropped_imgs
+            if p.GENERATE_IMAGE_DATA:
+                scene_cropped_imgs = np.array(scene_cropped_imgs, dtype = self.dtype)
+                self.scenarios[scenario_idx]['images'] = scene_cropped_imgs
             self.scenarios[scenario_idx]['states_wirth'] = np.array(states_wirth)
             self.scenarios[scenario_idx]['states_shou'] = np.array(states_shou)
             self.scenarios[scenario_idx]['states_ours'] = np.array(states_ours)
@@ -181,9 +186,10 @@ class RenderScenarios:
             
             saved_data_number += 1
             
-            if self.save_whole_imgs: rf.save_image_sequence( tv_id, img_frames, whole_imgs, os.path.join(self.LC_whole_imgs_dir, str(label)), self.file_num)
-            if self.save_cropped_imgs: rf.save_image_sequence( tv_id, img_frames, scene_cropped_imgs, os.path.join(self.LC_cropped_imgs_dir, str(label)), self.file_num)
-            
+            if p.GENERATE_IMAGE_DATA:
+                if self.save_whole_imgs: rf.save_image_sequence( tv_id, img_frames, whole_imgs, os.path.join(self.LC_whole_imgs_dir, str(label)), self.file_num)
+                if self.save_cropped_imgs: rf.save_image_sequence( tv_id, img_frames, scene_cropped_imgs, os.path.join(self.LC_cropped_imgs_dir, str(label)), self.file_num)
+                
         return saved_data_number
 
     def plot_frame(
