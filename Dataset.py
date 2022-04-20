@@ -9,6 +9,9 @@ class LCDataset(Dataset):
     dataset_dir, 
     data_files, 
     data_type, 
+    in_seq_len,
+    out_seq_len,
+    end_of_seq_skip_len,
     state_type = '', 
     keep_plot_info = True, 
     traj_output = False, 
@@ -25,6 +28,8 @@ class LCDataset(Dataset):
         self.state_data_name = 'state_'+ state_type + '_data'
         self.data_type= data_type
         self.traj_output = traj_output
+        self.in_seq_len = in_seq_len
+        self.out_seq_len = out_seq_len
         if data_type == 'image':
             self.image_only = True
             self.state_only = False
@@ -33,13 +38,13 @@ class LCDataset(Dataset):
             self.state_only = True
         
         self.keep_plot_info = keep_plot_info
-        for data_file in self.dataset_dirs:
-            npy_file = data_file.replace('.h5','.npy')
-            dataset_in_file_size = np.load(npy_file)
-            self.dataset_size += dataset_in_file_size #Total number of frames
-            self.file_size.append(self.dataset_size) #Number of frames in each file
         
         self.file_size = np.array(self.file_size)
+        self.start_indexes = []
+        for data_file in self.dataset_dirs:
+            self.start_indexes.append(self.get_samples_start_index(in_seq_len, out_seq_len, end_of_seq_skip_len, data_file))
+            self.dataset_size += len(self.start_indexes[-1])
+            self.file_size.append(self.dataset_size) #Cumulative Number of samples
         if data_type == 'state':
             if np.all(states_min) == 0 or np.all(states_max) == 0:
                 self.states_min, self.states_max = self.get_features_range(self.state_data_name)
@@ -79,17 +84,29 @@ class LCDataset(Dataset):
         states_max = states_max.max(axis = 0)
         return states_min, states_max
                 
+    def get_samples_start_index(self, in_seq_len, out_seq_len, end_of_seq_skip_len, data_file):
+        samples_start_index = []
+        with h5py.File(data_file, 'r') as f:
+            tv_ids = f['tv_data']
+            for itr, tv_id in enumerate(tv_ids):
+                if np.all(tv_ids[itr:(itr+in_seq_len+out_seq_len+end_of_seq_skip_len)] == tv_id):
+                    samples_start_index.append(itr)
+        
+        samples_start_index = np.array(samples_start_index)
 
+        return samples_start_index
 
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
-            idx = idx.tolist()        
+            idx = idx.tolist()       
         file_itr = np.argmax(self.file_size>idx)
         if file_itr>0:
             sample_itr = idx - self.file_size[file_itr-1]-1
         else:
             sample_itr = idx-1
         
+        start_index = self.start_indexes(sample_itr)
+        total_seq_len = self.in_seq_len + self.out_seq_len
         with h5py.File(self.dataset_dirs[file_itr], 'r') as f:
             image_data = f['image_data']
             if self.data_type == 'state':
@@ -101,34 +118,34 @@ class LCDataset(Dataset):
             if self.keep_plot_info:
                 frame_data = f['frame_data']
                 tv_data = f['tv_data']
-                tv_id = tv_data[sample_itr]
-                frames = frame_data[sample_itr]
+                tv_id = tv_data[start_index] # constant number for all frames of same scenario  
+                frames = frame_data[start_index:(start_index+total_seq_len)]
                 plot_output = [tv_id, frames, self.data_files[file_itr]]
             else:
                 plot_output = ()
             
             if self.image_only:
-                images = torch.from_numpy(image_data[sample_itr].astype(np.float32))
+                images = torch.from_numpy(image_data[start_index:(start_index+self.in_seq_len)].astype(np.float32))
                 data_output = [images]
             elif self.state_only:
-                states = state_data[sample_itr]
+                states = state_data[start_index:(start_index+self.in_seq_len)]
                 states = (states-self.states_min)/(self.states_max-self.states_min)
                 states = torch.from_numpy(states.astype(np.float32))
                 data_output = [states]
             else:
-                states = state_data[sample_itr]
+                states = state_data[start_index:(start_index+self.in_seq_len)]
                 states = (states-self.states_min)/(self.states_max-self.states_min)
-                images = torch.from_numpy(image_data[sample_itr].astype(np.float32))
+                images = torch.from_numpy(image_data[start_index:(start_index+self.in_seq_len)].astype(np.float32))
                 states = torch.from_numpy(states.astype(np.float32))
                 data_output = [images, states]
             if self.traj_output:
                 output_state_data = f['output_states_data']
-                output_states = output_state_data[sample_itr]
+                output_states = output_state_data[(start_index+self.in_seq_len):(start_index+self.total_seq_len)]
                 output_states = (output_states-self.output_states_min)/(self.output_states_max-self.output_states_min)
                 output_states = torch.from_numpy(output_states.astype(np.float32))
                 data_output.append(output_states)
 
-            label = labels_data[sample_itr].astype(np.long)
-            ttlc_status = ttlc_available[sample_itr].astype(np.long)          
+            label = labels_data[(start_index+self.in_seq_len):(start_index+self.total_seq_len)].astype(np.long)
+            ttlc_status = ttlc_available[start_index].astype(np.long)  # constant number for all frames of same scenario        
         return data_output, label, plot_output, ttlc_status
 
