@@ -36,8 +36,8 @@ class LCDataset(Dataset):
         for data_file in self.dataset_dirs:
             npy_file = data_file.replace('.h5','.npy')
             dataset_in_file_size = np.load(npy_file)
-            self.dataset_size += dataset_in_file_size
-            self.file_size.append(self.dataset_size)
+            self.dataset_size += dataset_in_file_size #Total number of frames
+            self.file_size.append(self.dataset_size) #Number of frames in each file
         
         self.file_size = np.array(self.file_size)
         if data_type == 'state':
@@ -73,10 +73,10 @@ class LCDataset(Dataset):
                 #state_data = state_data.reshape((state_data.shape[0]*state_data.shape[1],state_data.shape[2]))
                 states_min.append(np.min(np.min(state_data, axis = 0), axis = 0))
                 states_max.append(np.max(np.max(state_data, axis = 0), axis = 0))
-            states_min = np.stack(states_min, axis = 0)
-            states_max = np.stack(states_max, axis = 0)
-            states_min = states_min.min(axis = 0)
-            states_max = states_max.max(axis = 0)
+        states_min = np.stack(states_min, axis = 0)
+        states_max = np.stack(states_max, axis = 0)
+        states_min = states_min.min(axis = 0)
+        states_max = states_max.max(axis = 0)
         return states_min, states_max
                 
 
