@@ -41,7 +41,8 @@ class Parameters:
         self.FPS = 5
         self.SEQ_LEN = 30
         self.IN_SEQ_LEN = 10
-        self.TGT_SEQ_LEN = 20
+        self.TGT_SEQ_LEN = 20# out_Seq_len
+        self.SKIP_SEQ_LEN = 5 # end_of_seq_skip_len
 
         # Metrics Hyperparameters:
         self.ACCEPTED_GAP = 0

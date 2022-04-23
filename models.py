@@ -73,11 +73,8 @@ class NovelTransformerTraj(nn.Module):
             self.spat_rlc_transformer_decoder = nn.TransformerDecoder(spat_rlc_decoder_layers, self.layers_num)
             self.spat_llc_transformer_decoder = nn.TransformerDecoder(spat_llc_decoder_layers, self.layers_num)
         
-        ''' 4. Classification Output '''
-        self.classifier_fc1 = nn.Linear(self.model_dim, self.classifier_dim)
-        self.classifier_fc2 = nn.Linear(self.classifier_dim,3)
 
-        ''' 5. Trajectory Output '''
+        ''' 4. Trajectory Output '''
         if self.multi_modal == False:
             self.trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
         else:
@@ -86,20 +83,17 @@ class NovelTransformerTraj(nn.Module):
             self.llc_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
     
     def forward(self, x, y, y_mask):
-        #print(len(x))
+        
         x = x[0]
         #temporal encoder
         temp_x = self.temp_encoder_embedding(x)
         temp_x = self.positional_encoder(temp_x)
         temp_encoder_out = self.temp_transformer_encoder(temp_x)
-        #spatial encoder
-        #print(x.size())
-        #exit()
+        
         spatial_x = torch.permute(x, (0, 2, 1))
         spatial_x = self.spat_encoder_embedding(spatial_x)
         spatial_x = self.positional_encoder(spatial_x)
         spat_encoder_out = self.spat_transformer_encoder(spatial_x)
-
 
         #temp decoder
         if self.multi_modal == False:
@@ -129,11 +123,7 @@ class NovelTransformerTraj(nn.Module):
             spat_llc_decoder_out = self.spat_llc_transformer_decoder(temp_llc_decoder_out, spat_encoder_out, tgt_mask = y_mask)
 
 
-        #classification
-        lc_pred = temp_encoder_out.mean(dim = 1)
-        lc_pred = F.relu(self.classifier_fc1(lc_pred))
-        lc_pred = self.dropout(lc_pred)
-        lc_pred = self.classifier_fc2(lc_pred)
+        
 
         #trajectory prediction
         if self.multi_modal == False:
@@ -143,8 +133,8 @@ class NovelTransformerTraj(nn.Module):
             lk_traj_pred = self.lk_trajectory_fc(spat_lk_decoder_out)
             rlc_traj_pred = self.rlc_trajectory_fc(spat_rlc_decoder_out)
             llc_traj_pred = self.llc_trajectory_fc(spat_llc_decoder_out)
-            traj_pred = torch.stack([lk_traj_pred, rlc_traj_pred, llc_traj_pred], dim=1) # lk =0, rlc=1, llc=2
-        return {'lc_pred':lc_pred, 'traj_pred':traj_pred, 'multi_modal': self.multi_modal}
+            traj_pred = torch.stack([lk_traj_pred, rlc_traj_pred, llc_traj_pred], dim=1)
+        return {'traj_pred':traj_pred, 'multi_modal': self.multi_modal}
     
     def get_y_mask(self, size) -> torch.tensor:
         # Generates a squeare matrix where the each row allows one word more to be seen
@@ -179,9 +169,7 @@ class ConstantX(nn.Module):
         self.input_dim = 18
         self.output_dim = 2
         print('Constant Model should only be run with ours_states that includes velocity, acceleration features')
-        self.lc_pred = np.zeros((self.batch_size, 3))
-        self.lc_pred[:,0] = 1.
-        self.lc_pred = torch.tensor(self.lc_pred, requires_grad = False)
+        
 
         self.unused_layer = nn.Linear(1,1)   
     def forward(self, x, states_min, states_max, output_states_min, output_states_max, traj_labels):
@@ -239,7 +227,7 @@ class ConstantX(nn.Module):
         #print(traj_labels[0])
         #print(self.traj_pred[0])
         #exit()
-        return {'lc_pred':self.lc_pred.to(self.device), 'traj_pred':traj_pred.to(self.device), 'multi_modal': False}
+        return {'traj_pred':traj_pred.to(self.device), 'multi_modal': False}
 
 class TransformerTraj(nn.Module): 
     def __init__(self, batch_size, device, hyperparams_dict, parameters, drop_prob = 0.1):
@@ -318,13 +306,6 @@ class TransformerTraj(nn.Module):
             llc_y = self.decoder_embedding(y[:,2])
             llc_y = self.positional_encoder(llc_y)
             llc_decoder_out = self.llc_transformer_decoder(llc_y, encoder_out, tgt_mask = y_mask)
-            
-        
-        #classification
-        lc_pred = encoder_out.mean(dim = 1)
-        lc_pred = F.relu(self.classifier_fc1(lc_pred))
-        lc_pred = self.dropout(lc_pred)
-        lc_pred = self.classifier_fc2(lc_pred)
 
         #trajectory prediction
         if self.multi_modal == False:
@@ -335,7 +316,7 @@ class TransformerTraj(nn.Module):
             rlc_traj_pred = self.rlc_trajectory_fc(rlc_decoder_out)
             llc_traj_pred = self.llc_trajectory_fc(llc_decoder_out)
             traj_pred = torch.stack([lk_traj_pred, rlc_traj_pred, llc_traj_pred], dim=1) # lk =0, rlc=1, llc=2
-        return {'lc_pred':lc_pred, 'traj_pred':traj_pred, 'multi_modal': self.multi_modal}
+        return {'traj_pred':traj_pred, 'multi_modal': self.multi_modal}
     
     def get_y_mask(self, size) -> torch.tensor:
         # Generates a squeare matrix where the each row allows one word more to be seen
@@ -383,98 +364,6 @@ class PositionalEncoding(nn.Module):
         return self.dropout(token_embedding + self.pos_encoding[:, :token_embedding.size(1), :])
 
 
-class TransformerClassifier(nn.Module): 
-    def __init__(self, batch_size, device, hyperparams_dict, parameters, drop_prob = 0.1):
-        super(TransformerClassifier, self).__init__()
-
-        self.batch_size = batch_size
-        self.device = device
-        
-        self.model_dim = hyperparams_dict['model dim']
-        self.ff_dim = hyperparams_dict['feedforward dim']
-        self.mlp_dim = hyperparams_dict['mlp dim']
-        self.layers_num = hyperparams_dict['layer number']
-        self.head_num = hyperparams_dict['head number']
-        self.task = hyperparams_dict['task']
-        self.in_seq_len = parameters.IN_SEQ_LEN
-        self.input_dim = 18
-
-        ##### Positional encoder:
-        pos = torch.arange(0.0, self.in_seq_len).unsqueeze(1)
-        pos_encoding = torch.zeros((self.in_seq_len, self.model_dim))
-
-        sin_den = 10000 ** (torch.arange(0.0, self.model_dim, 2)/self.model_dim) # sin for even item of position's dimension
-        cos_den = 10000 ** (torch.arange(1.0, self.model_dim, 2)/self.model_dim) # cos for odd 
-
-        pos_encoding[:, 0::2] = torch.sin(pos / sin_den) 
-        pos_encoding[:, 1::2] = torch.cos(pos / cos_den)
-
-        # Shape (pos_embedding) --> [max len, d_model]
-        # Adding one more dimension in-between
-        pos_encoding = pos_encoding.unsqueeze(0)
-        # Shape (pos_embedding) --> [1, max len, d_model]
-
-        self.dropout = nn.Dropout(drop_prob)
-        self.register_buffer('pos_encoding', pos_encoding)
-        ######
-
-        # Only using Encoder of Transformer model
-        encoder_layers = nn.TransformerEncoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
-        self.transformer_encoder = nn.TransformerEncoder(encoder_layers, self.layers_num)
-        self.embedding_layer = nn.Linear(self.input_dim, self.model_dim)
-        if self.task == params.CLASSIFICATION or self.task == params.DUAL:
-            self.fc1 = nn.Linear(self.model_dim, self.mlp_dim)
-            self.fc2 = nn.Linear(self.mlp_dim,3)
-        
-        if self.task == params.REGRESSION or self.task == params.DUAL:
-            self.fc1_ttlc = nn.Linear(self.model_dim, 512)
-            self.fc2_ttlc = nn.Linear(512,1)
-
-    def ttlc_forward(self, x):
-        x = self.dropout(x)
-        out = F.relu(self.fc1_ttlc(x))
-        out = self.dropout(out)
-        out = F.relu(self.fc2_ttlc(out))
-        return out
-    
-    def lc_forward(self, x):
-        x = self.dropout(x)
-        out = F.relu(self.fc1(x))
-        out = self.dropout(out)
-        out = self.fc2(out)
-        return out
-    
-    def forward(self, x):#TODO make embedding works for sequence data
-        x = x[0]
-        #x = x.reshape(self.batch_size*self.in_seq_len, self.input_dim)
-        x_list = []
-        for i in range(self.in_seq_len):
-            #print(i)
-            x_temp = self.embedding_layer(x[:,i,:])
-            x_temp = torch.unsqueeze(x_temp, 1)
-            x_list.append(x_temp)
-        x = torch.cat(x_list, dim = 1)
-        #print(x.shape)
-        #exit()
-        #x = self.embedding_layer(x)
-        #x = x.reshape(self.batch_size, self.in_seq_len, self.model_dim)
-        
-        x = self.dropout(x + self.pos_encoding)
-        
-        out = self.transformer_encoder(x)
-        transformer_out = out.mean(dim = 1)
-
-        if self.task == params.CLASSIFICATION or self.task == params.DUAL:
-            lc_pred = self.lc_forward(transformer_out)
-        else:
-            lc_pred = 0
-        
-        if self.task == params.REGRESSION or self.task == params.DUAL:
-            ttlc_pred = self.ttlc_forward(transformer_out)
-        else:
-            ttlc_pred = 0
-        
-        return {'lc_pred':lc_pred, 'ttlc_pred':ttlc_pred, 'features': transformer_out}
 
 
 class VanillaLSTM(nn.Module):
