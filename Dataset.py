@@ -17,6 +17,7 @@ class LCDataset(Dataset):
     traj_output = False, 
     states_min = 0, 
     states_max = 0, 
+    import_states = False,
     output_states_min = 0, 
     output_states_max = 0):
 
@@ -47,21 +48,21 @@ class LCDataset(Dataset):
             self.file_size.append(self.dataset_size) #Cumulative Number of samples
         self.file_size = np.array(self.file_size)
         if data_type == 'state':
-            if np.all(states_min) == 0 or np.all(states_max) == 0:
-                self.states_min, self.states_max = self.get_features_range(self.state_data_name)
-            else:
+            if import_states == True:
                 self.states_min = states_min
                 self.states_max = states_max
+            else:
+                self.states_min, self.states_max = self.get_features_range(self.state_data_name)
         else:
             self.states_min = 0
             self.states_max = 1
         
         if traj_output:
-            if np.all(output_states_min) == 0 or np.all(output_states_max) == 0:
-                self.output_states_min, self.output_states_max = self.get_features_range('output_states_data')
-            else:
+            if import_states == True:
                 self.output_states_min = output_states_min
                 self.output_states_max = output_states_max
+            else:
+                self.output_states_min, self.output_states_max = self.get_features_range('output_states_data')
         else:
             self.output_states_min = 0
             self.output_states_max = 1
@@ -77,12 +78,22 @@ class LCDataset(Dataset):
                 
                 state_data = f[feature_name]
                 #state_data = state_data.reshape((state_data.shape[0]*state_data.shape[1],state_data.shape[2]))
-                states_min.append(np.min(np.min(state_data, axis = 0), axis = 0))
-                states_max.append(np.max(np.max(state_data, axis = 0), axis = 0))
+                states_min.append(np.min(state_data, axis = 0))
+                states_max.append(np.max(state_data, axis = 0))
         states_min = np.stack(states_min, axis = 0)
         states_max = np.stack(states_max, axis = 0)
         states_min = states_min.min(axis = 0)
         states_max = states_max.max(axis = 0)
+        #print('diff')
+        #print(states_min)
+        #print(states_max-states_min)
+        #assert(np.any(states_max-states_min) != 0)
+        
+        #print('states_min:{}'.format(states_min))
+        #print('states_max:{}'.format(states_max))
+        #print('states_diff:{}'.format(states_max-states_min))
+        #print('states_min_all:{}'.format(np.all(states_min)))
+        #print('states_max_all:{}'.format(np.all(states_max)))
         return states_min, states_max
                 
     def get_samples_start_index(self, in_seq_len, out_seq_len, end_of_seq_skip_len, data_file, force_recalc = False):
@@ -106,15 +117,21 @@ class LCDataset(Dataset):
         return samples_start_index
 
     def __getitem__(self, idx):
-        #assert(idx != 0)
+        assert(idx != self.dataset_size)
         if torch.is_tensor(idx):
             idx = idx.tolist()       
-        file_itr = np.argmax(self.file_size>=idx)
+        file_itr = np.argmax(self.file_size>idx)
         if file_itr>0:
             sample_itr = idx - self.file_size[file_itr-1]
         else:
             sample_itr = idx
-        
+        if sample_itr == len(self.start_indexes[file_itr]):
+            print('idx: {}, file itr: {}, sample_itr: {}'.format(idx, file_itr, sample_itr))
+            print(self.file_size)
+            #print(state_data.shape[0])
+            print(self.file_size[file_itr])
+            exit()
+    
         start_index = self.start_indexes[file_itr][sample_itr]
         total_seq_len = self.in_seq_len + self.out_seq_len
         with h5py.File(self.dataset_dirs[file_itr], 'r') as f:

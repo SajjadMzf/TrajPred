@@ -66,6 +66,7 @@ def test_model_dict(model_dict, p):
         state_type = model_dict['state type'], 
         keep_plot_info= True, 
         traj_output = (task==params.TRAJECTORYPRED), 
+        import_states = True,
         states_min = tr_dataset.states_min, 
         states_max = tr_dataset.states_max,
         output_states_min = tr_dataset.output_states_min, 
