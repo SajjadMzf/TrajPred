@@ -145,10 +145,10 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, traj
         data_tuple = [data.to(device) for data in data_tuple]
         labels = labels.to(device)
 
-        if task == params.TRAJECTORYPRED:
+        if task == params.TRAJECTORYPRED: # seperate traj input data from other
             target_data = data_tuple[-1]
-            target_data_in = target_data[:,:p.TGT_SEQ_LEN]
-            target_data_out = target_data[:,1:(p.TGT_SEQ_LEN+1)]
+            target_data_in = target_data[:,:p.TGT_SEQ_LEN, :p.TRAJ_OUTPUT_SIZE]
+            target_data_out = target_data[:,1:(p.TGT_SEQ_LEN+1), :p.TRAJ_OUTPUT_SIZE]
             in_data_tuple = data_tuple[:-1]
         else:
             in_data_tuple = data_tuple
@@ -188,7 +188,7 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, traj
                 traj_pred = torch.squeeze(traj_pred, dim =1)
             #print(traj_pred.size())
             #exit()
-            traj_loss = traj_loss_func(traj_pred, target_data_out)
+            traj_loss = traj_loss_func(traj_pred, target_data_out) #TODO: seperate loss function for traj and label
         else:
             traj_loss = 0
         loss = lc_loss + p.TRAJ2CLASS_LOSS_RATIO*traj_loss 
@@ -227,10 +227,10 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_d
     avg_loss = 0
     avg_lc_loss = 0
     avg_traj_loss = 0
-    all_lc_preds = np.zeros(((num_batch*model.batch_size),3))
-    all_traj_preds = np.zeros(((num_batch*model.batch_size),p.TGT_SEQ_LEN,2))
-    all_traj_labels = np.zeros(((num_batch*model.batch_size),p.TGT_SEQ_LEN,2))
-    all_att_coef = np.zeros(((num_batch*model.batch_size),4))
+    all_lc_preds = np.zeros(((num_batch*model.batch_size), 3))
+    all_traj_preds = np.zeros(((num_batch*model.batch_size), p.TGT_SEQ_LEN, p.TRAJ_OUTPUT_SIZE))
+    all_traj_labels = np.zeros(((num_batch*model.batch_size), p.TGT_SEQ_LEN, p.TRAJ_OUTPUT_SIZE))
+    all_att_coef = np.zeros(((num_batch*model.batch_size), 4))
     all_labels = np.zeros(((num_batch*model.batch_size)))
     plot_dicts = []
     
@@ -257,8 +257,8 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_d
                 'ttlc_preds': np.zeros((batch_size)),
                 'att_coef': np.zeros((batch_size, 4)),
                 'att_mask': np.zeros((batch_size, 11, 26)),
-                'traj_labels': np.zeros((batch_size, p.TGT_SEQ_LEN, 2)),
-                'traj_preds': np.zeros((batch_size, p.TGT_SEQ_LEN, 2)),
+                'traj_labels': np.zeros((batch_size, p.TGT_SEQ_LEN, parameters.TRAJ_OUTPUT_SIZE)),
+                'traj_preds': np.zeros((batch_size, p.TGT_SEQ_LEN, parameters.TRAJ_OUTPUT_SIZE)),
                 'labels':labels.numpy(),
                 'data_file': data_file
             }
@@ -272,7 +272,7 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_d
         if task == params.TRAJECTORYPRED:
             target_data = data_tuple[-1]
             #print(target_data.shape)
-            target_data_out = target_data[:,1:(p.TGT_SEQ_LEN+1)] #trajectory labels are target data except the first element.
+            target_data_out = target_data[:,1:(p.TGT_SEQ_LEN+1), :p.TRAJ_OUTPUT_SIZE] #trajectory labels are target data except the first element.
             in_data_tuple = data_tuple[:-1]
         else:
             in_data_tuple = data_tuple

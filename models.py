@@ -29,7 +29,7 @@ class NovelTransformerTraj(nn.Module):
         self.multi_modal = hyperparams_dict['multi modal']
         self.in_seq_len = parameters.IN_SEQ_LEN
         self.input_dim = 18
-        self.output_dim = 2
+        self.output_dim = parameters.TRAJ_OUTPUT_SIZE
         self.dropout = nn.Dropout(drop_prob)
         
         ''' 1. Positional encoder: '''
@@ -245,7 +245,7 @@ class TransformerTraj(nn.Module):
         self.multi_modal = hyperparams_dict['multi modal']
         self.in_seq_len = parameters.IN_SEQ_LEN
         self.input_dim = 18
-        self.output_dim = 2
+        self.output_dim = parameters.TRAJ_OUTPUT_SIZE
         self.dropout = nn.Dropout(drop_prob)
         
         ''' 1. Positional encoder: '''
