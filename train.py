@@ -60,6 +60,8 @@ def train_model_dict(model_dict, p):
         data_type = model_dict['data type'], 
         state_type = model_dict['state type'], 
         keep_plot_info= False, 
+        unbalanced = p.UNBALANCED,
+        force_recalc_start_indexes = False,
         traj_output = (task==params.TRAJECTORYPRED))
     #print(tr_dataset.states_max-tr_dataset.states_min)
     #assert np.all((tr_dataset.states_max-tr_dataset.states_min)>0)
@@ -74,6 +76,8 @@ def train_model_dict(model_dict, p):
         keep_plot_info= False, 
         traj_output = (task==params.TRAJECTORYPRED), 
         import_states = True,
+        unbalanced = p.UNBALANCED,
+        force_recalc_start_indexes = False,
         states_min = tr_dataset.states_min, 
         states_max = tr_dataset.states_max, 
         output_states_min = tr_dataset.output_states_min,
@@ -87,6 +91,8 @@ def train_model_dict(model_dict, p):
         keep_plot_info= True, 
         traj_output = (task==params.TRAJECTORYPRED), 
         import_states = True,
+        unbalanced = p.UNBALANCED,
+        force_recalc_start_indexes = False,
         states_min = tr_dataset.states_min, 
         states_max = tr_dataset.states_max, 
         output_states_min = tr_dataset.output_states_min, 

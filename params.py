@@ -64,7 +64,7 @@ class Parameters:
         else:
             self.unblanaced_ext = ''
         self.TRAIN_DATASET_DIR = '../../Dataset/Processed_highD/RenderedDataset/'
-        self.TEST_DATASET_DIR = '../../Dataset/Processed_highD/RenderedDataset{}/'.format(self.unblanaced_ext)
+        self.TEST_DATASET_DIR = '../../Dataset/Processed_highD/RenderedDataset/'
         
 
         self.MODELS_DIR = 'models/'
@@ -104,7 +104,7 @@ class Parameters:
                 self.VAL_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in self.DATASETS[self._SELECTED_DATASET]['val_ind']]
                 self.TE_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in self.DATASETS[self._SELECTED_DATASET]['te_ind']]
             
-            self.DATASET_DIR = '../../Dataset/Processed_highD/RenderedDataset{}/'.format(self.unblanaced_ext)
+            self.DATASET_DIR = '../../Dataset/Processed_highD/RenderedDataset/'
         
         
         @property 
@@ -134,7 +134,7 @@ class Parameters:
                 self.unblanaced_ext = 'U'
             else:
                 self.unblanaced_ext = ''
-            self.DATASET_DIR = '../../Dataset/Processed_highD/RenderedDataset{}/'.format(self.unblanaced_ext)
+            self.DATASET_DIR = '../../Dataset/Processed_highD/RenderedDataset/'
         
         
          

@@ -17,7 +17,9 @@ class LCDataset(Dataset):
     traj_output = False, 
     states_min = 0, 
     states_max = 0, 
-    import_states = False,
+    unbalanced = False,
+    force_recalc_start_indexes = False,
+    import_states = False, # import min-max of states
     output_states_min = 0, 
     output_states_max = 0):
 
@@ -31,6 +33,9 @@ class LCDataset(Dataset):
         self.traj_output = traj_output
         self.in_seq_len = in_seq_len
         self.out_seq_len = out_seq_len
+        self.end_of_seq_skip_len = end_of_seq_skip_len
+        self.total_seq_len = self.in_seq_len + self.out_seq_len
+        self.unbalanced = unbalanced
         if data_type == 'image':
             self.image_only = True
             self.state_only = False
@@ -43,10 +48,16 @@ class LCDataset(Dataset):
         
         self.start_indexes = []
         for data_file in self.dataset_dirs:
-            self.start_indexes.append(self.get_samples_start_index(in_seq_len, out_seq_len, end_of_seq_skip_len, data_file))
-            self.dataset_size += len(self.start_indexes[-1])
+            self.start_indexes.append(self.get_samples_start_index(in_seq_len, out_seq_len, end_of_seq_skip_len, data_file, force_recalc = force_recalc_start_indexes))
+        
+        if unbalanced == False:
+            self.balance_dataset(force_recalc_start_indexes)
+        
+        for start_index in self.start_indexes:
+            self.dataset_size += len(start_index)
             self.file_size.append(self.dataset_size) #Cumulative Number of samples
         self.file_size = np.array(self.file_size)
+        print(self.dataset_size)
         if data_type == 'state':
             if import_states == True:
                 self.states_min = states_min
@@ -115,6 +126,39 @@ class LCDataset(Dataset):
             samples_start_index = np.load(sample_start_indx_file)
 
         return samples_start_index
+    
+    def balance_dataset(self, force_recalc = False):
+        unbalanced_indexes = self.start_indexes
+        self.start_indexes = []
+        for itr, data_file in enumerate(self.dataset_dirs):
+            sample_start_indx_file = data_file.replace('.h5', '_start_indx_{}_{}_{}_B.npy'.format(self.in_seq_len, self.out_seq_len, self.end_of_seq_skip_len))
+            if force_recalc or (not os.path.exists(sample_start_indx_file)):
+                print('Balancing dataset file: {}'.format(sample_start_indx_file))
+                with h5py.File(data_file, 'r') as f:
+                    labels_data = f['labels']
+                    balanced_scenarios = np.zeros_like(unbalanced_indexes[itr])
+                    for start_index_itr, start_index in enumerate(unbalanced_indexes[itr]):
+                        label = labels_data[(start_index+self.in_seq_len):(start_index+self.total_seq_len)]
+                        balanced_scenarios[start_index_itr] = np.any(label)*2 # 2 is lc scenario
+                    
+                    lc_count = sum(balanced_scenarios)
+                    lk_balanced_count = int(lc_count/2)
+                    #print(lk_balanced_count)
+                    lk_args = np.argwhere(balanced_scenarios == 0)
+                    #print(lk_args.shape)
+                    lk_balanced_args = np.random.permutation(lk_args[:,0])[:lk_balanced_count]
+                    #print(balanced_scenarios.shape)
+                    #exit()
+                    balanced_scenarios[lk_balanced_args] = 1 # 1 is lk scenario
+
+                balanced_start_indexes = unbalanced_indexes[itr][balanced_scenarios>0]
+                np.save(sample_start_indx_file, balanced_start_indexes)
+            else:
+                #print('loading {}'.format(sample_start_indx_file))
+                balanced_start_indexes = np.load(sample_start_indx_file)
+            self.start_indexes.append(balanced_start_indexes)
+
+
 
     def __getitem__(self, idx):
         assert(idx != self.dataset_size)
@@ -133,7 +177,7 @@ class LCDataset(Dataset):
             exit()
     
         start_index = self.start_indexes[file_itr][sample_itr]
-        total_seq_len = self.in_seq_len + self.out_seq_len
+        
         with h5py.File(self.dataset_dirs[file_itr], 'r') as f:
             
             if self.data_type == 'state':
@@ -146,7 +190,7 @@ class LCDataset(Dataset):
                 frame_data = f['frame_data']
                 tv_data = f['tv_data']
                 tv_id = tv_data[start_index] # constant number for all frames of same scenario  
-                frames = frame_data[start_index:(start_index+total_seq_len)]
+                frames = frame_data[start_index:(start_index+self.total_seq_len)]
                 plot_output = [tv_id, frames, self.data_files[file_itr]]
             else:
                 plot_output = ()
@@ -174,12 +218,12 @@ class LCDataset(Dataset):
                 data_output = [images, states]
             if self.traj_output:
                 output_state_data = f['output_states_data']
-                output_states = output_state_data[(start_index+self.in_seq_len-1):(start_index+total_seq_len)]
+                output_states = output_state_data[(start_index+self.in_seq_len-1):(start_index+self.total_seq_len)]
                 output_states = (output_states-self.output_states_min)/(self.output_states_max-self.output_states_min)
                 output_states = torch.from_numpy(output_states.astype(np.float32))
                 data_output.append(output_states)
 
-            label = labels_data[(start_index+self.in_seq_len-1):(start_index+total_seq_len)].astype(np.long)
+            label = labels_data[(start_index+self.in_seq_len-1):(start_index+self.total_seq_len)].astype(np.long)
             ttlc_status = ttlc_available[start_index].astype(np.long)  # constant number for all frames of same scenario        
         return data_output, label, plot_output, ttlc_status
 
