@@ -129,6 +129,7 @@ class LCDataset(Dataset):
         return samples_start_index
     
     def balance_dataset(self, force_recalc = False):
+        #force_recalc = True
         unbalanced_indexes = self.start_indexes
         self.start_indexes = []
         for itr, data_file in enumerate(self.dataset_dirs):
@@ -138,21 +139,30 @@ class LCDataset(Dataset):
                 with h5py.File(data_file, 'r') as f:
                     labels_data = f['labels']
                     balanced_scenarios = np.zeros_like(unbalanced_indexes[itr])
-                    lc_count = 0
-                    lk_count = 0
+                    
+                    lc_count_in_lc_scenarios = 0
+                    lk_count_in_lc_scenarios = 0
+                    
                     for start_index_itr, start_index in enumerate(unbalanced_indexes[itr]):
                         label = abs(labels_data[(start_index+self.in_seq_len):(start_index+self.total_seq_len)])
-                        lc_count += np.count_nonzero(label>0)
-                        lk_count += np.count_nonzero(label==0)
+                        #lc_count += np.count_nonzero(label>0)
+                        #lk_count += np.count_nonzero(label==0)
                         
                         balanced_scenarios[start_index_itr] = np.any(label)*2 # 2 is lc scenario
-                    if lc_count> lk_count + self.out_seq_len:
-                        lk_balanced_count = int((lc_count-lk_count)/self.out_seq_len)
+                        if np.any(label):
+                            lc_count_in_lc_scenarios += np.count_nonzero(label>0)
+                            lk_count_in_lc_scenarios += np.count_nonzero(label==0)
+                     
+                    #print_value('lc_count_in_lc_scenarios',lc_count_in_lc_scenarios)
+                    #print_value('lk_count_in_lc_scenarios',lk_count_in_lc_scenarios)
+                    if lc_count_in_lc_scenarios> lk_count_in_lc_scenarios + self.out_seq_len:
+                        lk_balanced_count = int((lc_count_in_lc_scenarios-lk_count_in_lc_scenarios)/self.out_seq_len)
                         lk_args = np.argwhere(balanced_scenarios == 0)
                         #print(lk_args.shape)
                         lk_balanced_args = np.random.permutation(lk_args[:,0])[:lk_balanced_count]
                         #print(balanced_scenarios.shape)
                         #exit()
+                        print_value('lk_balanced_count', lk_balanced_count)
                         balanced_scenarios[lk_balanced_args] = 1 # 1 is lk scenario
 
                 balanced_start_indexes = unbalanced_indexes[itr][balanced_scenarios>0]

@@ -93,7 +93,7 @@ def test_model_dict(model_dict, p):
 
 if __name__ == '__main__':
 
-    
+    '''
     p = params.Parameters(SELECTED_MODEL = 'CONSTANT_PARAMETER', SELECTED_DATASET = 'HIGHD', UNBALANCED = False, ABLATION = False)
 
     model_dict = m.MODELS[p.SELECTED_MODEL]
@@ -107,7 +107,7 @@ if __name__ == '__main__':
     model_dict = m.MODELS[p.SELECTED_MODEL]
     model_dict['hyperparams']['task'] = params.TRAJECTORYPRED
     model_dict['hyperparams']['multi modal'] = False
-    model_dict['state type'] = 'ours'
+    model_dict['state type'] = 'wirth'
     model_dict['tag'] = utils.update_tag(model_dict)
     test_model_dict(model_dict, p)
-    '''
+    

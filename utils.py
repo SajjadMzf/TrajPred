@@ -416,11 +416,11 @@ def calc_metric(p, task, all_lc_preds, all_att_coef, all_labels, all_traj_preds,
 
 
 def calc_traj_metrics(p, 
-    traj_preds:'[number of samples, sequence of prediction, target sequence length, number of output states]', 
+    traj_preds:'[number of samples, target sequence length, number of output states]', 
     traj_labels,
     traj_min, 
     traj_max):
-    #traj_preds [number of samples, sequence of prediction, target sequence length, number of output states]
+    #traj_preds [number of samples, target sequence length, number of output states]
     #TODO:1. manouvre specific fde and rmse table, 2.  save sample output traj imags 3. man pred error
     man_preds = traj_preds[:,:,2:]*2
     man_preds = np.rint(man_preds)
@@ -433,6 +433,7 @@ def calc_traj_metrics(p,
     total_lc_frames = np.count_nonzero(lc_frames)
     total_lk_frames = np.count_nonzero(lk_frames)
     total_frames = np.prod(man_labels.shape)
+    total_sequences = man_labels.shape[0]
     #print_shape('traj_labels', traj_labels)
     print_value('total_frames', total_frames)
     print_value('total_lk_frames', total_lk_frames)
@@ -449,7 +450,7 @@ def calc_traj_metrics(p,
     traj_labels = np.cumsum(traj_labels, axis = 1)
 
     # fde
-    fde = np.sum(np.absolute(traj_preds[:,-1,:]-traj_labels[:,-1,:]))/total_frames
+    fde = np.sum(np.absolute(traj_preds[:,-1,:]-traj_labels[:,-1,:]))/total_sequences
     # rmse
     mse = np.sum((traj_preds-traj_labels)**2)/total_frames
     mse_lc = np.sum((lc_frames*(traj_preds-traj_labels))**2)/total_lc_frames
@@ -475,15 +476,23 @@ def calc_traj_metrics(p,
     index = ['FDE_lat', 'FDE_long', 'FDE', 'RMSE_lat', 'RMSE_long', 'RMSE']
     data = np.zeros((6, prediction_ts))
     for ts in range(prediction_ts):
+        
         ts_index = (ts+1)*p.FPS
+        current_total_samples = total_sequences * ts_index
         #fde
-        data[0,ts] = np.mean(np.absolute(traj_preds[:,ts_index-1,0]-traj_labels[:,ts_index-1,0])) # 0 is laterel, 1 is longitudinal
-        data[1,ts] = np.mean(np.absolute(traj_preds[:,ts_index-1,1]-traj_labels[:,ts_index-1,1])) # 0 is laterel, 1 is longitudinal
-        data[2,ts] = np.mean(np.absolute(traj_preds[:,ts_index-1,:]-traj_labels[:,ts_index-1,:])) # 0 is laterel, 1 is longitudinal
+        data[0,ts] = np.sum(np.absolute(traj_preds[:,ts_index-1,0]-traj_labels[:,ts_index-1,0]))/total_sequences # 0 is laterel, 1 is longitudinal
+        data[1,ts] = np.sum(np.absolute(traj_preds[:,ts_index-1,1]-traj_labels[:,ts_index-1,1]))/total_sequences # 0 is laterel, 1 is longitudinal
+        data[2,ts] = np.sum(np.absolute(traj_preds[:,ts_index-1,:]-traj_labels[:,ts_index-1,:]))/total_sequences # 0 is laterel, 1 is longitudinal
         #rmse
-        data[3,ts] = np.sqrt(((traj_preds[:,:ts_index,0]-traj_labels[:,:ts_index,0])**2).mean())
-        data[4,ts] = np.sqrt(((traj_preds[:,:ts_index,1]-traj_labels[:,:ts_index,1])**2).mean())
-        data[5,ts] = np.sqrt(((traj_preds[:,:ts_index,:]-traj_labels[:,:ts_index,:])**2).mean())
+        data[3,ts] = np.sqrt(
+            np.sum((traj_preds[:,:ts_index,0]-traj_labels[:,:ts_index,0])**2)/current_total_samples
+            )
+        data[4,ts] = np.sqrt(
+            np.sum((traj_preds[:,:ts_index,1]-traj_labels[:,:ts_index,1])**2)/current_total_samples
+            )
+        data[5,ts] = np.sqrt(
+            np.sum((traj_preds[:,:ts_index,:]-traj_labels[:,:ts_index,:])**2)/current_total_samples
+            )
 
     result_df = pd.DataFrame(data= data, columns = columns, index = index)
     traj_metrics = (rmse, rmse_lc, rmse_lk, fde)
