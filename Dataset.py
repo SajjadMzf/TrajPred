@@ -138,19 +138,22 @@ class LCDataset(Dataset):
                 with h5py.File(data_file, 'r') as f:
                     labels_data = f['labels']
                     balanced_scenarios = np.zeros_like(unbalanced_indexes[itr])
+                    lc_count = 0
+                    lk_count = 0
                     for start_index_itr, start_index in enumerate(unbalanced_indexes[itr]):
-                        label = labels_data[(start_index+self.in_seq_len):(start_index+self.total_seq_len)]
+                        label = abs(labels_data[(start_index+self.in_seq_len):(start_index+self.total_seq_len)])
+                        lc_count += np.count_nonzero(label>0)
+                        lk_count += np.count_nonzero(label==0)
+                        
                         balanced_scenarios[start_index_itr] = np.any(label)*2 # 2 is lc scenario
-                    
-                    #lc_count = sum(balanced_scenarios)
-                    #lk_balanced_count = int(lc_count/2)
-                    #print(lk_balanced_count)
-                    #lk_args = np.argwhere(balanced_scenarios == 0)
-                    #print(lk_args.shape)
-                    #lk_balanced_args = np.random.permutation(lk_args[:,0])[:lk_balanced_count]
-                    #print(balanced_scenarios.shape)
-                    #exit()
-                    #balanced_scenarios[lk_balanced_args] = 1 # 1 is lk scenario
+                    if lc_count> lk_count + self.out_seq_len:
+                        lk_balanced_count = int((lc_count-lk_count)/self.out_seq_len)
+                        lk_args = np.argwhere(balanced_scenarios == 0)
+                        #print(lk_args.shape)
+                        lk_balanced_args = np.random.permutation(lk_args[:,0])[:lk_balanced_count]
+                        #print(balanced_scenarios.shape)
+                        #exit()
+                        balanced_scenarios[lk_balanced_args] = 1 # 1 is lk scenario
 
                 balanced_start_indexes = unbalanced_indexes[itr][balanced_scenarios>0]
                 np.save(sample_start_indx_file, balanced_start_indexes)

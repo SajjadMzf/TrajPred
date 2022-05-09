@@ -167,7 +167,7 @@ class ConstantX(nn.Module):
         self.out_seq_len = parameters.TGT_SEQ_LEN
         self.fps = parameters.FPS
         self.input_dim = 18
-        self.output_dim = 2
+        self.output_dim = 3
         print('Constant Model should only be run with ours_states that includes velocity, acceleration features')
         
 
@@ -221,7 +221,8 @@ class ConstantX(nn.Module):
         
         traj_pred = (traj_pred-output_states_min)/(output_states_max-output_states_min)
         
-        
+        labels = torch.zeros_like(traj_pred)
+        traj_pred = torch.cat((traj_pred, labels[:,:,0:1]), dim = -1)
         #traj_pred *= traj_labels[:,0:1,:].to(self.device)
         #print('traj label')
         #print(traj_labels[0])
