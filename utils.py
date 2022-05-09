@@ -17,7 +17,7 @@ from sklearn import metrics
 import pandas as pd
 import matplotlib
 from matplotlib.backends.backend_pdf import PdfPages
-
+from debugging_utils import *
 font = {'size'   : 22}
 matplotlib.rcParams['figure.figsize'] = (18, 12)
 matplotlib.rc('font', **font)
@@ -49,7 +49,7 @@ def eval_top_func(p, model, lc_loss_func, traj_loss_func, task, te_dataset, devi
         'Precision': precision,
         'Recall': recall,
         'F1':f1,
-        'rmse':rmse,
+        'rmse':rmse[0],
         'fde': fde,
     }
     return result_dic, traj_df
@@ -76,6 +76,7 @@ def train_top_func(p, model, optimizer, lc_loss_func, traj_loss_func, task, tr_d
         start = time()
         tr_loss, tr_lc_loss, tr_traj_loss = train_model(p, model, optimizer, scheduler, tr_loader, lc_loss_func, traj_loss_func, task,  epoch+1, device, calc_train_acc= False)
         val_start = time()
+
         val_acc,val_loss, val_lc_loss, val_traj_loss, auc, max_j, precision, recall, f1, rmse, fde, traj_df = eval_model(p, model, lc_loss_func, traj_loss_func, task, val_loader, val_dataset, epoch+1, device, eval_type = 'Validation')
         val_end = time()
         print('val_time:', val_end-val_start)
@@ -89,7 +90,7 @@ def train_top_func(p, model, optimizer, lc_loss_func, traj_loss_func, task, tr_d
             tensorboard.add_scalar('val_total_loss', val_loss, epoch+1)
             tensorboard.add_scalar('val_lc_loss', val_lc_loss, epoch+1)
             tensorboard.add_scalar('val_traj_loss', val_traj_loss, epoch+1)
-            tensorboard.add_scalar('val_rmse', rmse, epoch+1)
+            tensorboard.add_scalar('val_rmse', rmse[0], epoch+1)
             tensorboard.add_scalar('val_fde', fde, epoch+1)
         if val_loss<best_val_loss:
             best_val_loss = val_loss
@@ -103,7 +104,10 @@ def train_top_func(p, model, optimizer, lc_loss_func, traj_loss_func, task, tr_d
         total_time += end-start
         print("Validation Accuracy in best epoch:",best_val_acc, " Avg Loss: ", best_val_loss," at Epoch", best_epoch+1)
         print("Epoch: {} finished in {} sec\n".format(epoch+1, end-start))
-        
+        if p.DEBUG_MODE == True:
+            print('debugging mode')
+            break
+
         if patience == 0:
             print(' No performance improvement in Validation data after:', epoch+1, 'Epochs!')
             break
@@ -137,8 +141,9 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, traj
     for batch_idx, (data_tuple, labels,_, _) in enumerate(train_loader):
         #print('Batch: ', batch_idx)
         
-        #if batch_idx >2: ##Uncoment for debuggering
-        #    break
+        if p.DEBUG_MODE == True:
+            if batch_idx >2: ##Uncoment for debuggering
+                break
         
         start = time()
         
@@ -241,11 +246,10 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_d
     loss_ratio = 1
     multi_modal = False
     for batch_idx, (data_tuple, labels, plot_info, _) in enumerate(test_loader):
-        #print(batch_idx, total)
-        #all_labels[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size)] = labels.data
         
-        #if batch_idx >2: ##Uncoment for debuggering
-        #    break
+        if p.DEBUG_MODE == True:
+            if batch_idx >2: ##Uncoment for debuggering
+                break
         
         if eval_type == 'Test':
             (tv_id, frames, data_file) = plot_info
@@ -257,8 +261,8 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_d
                 'ttlc_preds': np.zeros((batch_size)),
                 'att_coef': np.zeros((batch_size, 4)),
                 'att_mask': np.zeros((batch_size, 11, 26)),
-                'traj_labels': np.zeros((batch_size, p.TGT_SEQ_LEN, parameters.TRAJ_OUTPUT_SIZE)),
-                'traj_preds': np.zeros((batch_size, p.TGT_SEQ_LEN, parameters.TRAJ_OUTPUT_SIZE)),
+                'traj_labels': np.zeros((batch_size, p.TGT_SEQ_LEN, 2)),
+                'traj_preds': np.zeros((batch_size, p.TGT_SEQ_LEN, 2)),
                 'labels':labels.numpy(),
                 'data_file': data_file
             }
@@ -344,8 +348,11 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_d
             if task == params.TRAJECTORYPRED:
                 traj_min = test_dataset.output_states_min
                 traj_max = test_dataset.output_states_max
-                unnormalised_traj_pred = traj_pred.cpu().data*(traj_max-traj_min) + traj_min
-                unnormalised_traj_label = target_data_out.cpu().data*(traj_max-traj_min) + traj_min
+                #print_shape('traj_pred', traj_pred)
+                x_y_pred = traj_pred[:,:,:2]
+                x_y_label = target_data_out[:,:,:2]
+                unnormalised_traj_pred = x_y_pred.cpu().data*(traj_max-traj_min) + traj_min
+                unnormalised_traj_label = x_y_label.cpu().data*(traj_max-traj_min) + traj_min
                 plot_dict['traj_labels'] = unnormalised_traj_label
                 plot_dict['traj_preds']= unnormalised_traj_pred
                 
@@ -370,7 +377,14 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_d
     
     #print('Average Time per whole sequence perbatch: {}'.format(average_time/time_counter))
     #print('gf time: {}, nn time: {}'.format(gf_time, nn_time))
-    accuracy, precision, recall, f1, FPR, auc, max_j, rmse, fde, traj_df = calc_metric(p, task, all_lc_preds, all_att_coef, all_labels, all_traj_preds, all_traj_labels, test_dataset.output_states_min, test_dataset.output_states_max, epoch, eval_type = eval_type, figure_name = figure_name)
+    traj_metrics, man_metrics, traj_df = calc_metric(p, task, all_lc_preds, all_att_coef, all_labels, all_traj_preds, all_traj_labels, test_dataset.output_states_min, test_dataset.output_states_max, epoch, eval_type = eval_type, figure_name = figure_name)
+    accuracy, precision, recall = man_metrics
+    f1=0
+    FPR=0
+    auc=0
+    max_j=0 
+    rmse = traj_metrics[0:3]
+    fde = traj_metrics [3]
     print('                                   ')
     print("{}: Epoch: {}, Accuracy: {:.2f}%, Total LOSS: {:.2f},LC LOSS: {:.2f},TRAJ LOSS: {:.5f}, PRECISION:{}, RECALL:{}, F1:{}, FPR:{}, AUC:{}, Max J:{}, RMSE:{}, FDE:{}".format(
         eval_type, epoch, 100. * accuracy, avg_loss, avg_lc_loss, avg_traj_loss, precision, recall, f1, FPR, auc, max_j, rmse, fde))
@@ -393,37 +407,67 @@ def calc_metric(p, task, all_lc_preds, all_att_coef, all_labels, all_traj_preds,
     all_preds = np.argmax(all_lc_preds, axis =-1)
     
     
-    if task == params.CLASSIFICATION or task == params.DUAL or task == params.TRAJECTORYPRED:
-        #auc, max_j = calc_roc_n_prc(p, all_lc_preds, all_labels, num_samples, figure_name, thr_type = 'thr', eval_type = eval_type)
-        #accuracy, precision, recall, f1, FPR, all_TPs = calc_classification_metrics(p, all_preds, all_labels, num_samples, eval_type, figure_name) TODO: to be modified based on new labelling
-        (accuracy, precision, recall, f1, FPR, all_TPs, auc, max_j ) = (0,0,0,0,0,0,0,0)
-    else:
-        (accuracy, precision, recall, f1, FPR, all_TPs, auc, max_j ) = (0,0,0,0,0,0,0,0)
-        avg_pred_time = 0
-    
     if task == params.TRAJECTORYPRED:
-        rmse, fde, traj_df = calc_traj_metrics(p, all_traj_preds, all_traj_labels, traj_label_min, traj_label_max)
+        traj_metrics, man_metrics, traj_df = calc_traj_metrics(p, all_traj_preds, all_traj_labels, traj_label_min, traj_label_max)
     else:
-        rmse = 0
-        fde = 0
+        raise(ValueError('unsupported value for task'))
 
-    return accuracy, precision, recall, f1, FPR, auc, max_j, rmse, fde, traj_df
+    return traj_metrics, man_metrics, traj_df
 
 
-def calc_traj_metrics(p, traj_preds, traj_labels, traj_min, traj_max):
+def calc_traj_metrics(p, 
+    traj_preds:'[number of samples, sequence of prediction, target sequence length, number of output states]', 
+    traj_labels,
+    traj_min, 
+    traj_max):
     #traj_preds [number of samples, sequence of prediction, target sequence length, number of output states]
-    #1. denormalise
-    #print(traj_preds.shape)
+    #TODO:1. manouvre specific fde and rmse table, 2.  save sample output traj imags 3. man pred error
+    man_preds = traj_preds[:,:,2:]*2
+    man_preds = np.rint(man_preds)
+    man_labels = traj_labels[:,:,2:]*2
+    man_labels = np.rint(man_labels)
+    traj_preds = traj_preds[:,:,:2]
+    traj_labels = traj_labels[:,:,:2]
+    lc_frames = (man_labels>0)
+    lk_frames = (man_labels ==0)
+    total_lc_frames = np.count_nonzero(lc_frames)
+    total_lk_frames = np.count_nonzero(lk_frames)
+    total_frames = np.prod(man_labels.shape)
+    #print_shape('traj_labels', traj_labels)
+    print_value('total_frames', total_frames)
+    print_value('total_lk_frames', total_lk_frames)
+    print_value('total_lc_frames', total_lc_frames)
+    #assert(total_frames ==  total_lk_frames + total_lc_frames)
+
+    #denormalise
     traj_preds = traj_preds*(traj_max-traj_min) + traj_min
     traj_labels = traj_labels*(traj_max-traj_min) + traj_min
-    #2. from diff to actual
+    
+    
+    #from diff to actual
     traj_preds = np.cumsum(traj_preds, axis = 1)
     traj_labels = np.cumsum(traj_labels, axis = 1)
-    # 3. fde
-    fde = np.mean(np.absolute(traj_preds[:,-1,:]-traj_labels[:,-1,:]))
-    # 4. rmse
-    rmse = np.sqrt(((traj_preds-traj_labels)**2).mean())
-    # 5. fde, rmse table
+
+    # fde
+    fde = np.sum(np.absolute(traj_preds[:,-1,:]-traj_labels[:,-1,:]))/total_frames
+    # rmse
+    mse = np.sum((traj_preds-traj_labels)**2)/total_frames
+    mse_lc = np.sum((lc_frames*(traj_preds-traj_labels))**2)/total_lc_frames
+    mse_lk = np.sum((lk_frames*(traj_preds-traj_labels))**2)/total_lk_frames
+    rmse = np.sqrt(mse) 
+    rmse_lc = np.sqrt(mse_lc) 
+    rmse_lk = np.sqrt(mse_lk) 
+
+    # man metrics
+    TP = np.sum(np.logical_and((man_preds == man_labels), (man_labels>0))) #TODO 1: argmax man preds
+    TPnFP = np.sum(man_preds>0)
+    TPnFN = np.sum(man_labels>0)
+    print_value('TP',TP)
+    recall = TP/TPnFN
+    precision = TP/TPnFP
+    accuracy =  np.sum(man_preds == man_labels)/total_frames
+
+    # fde, rmse table
     prediction_ts = int(p.TGT_SEQ_LEN/p.FPS)
     if (p.TGT_SEQ_LEN/p.FPS) % 1 != 0:
         raise(ValueError('Target sequence length not dividable by FPS'))
@@ -442,8 +486,9 @@ def calc_traj_metrics(p, traj_preds, traj_labels, traj_min, traj_max):
         data[5,ts] = np.sqrt(((traj_preds[:,:ts_index,:]-traj_labels[:,:ts_index,:])**2).mean())
 
     result_df = pd.DataFrame(data= data, columns = columns, index = index)
-    
-    return rmse, fde, result_df
+    traj_metrics = (rmse, rmse_lc, rmse_lk, fde)
+    man_metrics = (accuracy, precision, recall)
+    return traj_metrics, man_metrics, result_df
 
 
     

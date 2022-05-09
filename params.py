@@ -10,6 +10,7 @@ class Parameters:
         self.SELECTED_DATASET = SELECTED_DATASET
         self.UNBALANCED = UNBALANCED
         self.ABLATION = ABLATION
+        self.DEBUG_MODE = False
         
         self.ROBUST_PREDICTOR = True
         # Dataset Hyperparameters:
@@ -18,9 +19,9 @@ class Parameters:
                 'abb_tr_ind':range(1,46),
                 'abb_val_ind':range(46,51),
                 'abb_te_ind':range(51,56),
-                'tr_ind':range(1,10),#range(1,47),
-                'val_ind':range(10,20),#range(47,52),
-                'te_ind':range(20,30),#range(52,57),
+                'tr_ind':range(1,47),
+                'val_ind':range(47,52),
+                'te_ind':range(52,57),
                 'image_width': 200,
                 'image_height': 80,
             }

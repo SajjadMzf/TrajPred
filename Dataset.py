@@ -4,6 +4,7 @@ import os
 import numpy as np 
 import h5py
 import matplotlib.pyplot as plt
+from debugging_utils import *
 class LCDataset(Dataset):
     def __init__(self, 
     dataset_dir, 
@@ -57,7 +58,7 @@ class LCDataset(Dataset):
             self.dataset_size += len(start_index)
             self.file_size.append(self.dataset_size) #Cumulative Number of samples
         self.file_size = np.array(self.file_size)
-        print(self.dataset_size)
+        print_value('dataset_size', self.dataset_size)
         if data_type == 'state':
             if import_states == True:
                 self.states_min = states_min
@@ -141,15 +142,15 @@ class LCDataset(Dataset):
                         label = labels_data[(start_index+self.in_seq_len):(start_index+self.total_seq_len)]
                         balanced_scenarios[start_index_itr] = np.any(label)*2 # 2 is lc scenario
                     
-                    lc_count = sum(balanced_scenarios)
-                    lk_balanced_count = int(lc_count/2)
+                    #lc_count = sum(balanced_scenarios)
+                    #lk_balanced_count = int(lc_count/2)
                     #print(lk_balanced_count)
-                    lk_args = np.argwhere(balanced_scenarios == 0)
+                    #lk_args = np.argwhere(balanced_scenarios == 0)
                     #print(lk_args.shape)
-                    lk_balanced_args = np.random.permutation(lk_args[:,0])[:lk_balanced_count]
+                    #lk_balanced_args = np.random.permutation(lk_args[:,0])[:lk_balanced_count]
                     #print(balanced_scenarios.shape)
                     #exit()
-                    balanced_scenarios[lk_balanced_args] = 1 # 1 is lk scenario
+                    #balanced_scenarios[lk_balanced_args] = 1 # 1 is lk scenario
 
                 balanced_start_indexes = unbalanced_indexes[itr][balanced_scenarios>0]
                 np.save(sample_start_indx_file, balanced_start_indexes)
@@ -169,12 +170,7 @@ class LCDataset(Dataset):
             sample_itr = idx - self.file_size[file_itr-1]
         else:
             sample_itr = idx
-        if sample_itr == len(self.start_indexes[file_itr]):
-            print('idx: {}, file itr: {}, sample_itr: {}'.format(idx, file_itr, sample_itr))
-            print(self.file_size)
-            #print(state_data.shape[0])
-            print(self.file_size[file_itr])
-            exit()
+        
     
         start_index = self.start_indexes[file_itr][sample_itr]
         
@@ -201,12 +197,7 @@ class LCDataset(Dataset):
                 data_output = [images]
             elif self.state_only:
                 states = state_data[start_index:(start_index+self.in_seq_len)]
-                if states.shape[0]<self.in_seq_len:
-                    print('idx: {}, file itr: {}, sample_itr: {}, start_index: {}'.format(idx, file_itr, sample_itr, start_index))
-                    print(self.file_size)
-                    print(state_data.shape[0])
-                    print(self.file_size[file_itr])
-                    exit()
+                
                 states = (states-self.states_min)/(self.states_max-self.states_min)
                 states = torch.from_numpy(states.astype(np.float32))
                 data_output = [states]
@@ -220,13 +211,17 @@ class LCDataset(Dataset):
                 output_state_data = f['output_states_data']
                 output_states = output_state_data[(start_index+self.in_seq_len-1):(start_index+self.total_seq_len)]
                 output_states = (output_states-self.output_states_min)/(self.output_states_max-self.output_states_min)
-                label = labels_data[(start_index+self.in_seq_len-1):(start_index+self.total_seq_len)]
-                print(label.shape)
-                exit()
-                output_states = np.concatenate((output_states, labels), axis = -1)
+                label = np.absolute(labels_data[(start_index+self.in_seq_len-1):(start_index+self.total_seq_len)])/2
+                #print('label:{}'.format(label.shape))
+                #print('output_states:{}')
+                label = np.expand_dims(label, axis = -1)
+                #print_shape('label',label)
+                #print_shape('output_states',output_states)
+                #exit()
+                output_states = np.concatenate((output_states, label), axis = -1)
                 output_states = torch.from_numpy(output_states.astype(np.float32))
                 data_output.append(output_states)
 
-            label = labels_data[(start_index+self.in_seq_len-1):(start_index+self.total_seq_len)].astype(np.long)
+            label = np.absolute(labels_data[(start_index+self.in_seq_len-1):(start_index+self.total_seq_len)].astype(np.long))
             ttlc_status = ttlc_available[start_index].astype(np.long)  # constant number for all frames of same scenario        
         return data_output, label, plot_output, ttlc_status
