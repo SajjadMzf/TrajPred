@@ -139,7 +139,7 @@ if __name__ == '__main__':
     
     print('---------------------------------------------------------------------------------------')
     print('---------------------------------------------------------------------------------------')
-    p = params.Parameters(SELECTED_MODEL = 'TRANSFORMER_TRAJ', SELECTED_DATASET = 'HIGHD', UNBALANCED = False, ABLATION = False)
+    p = params.Parameters(SELECTED_MODEL = 'NOVEL_TRANSFORMER_TRAJ', SELECTED_DATASET = 'HIGHD', UNBALANCED = False, ABLATION = False)
 
     #1
     model_dict = m.MODELS[p.SELECTED_MODEL]

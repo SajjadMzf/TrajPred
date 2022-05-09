@@ -70,14 +70,14 @@ class RenderScenarios:
         file_dir = os.path.join(self.LC_image_dataset_dir, str(self.file_num).zfill(2) + '.h5')
         npy_dir = os.path.join(self.LC_image_dataset_dir, str(self.file_num).zfill(2) + '.npy')
         hf = h5py.File(file_dir, 'w')
-        if p.GENERATE_IMAGE_DATA:
-            valid_itrs = [False if scenario['images'] is None else True for scenario in self.scenarios] 
-        else:
-            valid_itrs = [True for scenario in self.scenarios]
+        
+        valid_itrs = [False if scenario['valid'] is False else True for scenario in self.scenarios] 
+        
         data_num = valid_itrs.count(True)
         total_frames = 0  
         for itr, validity in enumerate(valid_itrs):
-            total_frames += len(self.scenarios[itr]['frames'])
+            if validity == True:
+                total_frames += len(self.scenarios[itr]['frames'])
 
         if p.GENERATE_IMAGE_DATA:
             image_data = hf.create_dataset('image_data', shape = (total_frames, 3, self.cropped_height, self.cropped_width), dtype = np.bool)
@@ -88,6 +88,7 @@ class RenderScenarios:
         state_wirth_data = hf.create_dataset('state_wirth_data', shape = (total_frames, 18), dtype = np.float32)
         state_shou_data = hf.create_dataset('state_shou_data', shape = (total_frames, 18), dtype = np.float32)
         state_ours_data = hf.create_dataset('state_ours_data', shape = (total_frames, 18), dtype = np.float32)
+        state_9svs_data = hf.create_dataset('state_9svs_data', shape = (total_frames, 18), dtype = np.float32)
         
         output_states_data = hf.create_dataset('output_states_data', shape = (total_frames, 2), dtype = np.float32)
         ttlc_available = hf.create_dataset('ttlc_available', shape = (total_frames,), dtype = np.bool)
@@ -104,6 +105,7 @@ class RenderScenarios:
             state_wirth_data[cur_frame:(cur_frame+scenario_length), :] = self.scenarios[itr]['states_wirth']
             state_shou_data[cur_frame:(cur_frame+scenario_length), :] = self.scenarios[itr]['states_shou']
             state_ours_data[cur_frame:(cur_frame+scenario_length), :] = self.scenarios[itr]['states_ours']
+            state_9svs_data[cur_frame:(cur_frame+scenario_length), :] = self.scenarios[itr]['states_9svs']
             output_states_data[cur_frame:(cur_frame+scenario_length), :] = self.scenarios[itr]['output_states']
             frame_data[cur_frame:(cur_frame+scenario_length)] = self.scenarios[itr]['frames']
             tv_data[cur_frame:(cur_frame+scenario_length)] = self.scenarios[itr]['tv']
@@ -124,6 +126,7 @@ class RenderScenarios:
         saved_data_number = 0
         
         for scenario_idx, scenario in enumerate(self.scenarios):
+            
             if scenario_idx%500 == 0:
                 print('Scenario {} out of: {}'.format(scenario_idx, len(self.scenarios)))
             tv_id = scenario['tv']
@@ -135,6 +138,7 @@ class RenderScenarios:
             states_wirth = []
             states_shou = []
             states_ours = []
+            states_9svs = []
             output_states = []
             number_of_fr = len(scenario['frames'])
             tv_lane_ind = None
@@ -144,7 +148,8 @@ class RenderScenarios:
                 img_frames.append(frame)
                 
                 svs_ids = scenario['svs']['id'][:,fr]
-                state_wirth, state_shou,state_ours, output_state, tv_lane_ind = self.calc_states(
+                
+                invalid_state , state_wirth, state_shou,state_ours, state_9svs, output_state, tv_lane_ind = self.calc_states(
                     self.frames_data[int(frame/self.fr_div -1)],
                     tv_id, 
                     svs_ids,
@@ -153,6 +158,9 @@ class RenderScenarios:
                     tv_lane_ind,
                     post_lc_only = False
                     )
+                if invalid_state:
+                    print('Invalid frame:', fr+1, ' of scenario: ', scenario_idx+1, ' of ', len(self.scenarios))
+                    break
 
                 output_states.append(output_state)
                 if fr==0:
@@ -173,12 +181,14 @@ class RenderScenarios:
                 states_wirth.append(state_wirth)
                 states_shou.append(state_shou)
                 states_ours.append(state_ours)
+                states_9svs.append(state_9svs)
                 if p.GENERATE_IMAGE_DATA:
                     scene_cropped_imgs.append(cropped_img)
                     whole_imgs.append(whole_img)
                 
                     
-            if not valid:
+            if not valid or invalid_state:
+                self.scenarios[scenario_idx]['valid'] = False
                 continue
             #print(self.scenarios[scenario_idx]['label'])
             #print(output_states)
@@ -189,6 +199,8 @@ class RenderScenarios:
             self.scenarios[scenario_idx]['states_wirth'] = np.array(states_wirth)
             self.scenarios[scenario_idx]['states_shou'] = np.array(states_shou)
             self.scenarios[scenario_idx]['states_ours'] = np.array(states_ours)
+            self.scenarios[scenario_idx]['states_9svs'] = np.array(states_9svs)
+            self.scenarios[scenario_idx]['valid'] = True
             output_states = np.array(output_states)
             output_states = output_states[1:,:]- output_states[:-1,:]
             self.scenarios[scenario_idx]['output_states'] = output_states
@@ -229,12 +241,12 @@ class RenderScenarios:
         tv_lane_markings = (self.metas[rc.UPPER_LANE_MARKINGS])* self.image_scaleH  + self.highway_top_margin if driving_dir == 1 else (self.metas[rc.LOWER_LANE_MARKINGS])* self.image_scaleH + self.highway_top_margin
         tv_lane_markings = tv_lane_markings.astype(int)
         
-        if tv_lane_ind == None:
-            tv_lane_ind = 0
-            for ind, value in reversed(list(enumerate(tv_lane_markings))):
-                if center_y(tv_itr)>value:
-                    tv_lane_ind = ind
-                    break
+        
+        tv_lane_ind = 0
+        for ind, value in reversed(list(enumerate(tv_lane_markings))):
+            if center_y(tv_itr)>value:
+                tv_lane_ind = ind
+                break
 
         for itr in range(vehicle_in_frame_number):
             veh_channel = rf.draw_vehicle(veh_channel, corner_x(itr), corner_y(itr), veh_width(itr), veh_height(itr), self.filled)
@@ -293,6 +305,7 @@ class RenderScenarios:
         post_lc_only:'A flag for only producing output state'):
         
         assert(frame_data[rc.FRAME]==frame)   
+        invalid_data = False
         tv_itr = np.nonzero(frame_data[rc.TRACK_ID] == tv_id)[0][0]
         
         vehicle_in_frame_number = len(frame_data[rc.TRACK_ID])
@@ -319,24 +332,24 @@ class RenderScenarios:
         # TV lane markings and lane index
         tv_lane_markings = (self.metas[rc.UPPER_LANE_MARKINGS]) if driving_dir == 1 else (self.metas[rc.LOWER_LANE_MARKINGS])
         
-        if tv_lane_ind == None:
-            tv_lane_ind = 0
-            for ind, value in reversed(list(enumerate(tv_lane_markings))):
-                if center_y(tv_itr)>value:
-                    tv_lane_ind = ind
-                    break
-        tv_left_lane_ind = tv_lane_ind + 1 if driving_dir==1 else tv_lane_ind
         
+        if driving_dir ==1:
+            tv_lane_ind = frame_data[rc.LANE_ID][tv_itr]-2
+        else:
+            tv_lane_ind = frame_data[rc.LANE_ID][tv_itr]-len(self.metas[rc.UPPER_LANE_MARKINGS])-2
+        
+        tv_left_lane_ind = tv_lane_ind + 1 if driving_dir==1 else tv_lane_ind
+        if tv_lane_ind+1 >=len(tv_lane_markings):
+            return True, 0, 0, 0, 0, 0, 0
         lane_width = (tv_lane_markings[tv_lane_ind+1]-tv_lane_markings[tv_lane_ind])
         #print('lane width: {}'.format(lane_width))
-        
+       
 
         ## Output States:
         output_state = np.zeros((2))
         output_state[0] = lateral_pos_centre_line(tv_itr, tv_lane_ind)
         output_state[1] = fix_sign(frame_data[rc.X][tv_itr])
-        if post_lc_only:
-            return 0, 0, 0, output_state, tv_lane_ind
+        
         
         svs_itr = np.array([np.nonzero(frame_data[rc.TRACK_ID] == sv_id)[0][0] if sv_id!=0 else None for sv_id in svs_ids])
         # svs : [pv_id, fv_id, rv_id, rpv_id, rfv_id, lv_id, lpv_id, lfv_id]
@@ -490,10 +503,67 @@ class RenderScenarios:
         # (18) lane width
         state_ours[17] = lane_width 
 
+        ##################### 9SV #########################
+        fix_lane_ind = lambda tv_lane, position2tv: tv_lane+position2tv if driving_dir ==1 else tv_lane-position2tv #right is -1, left is +1
+        state_9svs = np.zeros((18)) # a proposed features  
+        # (1) tv lateral pos
+        state_9svs[0] = lateral_pos_centre_line(tv_itr, tv_lane_ind)
+        # (2) tv longitudinal velocity 
+        state_9svs[1] = fix_sign(frame_data[rc.X_VELOCITY][tv_itr])
+        # (3) rpv lateral pos
+        
+        state_9svs[2] = lateral_pos_centre_line(rpv_itr, fix_lane_ind(tv_lane_ind, -1)) if rpv_itr != None else 0
+        # (4) rpv rel longitudinal distance to tv 
+        state_9svs[3] = rel_distance_x(rpv_itr) if rpv_itr != None else 400
+        # (5) pv lateral pos
+        state_9svs[4] = lateral_pos_centre_line(pv_itr, fix_lane_ind(tv_lane_ind, 0)) if pv_itr != None else 0
+        # (6) pv rel longitudinal distance to tv 
+        state_9svs[5] = rel_distance_x(pv_itr) if pv_itr != None else 400
+        # (7) lpv lateral pos
+        #print('frame', frame)
+        #print('y center', center_y(tv_itr))
+        #print('d',driving_dir)
+        #print('tv_lane_ind',tv_lane_ind)
+        #print(center_y(tv_itr)>=tv_lane_markings)
+        #print(tv_lane_markings)
+        #print('lane id',frame_data[rc.LANE_ID][tv_itr])
+        #print('y+height', frame_data[rc.Y][tv_itr] + frame_data[rc.HEIGHT][tv_itr])
+        #if driving_dir == 2:
+        #    print(2)
+        #if  driving_dir == 1 and frame_data[rc.LANE_ID][tv_itr]-tv_lane_ind != 2:
+        #    print('lane id',frame_data[rc.LANE_ID][tv_itr])
+        #if driving_dir == 2 and frame_data[rc.LANE_ID][tv_itr]-tv_lane_ind-len(self.metas[rc.UPPER_LANE_MARKINGS]) != 2:
+        #    print('lane id',frame_data[rc.LANE_ID][tv_itr])
+
+        #(rpv_itr)
+        #print(frame_data[rc.HEIGHT])
+        state_9svs[6] = lateral_pos_centre_line(lpv_itr, fix_lane_ind(tv_lane_ind, 1)) if lpv_itr != None else 0
+        # (8) lpv rel longitudinal distance to tv 
+        state_9svs[7] = rel_distance_x(lpv_itr) if lpv_itr != None else 400
+        # (9) rv lateral pos
+        state_9svs[8] = lateral_pos_centre_line(rv_itr, fix_lane_ind(tv_lane_ind, -1)) if rv_itr != None else 0
+        # (10) rv rel longitudinal distance to tv 
+        state_9svs[9] = rel_distance_x(rv_itr) if rv_itr != None else 400
+        # (11) lv lateral pos
+        state_9svs[10] = lateral_pos_centre_line(lv_itr, fix_lane_ind(tv_lane_ind, 1)) if lv_itr != None else 0
+        # (12) lv rel longitudinal distance to tv 
+        state_9svs[11] = rel_distance_x(lv_itr) if lv_itr != None else 400
+        # (13) rfv lateral pos
+        state_9svs[12] = lateral_pos_centre_line(rfv_itr, fix_lane_ind(tv_lane_ind, -1)) if rfv_itr != None else 0
+        # (14) rfv rel longitudinal distance to tv 
+        state_9svs[13] = rel_distance_x(rfv_itr) if rfv_itr != None else 400
+        # (15) fv lateral pos
+        state_9svs[14] = lateral_pos_centre_line(fv_itr, fix_lane_ind(tv_lane_ind, 0)) if fv_itr != None else 0
+        # (16) fv rel longitudinal distance to tv 
+        state_9svs[15] = rel_distance_x(fv_itr) if fv_itr != None else 400
+        # (17) lfv lateral pos
+        state_9svs[16] = lateral_pos_centre_line(lfv_itr, fix_lane_ind(tv_lane_ind, 1)) if lfv_itr != None else 0
+        # (18) lfv rel longitudinal distance to tv 
+        state_9svs[17] = rel_distance_x(lfv_itr) if lfv_itr != None else 400
         
          
         
-        return state_wirth, state_shou, state_ours, output_state, tv_lane_ind
+        return invalid_data, state_wirth, state_shou, state_ours, state_9svs, output_state, tv_lane_ind, 
     
     def update_dirs(self):
         

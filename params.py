@@ -51,7 +51,7 @@ class Parameters:
 
         # Training  Hyperparameters
         self.CUDA = True
-        self.BATCH_SIZE = 32 #64
+        self.BATCH_SIZE = 16 #64
         self.LR = 0.0001#  0.001
         self.TRAJ2CLASS_LOSS_RATIO = 1000
         self.LR_DECAY = 1
