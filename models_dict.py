@@ -117,11 +117,32 @@ MODELS = {
             'classifier dim': 128,
             'head number': 8,
             'multi modal': False,
+            'probabilistic output': True,
             'task': params.TRAJECTORYPRED
         },
         'optimizer': torch.optim.Adam,
         'lc loss function': torch.nn.CrossEntropyLoss,
         'ttlc loss function': torch.nn.MSELoss,
+        'traj loss function': torch.nn.MSELoss,
+        'data type': 'state',
+        'state type': '',
+    },
+
+    'LSTM_ED': {
+        'name': 'LSTM_ED',
+        'ref':models.LSTM_EncDec,
+        'disc':'',
+        'tag': '',
+        'hyperparams':{
+            'layer number': 1,
+            'model dim':512,
+            'feedforward dim': 128,
+            'multi modal': False,
+            'probabilistic output': True,
+            'task': params.TRAJECTORYPRED
+        },
+        'optimizer': torch.optim.Adam,
+        'lc loss function': torch.nn.CrossEntropyLoss,
         'traj loss function': torch.nn.MSELoss,
         'data type': 'state',
         'state type': '',
@@ -138,6 +159,7 @@ MODELS = {
             'classifier dim': 128,
             'head number': 8,
             'multi modal': False,
+            'probabilistic output': True,
             'task': params.TRAJECTORYPRED
         },
         'optimizer': torch.optim.Adam,

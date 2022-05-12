@@ -224,16 +224,18 @@ class LCDataset(Dataset):
                 output_state_data = f['output_states_data']
                 output_states = output_state_data[(start_index+self.in_seq_len-1):(start_index+self.total_seq_len)]
                 output_states = (output_states-self.output_states_min)/(self.output_states_max-self.output_states_min)
-                label = np.absolute(labels_data[(start_index+self.in_seq_len-1):(start_index+self.total_seq_len)])/2
+                #label = np.absolute(labels_data[(start_index+self.in_seq_len-1):(start_index+self.total_seq_len)]).astype(np.long)
                 #print('label:{}'.format(label.shape))
                 #print('output_states:{}')
-                label = np.expand_dims(label, axis = -1)
+                #label = np.expand_dims(label, axis = -1)
                 #print_shape('label',label)
                 #print_shape('output_states',output_states)
                 #exit()
-                output_states = np.concatenate((output_states, label), axis = -1)
+                #output_states = np.concatenate((output_states, label), axis = -1)
                 output_states = torch.from_numpy(output_states.astype(np.float32))
+                #label = torch.from_numpy(label)
                 data_output.append(output_states)
+                
 
             label = np.absolute(labels_data[(start_index+self.in_seq_len-1):(start_index+self.total_seq_len)].astype(np.long))
             ttlc_status = ttlc_available[start_index].astype(np.long)  # constant number for all frames of same scenario        

@@ -44,7 +44,8 @@ class Parameters:
         self.IN_SEQ_LEN = 10
         self.TGT_SEQ_LEN = 35 # out_Seq_len
         self.SKIP_SEQ_LEN = 5 # end_of_seq_skip_len
-        self.TRAJ_OUTPUT_SIZE = 3 #3 => traj+label
+        self.CLASSIFICATION_OUTPUT_SIZE = 1 #3 => traj+label
+        self.TRAJ_OUTPUT_SIZE = 2 + self.CLASSIFICATION_OUTPUT_SIZE #3 => traj+label
         # Metrics Hyperparameters:
         self.ACCEPTED_GAP = 0
         self.THR = 0.34
@@ -53,7 +54,7 @@ class Parameters:
         self.CUDA = True
         self.BATCH_SIZE = 16 #64
         self.LR = 0.0001#  0.001
-        self.TRAJ2CLASS_LOSS_RATIO = 1000
+        self.TRAJ2CLASS_LOSS_RATIO = 1
         self.LR_DECAY = 1
         self.LR_DECAY_EPOCH = 10
         self.NUM_EPOCHS = 50

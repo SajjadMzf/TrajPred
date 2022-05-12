@@ -152,8 +152,8 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, traj
 
         if task == params.TRAJECTORYPRED: # seperate traj input data from other
             target_data = data_tuple[-1]
-            target_data_in = target_data[:,:p.TGT_SEQ_LEN, :p.TRAJ_OUTPUT_SIZE]
-            target_data_out = target_data[:,1:(p.TGT_SEQ_LEN+1), :p.TRAJ_OUTPUT_SIZE]
+            target_data_in = target_data[:,:p.TGT_SEQ_LEN ]
+            target_data_out = target_data[:,1:(p.TGT_SEQ_LEN+1)]
             in_data_tuple = data_tuple[:-1]
         else:
             in_data_tuple = data_tuple
@@ -233,8 +233,8 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_d
     avg_lc_loss = 0
     avg_traj_loss = 0
     all_lc_preds = np.zeros(((num_batch*model.batch_size), 3))
-    all_traj_preds = np.zeros(((num_batch*model.batch_size), p.TGT_SEQ_LEN, p.TRAJ_OUTPUT_SIZE))
-    all_traj_labels = np.zeros(((num_batch*model.batch_size), p.TGT_SEQ_LEN, p.TRAJ_OUTPUT_SIZE))
+    all_traj_preds = np.zeros(((num_batch*model.batch_size), p.TGT_SEQ_LEN))
+    all_traj_labels = np.zeros(((num_batch*model.batch_size), p.TGT_SEQ_LEN))
     all_att_coef = np.zeros(((num_batch*model.batch_size), 4))
     all_labels = np.zeros(((num_batch*model.batch_size)))
     plot_dicts = []
@@ -276,7 +276,7 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_d
         if task == params.TRAJECTORYPRED:
             target_data = data_tuple[-1]
             #print(target_data.shape)
-            target_data_out = target_data[:,1:(p.TGT_SEQ_LEN+1), :p.TRAJ_OUTPUT_SIZE] #trajectory labels are target data except the first element.
+            target_data_out = target_data[:,1:(p.TGT_SEQ_LEN+1)] #trajectory labels are target data except the first element.
             in_data_tuple = data_tuple[:-1]
         else:
             in_data_tuple = data_tuple
@@ -422,8 +422,8 @@ def calc_traj_metrics(p,
     traj_max):
     #traj_preds [number of samples, target sequence length, number of output states]
     #TODO:1. manouvre specific fde and rmse table, 2.  save sample output traj imags 3. man pred error
-    man_preds = traj_preds[:,:,2:]*2
-    man_preds = np.rint(man_preds)
+    #man_preds = traj_preds[:,:,2:]*2
+    #man_preds = np.rint(man_preds)
     man_labels = traj_labels[:,:,2:]*2
     man_labels = np.rint(man_labels)
     traj_preds = traj_preds[:,:,:2]
@@ -459,14 +459,14 @@ def calc_traj_metrics(p,
     rmse_lc = np.sqrt(mse_lc) 
     rmse_lk = np.sqrt(mse_lk) 
 
-    # man metrics
-    TP = np.sum(np.logical_and((man_preds == man_labels), (man_labels>0))) #TODO 1: argmax man preds
-    TPnFP = np.sum(man_preds>0)
-    TPnFN = np.sum(man_labels>0)
-    print_value('TP',TP)
-    recall = TP/TPnFN
-    precision = TP/TPnFP
-    accuracy =  np.sum(man_preds == man_labels)/total_frames
+    # man metrics TODO: update man metrics
+    #TP = np.sum(np.logical_and((man_preds == man_labels), (man_labels>0))) #TODO 1: argmax man preds
+    #TPnFP = np.sum(man_preds>0)
+    #TPnFN = np.sum(man_labels>0)
+    #print_value('TP',TP)
+    recall = 0#TP/TPnFN
+    precision = 0#TP/TPnFP
+    accuracy =  0#np.sum(man_preds == man_labels)/total_frames
 
     # fde, rmse table
     prediction_ts = int(p.TGT_SEQ_LEN/p.FPS)

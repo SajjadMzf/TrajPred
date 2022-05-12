@@ -44,7 +44,10 @@ def test_model_dict(model_dict, p):
     model = model_dict['ref'](p.BATCH_SIZE, device, model_dict['hyperparams'], p)
     optimizer = model_dict['optimizer'](params = model.parameters(), lr = p.LR)
     lc_loss_func = model_dict['lc loss function']()
-    traj_loss_func = model_dict['traj loss function']()
+    if model_dict['hyperparams']['probabilistic output']:
+        traj_loss_func = model.NLL_loss()
+    else:
+        traj_loss_func = model_dict['traj loss function']()
     ttlc_loss_func = model_dict['ttlc loss function']()
     task = model_dict['hyperparams']['task']
     # Instantiate Dataset: 

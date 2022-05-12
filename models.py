@@ -13,6 +13,89 @@ import params
 import utils
 import math
 
+
+
+class LSTM_EncDec(nn.Module):
+
+    def __init__(self, batch_size, device, hyperparams_dict, parameters, drop_prob = 0.5):
+        super(LSTM_EncDec, self).__init__()
+        
+        self.batch_size = batch_size
+        self.device = device
+        
+        self.hidden_dim = hyperparams_dict['hidden dim']
+        self.num_layers = hyperparams_dict['layer number']
+        self.task = hyperparams_dict['task']
+        self.multi_modal = hyperparams_dict['multi modal']
+        self.prob_output = hyperparams_dict['probabilistic output']
+        self.in_seq_len = parameters.IN_SEQ_LEN
+        self.input_dim = 18
+        self.output_dim = 2
+        self.dropout = nn.Dropout(drop_prob)
+
+        # encoder
+        self.lstm_enc = nn.LSTM(self.input_dim, self.hidden_dim, self.num_layers, batch_first = True, dropout= drop_prob)
+        
+        # decoder
+        self.lstm_dec = nn.LSTM(self.input_dim, self.hidden_dim, self.num_layers, batch_first = True, dropout= drop_prob)
+        self.fc = nn.Linear(self.hidden_dim, self.output_dim)
+        
+        # Define the output layer
+        
+        
+
+    def init_hidden(self):
+        # This is what we'll initialise our hidden state as
+        return (torch.zeros(self.num_layers, self.batch_size, self.hidden_dim),
+                torch.zeros(self.num_layers, self.batch_size, self.hidden_dim))
+
+    def lstm_forward(self, x_in):
+        # Forward pass through LSTM layer
+        # shape of lstm_out: [batch_size, seq_len, hidden_dim]
+        # shape of self.hidden: (a, b), where a and b both 
+        # have shape (num_layers, batch_size, hidden_dim).
+        x_in = x_in[0]
+        if self.only_tv:
+            x_in = x_in[:,:,:2]
+        x = x_in.view(self.batch_size, self.in_seq_len, self.input_dim)
+        lstm_out, self.hidden = self.lstm(x)
+        
+        # Only take the output from the final timetep
+        # Can pass on the entirety of lstm_out to the next layer if it is a seq2seq prediction
+        lstm_out = lstm_out.transpose(0,1)
+        out = self.dropout(lstm_out[-1].view(self.batch_size, -1))
+        return out
+    
+    def ttlc_forward(self, x):
+        x = self.dropout(x)
+        out = F.relu(self.fc1_ttlc(x))
+        out = self.dropout(out)
+        out = F.relu(self.fc2_ttlc(out))
+        return out
+    
+    def lc_forward(self, x):
+        x = self.dropout(x)
+        out = F.relu(self.fc1(x))
+        out = self.dropout(out)
+        out = self.fc2(out)
+        return out
+
+    def forward(self,x_in):
+        lstm_out = self.lstm_forward(x_in)
+        
+        if self.task == params.CLASSIFICATION or self.task == params.DUAL:
+            lc_pred = self.lc_forward(lstm_out)
+        else:
+            lc_pred = 0
+        
+        if self.task == params.REGRESSION or self.task == params.DUAL:
+            ttlc_pred = self.ttlc_forward(lstm_out)
+        else:
+            ttlc_pred = 0
+        
+        return {'lc_pred':lc_pred, 'ttlc_pred':ttlc_pred, 'features': lstm_out}
+        
+
 class NovelTransformerTraj(nn.Module): 
     def __init__(self, batch_size, device, hyperparams_dict, parameters, drop_prob = 0.1):
         super(NovelTransformerTraj, self).__init__()
@@ -29,7 +112,7 @@ class NovelTransformerTraj(nn.Module):
         self.multi_modal = hyperparams_dict['multi modal']
         self.in_seq_len = parameters.IN_SEQ_LEN
         self.input_dim = 18
-        self.output_dim = parameters.TRAJ_OUTPUT_SIZE
+        self.output_dim = 2
         self.dropout = nn.Dropout(drop_prob)
         
         ''' 1. Positional encoder: '''
@@ -167,7 +250,7 @@ class ConstantX(nn.Module):
         self.out_seq_len = parameters.TGT_SEQ_LEN
         self.fps = parameters.FPS
         self.input_dim = 18
-        self.output_dim = 3
+        self.output_dim = 2
         print('Constant Model should only be run with ours_states that includes velocity, acceleration features')
         
 
@@ -222,7 +305,7 @@ class ConstantX(nn.Module):
         traj_pred = (traj_pred-output_states_min)/(output_states_max-output_states_min)
         
         labels = torch.zeros_like(traj_pred)
-        traj_pred = torch.cat((traj_pred, labels[:,:,0:1]), dim = -1)
+        #traj_pred = torch.cat((traj_pred, labels[:,:,0:1]), dim = -1)
         #traj_pred *= traj_labels[:,0:1,:].to(self.device)
         #print('traj label')
         #print(traj_labels[0])
@@ -244,9 +327,14 @@ class TransformerTraj(nn.Module):
         self.head_num = hyperparams_dict['head number']
         self.task = hyperparams_dict['task']
         self.multi_modal = hyperparams_dict['multi modal']
+        self.prob_output = hyperparams_dict['probabilistic output']
         self.in_seq_len = parameters.IN_SEQ_LEN
         self.input_dim = 18
-        self.output_dim = parameters.TRAJ_OUTPUT_SIZE
+        if self.prob_output:
+            self.output_dim = 5 # muY, muX, sigY, sigX, rho 
+        else:
+            self.output_dim = 2
+        self.decoder_in_dim = 2
         self.dropout = nn.Dropout(drop_prob)
         
         ''' 1. Positional encoder: '''
@@ -258,7 +346,7 @@ class TransformerTraj(nn.Module):
         self.transformer_encoder = nn.TransformerEncoder(encoder_layers, self.layers_num)
         
         ''' 3. Transformer Decoder: '''
-        self.decoder_embedding = nn.Linear(self.output_dim, self.model_dim)
+        self.decoder_embedding = nn.Linear(self.decoder_in_dim, self.model_dim)
         if self.multi_modal == False:
             decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
             self.transformer_decoder = nn.TransformerDecoder(decoder_layers, self.layers_num)
@@ -281,6 +369,8 @@ class TransformerTraj(nn.Module):
             self.lk_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
             self.rlc_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
             self.llc_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
+        ''' 6. Manouvre Output '''
+        self.man_fc = nn.Linear(self.model_dim, 3)
     
     def forward(self, x, y, y_mask):
         #print(len(x))
@@ -311,14 +401,49 @@ class TransformerTraj(nn.Module):
         #trajectory prediction
         if self.multi_modal == False:
             traj_pred = self.trajectory_fc(decoder_out)
+            if self.prob_output:
+                traj_pred = self.prob_activation_func(traj_pred)
             traj_pred = torch.stack([traj_pred], dim=1)
         else:
             lk_traj_pred = self.lk_trajectory_fc(lk_decoder_out)
             rlc_traj_pred = self.rlc_trajectory_fc(rlc_decoder_out)
             llc_traj_pred = self.llc_trajectory_fc(llc_decoder_out)
+            if self.prob_output:
+                lk_traj_pred = self.prob_activation_func(lk_traj_pred)
+                rlc_traj_pred = self.prob_activation_func(rlc_traj_pred)
+                llc_traj_pred = self.prob_activation_func(llc_traj_pred)
+                
             traj_pred = torch.stack([lk_traj_pred, rlc_traj_pred, llc_traj_pred], dim=1) # lk =0, rlc=1, llc=2
-        return {'traj_pred':traj_pred, 'multi_modal': self.multi_modal}
+        man_pred = self.man_fc(decoder_out)
+        return {'traj_pred':traj_pred, 'man_pred': man_pred, 'multi_modal': self.multi_modal}
     
+    def prob_activation_func(self,x):
+       muY = x[:,:,0:1]
+       muX = x[:,:,1:2]
+       sigY = x[:,:,2:3]
+       sigX = x[:,:,3:4]
+       rho = x[:,:,4:5]
+       sigX = torch.exp(sigX)
+       sigY = torch.exp(sigY)
+       rho = torch.tanh(rho)
+       x = torch.cat([muX, muY, sigX, sigY, rho],dim=2)
+       return x
+
+    def NLL_loss(self, y_pred, y_gt):
+        muY = y_pred[:,:,0]
+        muX = y_pred[:,:,1]
+        sigY = y_pred[:,:,2]
+        sigX = y_pred[:,:,3]
+        rho = y_pred[:,:,4]
+        ohr = torch.pow(1-torch.pow(rho,2),-0.5)
+        y = y_gt[:,:, 0]
+        x = y_gt[:,:, 1]
+        
+        nll = -torch.log((1/(2*math.pi))*sigX*sigY*ohr) + 0.5*ohr*(torch.pow(sigX,2)*torch.pow(x-muX,2) + torch.pow(sigY,2)*torch.pow(y-muY,2) - 2*rho*sigX*sigY*(x-muX)*(x-muY))
+        
+        lossVal = torch.sum(nll)/np.prod(y.shape)
+        return lossVal
+
     def get_y_mask(self, size) -> torch.tensor:
         # Generates a squeare matrix where the each row allows one word more to be seen
         mask = torch.tril(torch.ones(size, size) == 1) # Lower triangular matrix
