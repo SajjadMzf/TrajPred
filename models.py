@@ -12,7 +12,7 @@ from time import time
 import params
 import utils
 import math
-
+from debugging_utils import *
 
 
 class LSTM_EncDec(nn.Module):
@@ -438,10 +438,12 @@ class TransformerTraj(nn.Module):
         ohr = torch.pow(1-torch.pow(rho,2),-0.5)
         y = y_gt[:,:, 0]
         x = y_gt[:,:, 1]
-        
-        nll = -torch.log((1/(2*math.pi))*sigX*sigY*ohr) + 0.5*ohr*(torch.pow(sigX,2)*torch.pow(x-muX,2) + torch.pow(sigY,2)*torch.pow(y-muY,2) - 2*rho*sigX*sigY*(x-muX)*(x-muY))
+        #print_shape('muY',muY)
+        #print_shape('y',y)
+        nll = -torch.log((1/(2*3.14))*sigX*sigY*ohr) + 0.5*torch.pow(ohr,2)*(torch.pow(sigX,2)*torch.pow(x-muX,2) + torch.pow(sigY,2)*torch.pow(y-muY,2) - 2*rho*torch.pow(sigX,1)*torch.pow(sigY, 1)*(x-muX)*(y-muY))
         
         lossVal = torch.sum(nll)/np.prod(y.shape)
+        #print(lossVal.dtype)
         return lossVal
 
     def get_y_mask(self, size) -> torch.tensor:

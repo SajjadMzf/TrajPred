@@ -193,7 +193,7 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, traj
                 traj_pred = torch.squeeze(traj_pred, dim =1)
             #print(traj_pred.size())
             #exit()
-            traj_loss = traj_loss_func(traj_pred, target_data_out) #TODO: seperate loss function for traj and label
+            traj_loss = traj_loss_func(traj_pred, target_data_out)#/len(train_loader)  #TODO: seperate loss function for traj and label
         else:
             traj_loss = 0
         loss = lc_loss + p.TRAJ2CLASS_LOSS_RATIO*traj_loss 
@@ -233,8 +233,8 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_d
     avg_lc_loss = 0
     avg_traj_loss = 0
     all_lc_preds = np.zeros(((num_batch*model.batch_size), 3))
-    all_traj_preds = np.zeros(((num_batch*model.batch_size), p.TGT_SEQ_LEN))
-    all_traj_labels = np.zeros(((num_batch*model.batch_size), p.TGT_SEQ_LEN))
+    all_traj_preds = np.zeros(((num_batch*model.batch_size), p.TGT_SEQ_LEN, 2))
+    all_traj_labels = np.zeros(((num_batch*model.batch_size), p.TGT_SEQ_LEN,2))
     all_att_coef = np.zeros(((num_batch*model.batch_size), 4))
     all_labels = np.zeros(((num_batch*model.batch_size)))
     plot_dicts = []
@@ -300,7 +300,11 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_d
                 #print(traj_pred.shape)
                 #if target_data_in.shape[1] == 0 or traj_pred.shape[1] == 0:
                 #    exit()
-                target_data_in = torch.cat((target_data_in, traj_pred), dim = 2)
+                target_data_in = torch.cat((target_data_in, traj_pred[:,:,:,:2]), dim = 2)
+                if out_seq_itr ==0:
+                    target_data_dist = traj_pred[:,0]
+                else:
+                    target_data_dist = torch.cat((target_data_dist, traj_pred[:,0]), dim=1)
             
             traj_pred = target_data_in[:,:,1:]    
         elif task == params.TRAJECTORYPRED and p.SELECTED_MODEL== 'CONSTANT_PARAMETER':
@@ -332,7 +336,7 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_d
             #exit() 
             #print('traj pred: {}'.format(traj_pred.shape))
             #print('target data out: {}'.format(target_data_out.shape))
-            traj_loss = traj_loss_func(traj_pred, target_data_out) 
+            traj_loss = traj_loss_func(target_data_dist, target_data_out)/len(test_loader) 
         else:
             traj_loss = 0
         loss = lc_loss + p.TRAJ2CLASS_LOSS_RATIO*traj_loss 
@@ -362,7 +366,10 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_d
             avg_lc_loss = 0# avg_lc_loss + lc_loss.cpu().data / len(test_loader)
         if task == params.TRAJECTORYPRED:
             all_traj_preds[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size)] = traj_pred.cpu().data
+           #print('target_data_out',target_data_out.shape)
             all_traj_labels[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size)] = target_data_out.cpu().data
+
+            #print(all_traj_labels.shape)
         if p.SELECTED_MODEL == 'REGIONATTCNN3':
             all_att_coef[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size)] = output_dict['attention'].cpu().data
         avg_traj_loss += traj_loss.cpu().data / len(test_loader)
@@ -424,16 +431,16 @@ def calc_traj_metrics(p,
     #TODO:1. manouvre specific fde and rmse table, 2.  save sample output traj imags 3. man pred error
     #man_preds = traj_preds[:,:,2:]*2
     #man_preds = np.rint(man_preds)
-    man_labels = traj_labels[:,:,2:]*2
-    man_labels = np.rint(man_labels)
+    #man_labels = traj_labels[:,:,2:]*2
+    #man_labels = np.rint(man_labels)
     traj_preds = traj_preds[:,:,:2]
     traj_labels = traj_labels[:,:,:2]
-    lc_frames = (man_labels>0)
-    lk_frames = (man_labels ==0)
-    total_lc_frames = np.count_nonzero(lc_frames)
-    total_lk_frames = np.count_nonzero(lk_frames)
-    total_frames = np.prod(man_labels.shape)
-    total_sequences = man_labels.shape[0]
+    lc_frames = 0#(man_labels>0)
+    lk_frames = 0#(man_labels ==0)
+    total_lc_frames = 0#np.count_nonzero(lc_frames)
+    total_lk_frames = 0#np.count_nonzero(lk_frames)
+    total_frames = np.prod(traj_labels[:,:,0].shape)
+    total_sequences = traj_labels.shape[0]
     #print_shape('traj_labels', traj_labels)
     print_value('total_frames', total_frames)
     print_value('total_lk_frames', total_lk_frames)
@@ -453,11 +460,12 @@ def calc_traj_metrics(p,
     fde = np.sum(np.absolute(traj_preds[:,-1,:]-traj_labels[:,-1,:]))/total_sequences
     # rmse
     mse = np.sum((traj_preds-traj_labels)**2)/total_frames
-    mse_lc = np.sum((lc_frames*(traj_preds-traj_labels))**2)/total_lc_frames
-    mse_lk = np.sum((lk_frames*(traj_preds-traj_labels))**2)/total_lk_frames
+    #print_shape('traj_preds', traj_preds)
+    mse_lc = 0 #np.sum((lc_frames*(traj_preds-traj_labels))**2)/total_lc_frames
+    mse_lk = 0 #np.sum((lk_frames*(traj_preds-traj_labels))**2)/total_lk_frames
     rmse = np.sqrt(mse) 
-    rmse_lc = np.sqrt(mse_lc) 
-    rmse_lk = np.sqrt(mse_lk) 
+    rmse_lc = 0 #np.sqrt(mse_lc) 
+    rmse_lk = 0 #np.sqrt(mse_lk) 
 
     # man metrics TODO: update man metrics
     #TP = np.sum(np.logical_and((man_preds == man_labels), (man_labels>0))) #TODO 1: argmax man preds
