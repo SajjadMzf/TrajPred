@@ -45,7 +45,7 @@ def test_model_dict(model_dict, p):
     optimizer = model_dict['optimizer'](params = model.parameters(), lr = p.LR)
     lc_loss_func = model_dict['lc loss function']()
     if model_dict['hyperparams']['probabilistic output']:
-        traj_loss_func = model.NLL_loss()
+        traj_loss_func = utils.NLL_loss()
     else:
         traj_loss_func = model_dict['traj loss function']()
     ttlc_loss_func = model_dict['ttlc loss function']()
@@ -105,6 +105,7 @@ if __name__ == '__main__':
     model_dict['tag'] = utils.update_tag(model_dict)
     test_model_dict(model_dict, p)
     '''
+    torch.cuda.empty_cache()
     p = params.Parameters(SELECTED_MODEL = 'TRANSFORMER_TRAJ', SELECTED_DATASET = 'HIGHD', UNBALANCED = False, ABLATION = False)
 
     model_dict = m.MODELS[p.SELECTED_MODEL]

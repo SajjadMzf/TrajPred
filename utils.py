@@ -71,6 +71,7 @@ def train_top_func(p, model, optimizer, lc_loss_func, traj_loss_func, task, tr_d
     patience = p.PATIENCE
     best_epoch = 0
     total_time = 0
+    p.LR_WU_CURRENT_BATCH = 0
     for epoch in range(p.NUM_EPOCHS):
         #print("Epoch: {} Started!".format(epoch+1))
         start = time()
@@ -200,6 +201,12 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, traj
         # 4. Calculating new grdients given the loss value
         loss.backward()
         # 5. Updating the weights
+        if p.LR_WU and p.LR_WU_CURRENT_BATCH<=p.LR_WU_BATCHES:
+            p.LR_WU_CURRENT_BATCH +=1
+            lr = p.LR*p.LR_WU_CURRENT_BATCH/p.LR_WU_BATCHES
+            for g in optimizer.param_groups:
+                g['lr'] = lr
+
         optimizer.step()
     
 
@@ -739,3 +746,31 @@ def update_tag(model_dict):
     hyperparam_str += model_dict['state type']
     
     return model_dict['name'] + hyperparam_str
+
+
+def NLL_loss(y_pred, y_gt):
+        muY = y_pred[:,:,0]
+        muX = y_pred[:,:,1]
+        sigY = y_pred[:,:,2] # sigY = standard deviation of y
+        sigX = y_pred[:,:,3] # sigX = standard deviation of x
+        rho = y_pred[:,:,4]
+        ohr = torch.pow(1-torch.pow(rho,2),-0.5)
+        y = y_gt[:,:, 0]
+        x = y_gt[:,:, 1]
+        #print_shape('y_pred',y_pred)
+        #print_shape('y_gt',y_gt)
+        z = torch.pow(sigX,-2)*torch.pow(x-muX,2) + torch.pow(sigY,-2)*torch.pow(y-muY,2) - 2*rho*torch.pow(sigX,-1)*torch.pow(sigY, -1)*(x-muX)*(y-muY)
+        #if torch.sum(z)<0:
+        #    print_value('z',z)
+        #    exit()
+        
+        denom = torch.log((1/(2*math.pi))*torch.pow(sigX,-1)*torch.pow(sigY,-1)*ohr)
+        #print(denom)
+        #if torch.sum(denom)>0:
+        #    print_value('denom',denom)
+        nll = -1*(denom - 0.5*torch.pow(ohr,2)*z)
+        #print(nll)
+        lossVal = torch.sum(nll)/np.prod(y.shape)
+        #print_value('lossval',lossVal)
+        #exit()
+        return lossVal

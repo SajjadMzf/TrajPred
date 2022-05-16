@@ -94,6 +94,18 @@ class LSTM_EncDec(nn.Module):
             ttlc_pred = 0
         
         return {'lc_pred':lc_pred, 'ttlc_pred':ttlc_pred, 'features': lstm_out}
+    
+    def prob_activation_func(self,x):
+       muY = x[:,:,0:1]
+       muX = x[:,:,1:2]
+       sigY = x[:,:,2:3]
+       sigX = x[:,:,3:4]
+       rho = x[:,:,4:5]
+       sigX = torch.exp(sigX)
+       sigY = torch.exp(sigY)
+       rho = torch.tanh(rho)
+       x = torch.cat([muX, muY, sigX, sigY, rho],dim=2)
+       return x
         
 
 class NovelTransformerTraj(nn.Module): 
@@ -110,9 +122,14 @@ class NovelTransformerTraj(nn.Module):
         self.head_num = hyperparams_dict['head number']
         self.task = hyperparams_dict['task']
         self.multi_modal = hyperparams_dict['multi modal']
+        self.prob_output = hyperparams_dict['probabilistic output']
         self.in_seq_len = parameters.IN_SEQ_LEN
         self.input_dim = 18
-        self.output_dim = 2
+        if self.prob_output:
+            self.output_dim = 5 # muY, muX, sigY, sigX, rho 
+        else:
+            self.output_dim = 2
+        self.decoder_in_dim = 2
         self.dropout = nn.Dropout(drop_prob)
         
         ''' 1. Positional encoder: '''
@@ -129,7 +146,7 @@ class NovelTransformerTraj(nn.Module):
         self.spat_transformer_encoder = nn.TransformerEncoder(spat_encoder_layers, self.layers_num)
         
 
-        self.decoder_embedding = nn.Linear(self.output_dim, self.model_dim)
+        self.decoder_embedding = nn.Linear(self.decoder_in_dim, self.model_dim)
         ''' 3.a Temporal Transformer Decoder: '''
         if self.multi_modal == False:
             temp_decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
@@ -164,25 +181,34 @@ class NovelTransformerTraj(nn.Module):
             self.lk_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
             self.rlc_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
             self.llc_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
+        
+        ''' 5. Manouvre Output '''
+        self.man_fc = nn.Linear(self.model_dim,3)
     
     def forward(self, x, y, y_mask):
         
         x = x[0]
         #temporal encoder
+        #print_shape('x',x)
         temp_x = self.temp_encoder_embedding(x)
         temp_x = self.positional_encoder(temp_x)
         temp_encoder_out = self.temp_transformer_encoder(temp_x)
+        #print_shape('temporal encoder output', temp_encoder_out)
         
         spatial_x = torch.permute(x, (0, 2, 1))
+        #print_shape('spatial x', spatial_x)
         spatial_x = self.spat_encoder_embedding(spatial_x)
         spatial_x = self.positional_encoder(spatial_x)
         spat_encoder_out = self.spat_transformer_encoder(spatial_x)
-
+        #print_shape('spatial encoder output', spat_encoder_out)
+        #exit()
         #temp decoder
+        #print_shape('y',y)
         if self.multi_modal == False:
             y = self.decoder_embedding(y[:,0])
             y = self.positional_encoder(y)
             temp_decoder_out = self.temp_transformer_decoder(y, temp_encoder_out, tgt_mask = y_mask)
+            #print_shape('temporal decoder output', temp_decoder_out)
         else:
             lk_y = self.decoder_embedding(y[:,0])
             lk_y = self.positional_encoder(lk_y)
@@ -199,6 +225,7 @@ class NovelTransformerTraj(nn.Module):
         # spat decoder
         if self.multi_modal == False:
             spat_decoder_out = self.spat_transformer_decoder(temp_decoder_out, spat_encoder_out, tgt_mask = y_mask)
+            #print_shape('spatial decoder output', spat_decoder_out)
         else:
             
             spat_lk_decoder_out = self.spat_lk_transformer_decoder(temp_lk_decoder_out, spat_encoder_out, tgt_mask = y_mask)
@@ -211,13 +238,24 @@ class NovelTransformerTraj(nn.Module):
         #trajectory prediction
         if self.multi_modal == False:
             traj_pred = self.trajectory_fc(spat_decoder_out)
+            #print_shape('traj_pred', traj_pred)
+            if self.prob_output:
+                traj_pred = self.prob_activation_func(traj_pred)
             traj_pred = torch.stack([traj_pred], dim=1)
+            #print_shape('traj_pred', traj_pred)
+            
         else:
             lk_traj_pred = self.lk_trajectory_fc(spat_lk_decoder_out)
             rlc_traj_pred = self.rlc_trajectory_fc(spat_rlc_decoder_out)
             llc_traj_pred = self.llc_trajectory_fc(spat_llc_decoder_out)
+            if self.prob_output:
+                lk_traj_pred = self.prob_activation_func(lk_traj_pred)
+                rlc_traj_pred = self.prob_activation_func(rlc_traj_pred)
+                llc_traj_pred = self.prob_activation_func(llc_traj_pred)
             traj_pred = torch.stack([lk_traj_pred, rlc_traj_pred, llc_traj_pred], dim=1)
-        return {'traj_pred':traj_pred, 'multi_modal': self.multi_modal}
+        man_pred = self.man_fc(spat_decoder_out)
+        
+        return {'traj_pred':traj_pred, 'man_pred': man_pred,'multi_modal': self.multi_modal}
     
     def get_y_mask(self, size) -> torch.tensor:
         # Generates a squeare matrix where the each row allows one word more to be seen
@@ -234,6 +272,18 @@ class NovelTransformerTraj(nn.Module):
         #  [0.,   0.,   0.,   0.,   0.]]
         
         return mask
+
+    def prob_activation_func(self,x):
+       muY = x[:,:,0:1]
+       muX = x[:,:,1:2]
+       sigY = x[:,:,2:3]
+       sigX = x[:,:,3:4]
+       rho = x[:,:,4:5]
+       sigX = torch.exp(sigX)
+       sigY = torch.exp(sigY)
+       rho = torch.tanh(rho)
+       x = torch.cat([muX, muY, sigX, sigY, rho],dim=2)
+       return x
 
 
 
@@ -429,22 +479,7 @@ class TransformerTraj(nn.Module):
        x = torch.cat([muX, muY, sigX, sigY, rho],dim=2)
        return x
 
-    def NLL_loss(self, y_pred, y_gt):
-        muY = y_pred[:,:,0]
-        muX = y_pred[:,:,1]
-        sigY = y_pred[:,:,2]
-        sigX = y_pred[:,:,3]
-        rho = y_pred[:,:,4]
-        ohr = torch.pow(1-torch.pow(rho,2),-0.5)
-        y = y_gt[:,:, 0]
-        x = y_gt[:,:, 1]
-        #print_shape('muY',muY)
-        #print_shape('y',y)
-        nll = -torch.log((1/(2*3.14))*sigX*sigY*ohr) + 0.5*torch.pow(ohr,2)*(torch.pow(sigX,2)*torch.pow(x-muX,2) + torch.pow(sigY,2)*torch.pow(y-muY,2) - 2*rho*torch.pow(sigX,1)*torch.pow(sigY, 1)*(x-muX)*(y-muY))
-        
-        lossVal = torch.sum(nll)/np.prod(y.shape)
-        #print(lossVal.dtype)
-        return lossVal
+    
 
     def get_y_mask(self, size) -> torch.tensor:
         # Generates a squeare matrix where the each row allows one word more to be seen

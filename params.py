@@ -52,13 +52,16 @@ class Parameters:
 
         # Training  Hyperparameters
         self.CUDA = True
-        self.BATCH_SIZE = 16 #64
+        self.BATCH_SIZE = 12 #64
         self.LR = 0.0001#  0.001
+        self.LR_WU = True
+        self.LR_WU_BATCHES = 400
+        self.LR_WU_CURRENT_BATCH = 0
         self.TRAJ2CLASS_LOSS_RATIO = 1
         self.LR_DECAY = 1
         self.LR_DECAY_EPOCH = 10
         self.NUM_EPOCHS = 50
-        self.PATIENCE =5
+        self.PATIENCE =1
         self.TR_JUMP_STEP =1 
 
         if self.UNBALANCED:

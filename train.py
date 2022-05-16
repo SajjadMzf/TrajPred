@@ -29,6 +29,8 @@ torch.multiprocessing.set_sharing_strategy('file_system')
 
 import matplotlib.colors as mcolors
 
+
+
 def train_model_dict(model_dict, p):
     # Set Random Seeds:
     if torch.cuda.is_available() and p.CUDA:
@@ -49,7 +51,7 @@ def train_model_dict(model_dict, p):
     optimizer = model_dict['optimizer'](params = model.parameters(), lr = p.LR)
     lc_loss_func = model_dict['lc loss function']()
     if model_dict['hyperparams']['probabilistic output']:
-        traj_loss_func = model.NLL_loss
+        traj_loss_func = utils.NLL_loss
     else:
         traj_loss_func = model_dict['traj loss function']()
     ttlc_loss_func = model_dict['ttlc loss function']()
@@ -139,10 +141,10 @@ if __name__ == '__main__':
     #        'feedforward dim': 128,
     #        'classifier dim': 128,
     #        'head number': 8,
-    
+    torch.cuda.empty_cache()
     print('---------------------------------------------------------------------------------------')
     print('---------------------------------------------------------------------------------------')
-    p = params.Parameters(SELECTED_MODEL = 'TRANSFORMER_TRAJ', SELECTED_DATASET = 'HIGHD', UNBALANCED = False, ABLATION = False)
+    p = params.Parameters(SELECTED_MODEL = 'NOVEL_TRANSFORMER_TRAJ', SELECTED_DATASET = 'HIGHD', UNBALANCED = False, ABLATION = False)
 
     #1
     model_dict = m.MODELS[p.SELECTED_MODEL]
@@ -150,7 +152,7 @@ if __name__ == '__main__':
     model_dict['hyperparams']['task'] = params.TRAJECTORYPRED
     model_dict['hyperparams']['multi modal'] = False
     model_dict['hyperparams']['layer number'] = 3
-    model_dict['state type'] = '9svs'
+    model_dict['state type'] = 'wirth'
     model_dict['tag'] = utils.update_tag(model_dict)
 
     train_model_dict(model_dict, p)
