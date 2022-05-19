@@ -10,7 +10,6 @@ import torch.nn.functional as F
 import logging
 from time import time
 import params
-import utils
 import math
 from debugging_utils import *
 
@@ -379,7 +378,10 @@ class TransformerTraj(nn.Module):
         self.multi_modal = hyperparams_dict['multi modal']
         self.prob_output = hyperparams_dict['probabilistic output']
         self.in_seq_len = parameters.IN_SEQ_LEN
-        self.input_dim = 18
+        if parameters.TV_ONLY:
+            self.input_dim = 2
+        else:
+            self.input_dim = 18
         if self.prob_output:
             self.output_dim = 5 # muY, muX, sigY, sigX, rho 
         else:
@@ -425,6 +427,7 @@ class TransformerTraj(nn.Module):
     def forward(self, x, y, y_mask):
         #print(len(x))
         x = x[0]
+        #print_shape('x',x)
         #encoder
         x = self.encoder_embedding(x)
         x = self.positional_encoder(x)

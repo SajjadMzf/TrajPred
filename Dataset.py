@@ -222,7 +222,7 @@ class LCDataset(Dataset):
                 data_output = [images, states]
             if self.traj_output:
                 output_state_data = f['output_states_data']
-                output_states = output_state_data[(start_index+self.in_seq_len-1):(start_index+self.total_seq_len)]
+                output_states = output_state_data[(start_index):(start_index+self.total_seq_len)]
                 output_states = (output_states-self.output_states_min)/(self.output_states_max-self.output_states_min)
                 #label = np.absolute(labels_data[(start_index+self.in_seq_len-1):(start_index+self.total_seq_len)]).astype(np.long)
                 #print('label:{}'.format(label.shape))
@@ -237,6 +237,6 @@ class LCDataset(Dataset):
                 data_output.append(output_states)
                 
 
-            label = np.absolute(labels_data[(start_index+self.in_seq_len-1):(start_index+self.total_seq_len)].astype(np.long))
+            label = np.absolute(labels_data[(start_index):(start_index+self.total_seq_len)].astype(np.long))
             ttlc_status = ttlc_available[start_index].astype(np.long)  # constant number for all frames of same scenario        
         return data_output, label, plot_output, ttlc_status

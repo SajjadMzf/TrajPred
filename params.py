@@ -11,6 +11,9 @@ class Parameters:
         self.UNBALANCED = UNBALANCED
         self.ABLATION = ABLATION
         self.DEBUG_MODE = False
+        self.PLOT_TRAJS = True
+        self.PLOT_TRAJS_NUM = 100
+        self.TV_ONLY = True
         
         self.ROBUST_PREDICTOR = True
         # Dataset Hyperparameters:
@@ -41,8 +44,8 @@ class Parameters:
         # Prediction Problem Hyperparameters:
         self.FPS = 5
         self.SEQ_LEN = 30
-        self.IN_SEQ_LEN = 10
-        self.TGT_SEQ_LEN = 35 # out_Seq_len
+        self.IN_SEQ_LEN = 15
+        self.TGT_SEQ_LEN = 25 # out_Seq_len
         self.SKIP_SEQ_LEN = 5 # end_of_seq_skip_len
         self.CLASSIFICATION_OUTPUT_SIZE = 1 #3 => traj+label
         self.TRAJ_OUTPUT_SIZE = 2 + self.CLASSIFICATION_OUTPUT_SIZE #3 => traj+label
@@ -52,9 +55,9 @@ class Parameters:
 
         # Training  Hyperparameters
         self.CUDA = True
-        self.BATCH_SIZE = 12 #64
+        self.BATCH_SIZE = 16 #64
         self.LR = 0.0001#  0.001
-        self.LR_WU = True
+        self.LR_WU = False
         self.LR_WU_BATCHES = 400
         self.LR_WU_CURRENT_BATCH = 0
         self.TRAJ2CLASS_LOSS_RATIO = 1
@@ -74,7 +77,7 @@ class Parameters:
 
         self.MODELS_DIR = 'models/'
         self.RESULTS_DIR = 'results/'
-
+        self.PLOT_TRAJS_DIR = self.RESULTS_DIR + 'traj_plots/'
         self.TABLES_DIR = self.RESULTS_DIR + 'tables/'
         self.FIGS_DIR = self.RESULTS_DIR + 'figures/'
         self.VIS_DIR = self.RESULTS_DIR + 'vis_data/'
