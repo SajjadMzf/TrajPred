@@ -17,7 +17,7 @@ import Dataset
 import models 
 import params
 import constants
-import models_dict as m
+
 import training_functions
 
 
@@ -32,7 +32,7 @@ import matplotlib.colors as mcolors
 
 
 
-def train_model_dict(model_dict, p):
+def train_model_dict(p):
     # Set Random Seeds:
     if torch.cuda.is_available() and p.CUDA:
             device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -48,23 +48,23 @@ def train_model_dict(model_dict, p):
 
     # Instantiate Model:
     
-    model = model_dict['ref'](p.BATCH_SIZE, device, model_dict['hyperparams'], p)
-    optimizer = model_dict['optimizer'](params = model.parameters(), lr = p.LR)
-    lc_loss_func = model_dict['lc loss function']()
-    if model_dict['hyperparams']['probabilistic output']:
+    model = p.model_dictionary['ref'](p.BATCH_SIZE, device, p.model_dictionary['hyperparams'], p)
+    optimizer = p.model_dictionary['optimizer'](params = model.parameters(), lr = p.LR)
+    lc_loss_func = p.model_dictionary['lc loss function']()
+    if p.model_dictionary['hyperparams']['probabilistic output']:
         traj_loss_func = training_functions.NLL_loss
     else:
-        traj_loss_func = model_dict['traj loss function']()
-    ttlc_loss_func = model_dict['ttlc loss function']()
-    task = model_dict['hyperparams']['task']
+        traj_loss_func = p.model_dictionary['traj loss function']()
+    ttlc_loss_func = p.model_dictionary['ttlc loss function']()
+    task = p.model_dictionary['hyperparams']['task']
     
     # Instantiate Dataset: 
     tr_dataset = Dataset.LCDataset(p.TRAIN_DATASET_DIR, p.TR_DATA_FILES,
         in_seq_len = p.IN_SEQ_LEN,
         out_seq_len = p.TGT_SEQ_LEN,
         end_of_seq_skip_len = p.SKIP_SEQ_LEN, 
-        data_type = model_dict['data type'], 
-        state_type = model_dict['state type'], 
+        data_type = p.model_dictionary['data type'], 
+        state_type = p.model_dictionary['state type'], 
         keep_plot_info= False, 
         unbalanced = p.UNBALANCED,
         force_recalc_start_indexes = False,
@@ -77,8 +77,8 @@ def train_model_dict(model_dict, p):
         in_seq_len = p.IN_SEQ_LEN,
         out_seq_len = p.TGT_SEQ_LEN,
         end_of_seq_skip_len = p.SKIP_SEQ_LEN,
-        data_type = model_dict['data type'], 
-        state_type = model_dict['state type'], 
+        data_type = p.model_dictionary['data type'], 
+        state_type = p.model_dictionary['state type'], 
         keep_plot_info= False, 
         traj_output = (task==constants.TRAJECTORYPRED), 
         import_states = True,
@@ -92,8 +92,8 @@ def train_model_dict(model_dict, p):
         in_seq_len = p.IN_SEQ_LEN,
         out_seq_len = p.TGT_SEQ_LEN,
         end_of_seq_skip_len = p.SKIP_SEQ_LEN,  
-        data_type = model_dict['data type'],
-        state_type = model_dict['state type'], 
+        data_type = p.model_dictionary['data type'],
+        state_type = p.model_dictionary['state type'], 
         keep_plot_info= True, 
         traj_output = (task==constants.TRAJECTORYPRED), 
         import_states = True,
@@ -109,14 +109,14 @@ def train_model_dict(model_dict, p):
     #exit()
     # Train/Evaluate:
     tb = SummaryWriter()
-    val_result_dic = training_functions.train_top_func(p, model, optimizer, lc_loss_func, traj_loss_func, task, tr_dataset, val_dataset,device, model_tag = model_dict['tag'], tensorboard = tb)    
-    te_result_dic, traj_df = training_functions.eval_top_func(p, model, lc_loss_func, traj_loss_func, task, te_dataset, device, model_tag = model_dict['tag'], tensorboard = tb)
+    val_result_dic = training_functions.train_top_func(p, model, optimizer, lc_loss_func, traj_loss_func, task, tr_dataset, val_dataset,device, model_tag = p.model_dictionary['tag'], tensorboard = tb)    
+    te_result_dic, traj_df = training_functions.eval_top_func(p, model, lc_loss_func, traj_loss_func, task, te_dataset, device, model_tag = p.model_dictionary['tag'], tensorboard = tb)
     
     
     # Save results:
-    log_file_dir = p.TABLES_DIR + p.SELECTED_DATASET + '_' + model_dict['name'] + '.csv'  
-    log_dict = model_dict['hyperparams'].copy()
-    log_dict['state type'] = model_dict['state type']
+    log_file_dir = p.TABLES_DIR + p.SELECTED_DATASET + '_' + p.model_dictionary['name'] + '.csv'  
+    log_dict = p.model_dictionary['hyperparams'].copy()
+    log_dict['state type'] = p.model_dictionary['state type']
     tb_hp_dic = log_dict.copy()
     log_dict.update(val_result_dic)
     log_dict.update(te_result_dic)
