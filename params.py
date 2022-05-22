@@ -10,10 +10,11 @@ class Parameters:
         self.SELECTED_DATASET = SELECTED_DATASET
         self.UNBALANCED = UNBALANCED
         self.ABLATION = ABLATION
-        self.DEBUG_MODE = False
-        self.PLOT_TRAJS = True
+        self.DEBUG_MODE = True
+        self.PLOT_TRAJS = False
         self.PLOT_TRAJS_NUM = 100
-        self.TV_ONLY = True
+        self.TV_ONLY = False
+        self.MAN_BASED = True
         
         self.ROBUST_PREDICTOR = True
         # Dataset Hyperparameters:

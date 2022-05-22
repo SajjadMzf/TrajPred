@@ -28,9 +28,23 @@ class LSTM_EncDec(nn.Module):
         self.multi_modal = hyperparams_dict['multi modal']
         self.prob_output = hyperparams_dict['probabilistic output']
         self.in_seq_len = parameters.IN_SEQ_LEN
-        self.input_dim = 18
         self.output_dim = 2
         self.dropout = nn.Dropout(drop_prob)
+        
+        if parameters.TV_ONLY:
+            self.input_dim = 2
+        else:
+            self.input_dim = 18
+        
+        if self.man_based:
+            self.input_dim += 3
+            self.decoder_in_dim += 3
+        
+        if self.prob_output:
+            self.output_dim = 5 # muY, muX, sigY, sigX, rho 
+        else:
+            self.output_dim = 2
+
 
         # encoder
         self.lstm_enc = nn.LSTM(self.input_dim, self.hidden_dim, self.num_layers, batch_first = True, dropout= drop_prob)
@@ -53,9 +67,8 @@ class LSTM_EncDec(nn.Module):
         # shape of lstm_out: [batch_size, seq_len, hidden_dim]
         # shape of self.hidden: (a, b), where a and b both 
         # have shape (num_layers, batch_size, hidden_dim).
-        x_in = x_in[0]
-        if self.only_tv:
-            x_in = x_in[:,:,:2]
+        
+        
         x = x_in.view(self.batch_size, self.in_seq_len, self.input_dim)
         lstm_out, self.hidden = self.lstm(x)
         
@@ -65,32 +78,9 @@ class LSTM_EncDec(nn.Module):
         out = self.dropout(lstm_out[-1].view(self.batch_size, -1))
         return out
     
-    def ttlc_forward(self, x):
-        x = self.dropout(x)
-        out = F.relu(self.fc1_ttlc(x))
-        out = self.dropout(out)
-        out = F.relu(self.fc2_ttlc(out))
-        return out
-    
-    def lc_forward(self, x):
-        x = self.dropout(x)
-        out = F.relu(self.fc1(x))
-        out = self.dropout(out)
-        out = self.fc2(out)
-        return out
-
     def forward(self,x_in):
         lstm_out = self.lstm_forward(x_in)
         
-        if self.task == params.CLASSIFICATION or self.task == params.DUAL:
-            lc_pred = self.lc_forward(lstm_out)
-        else:
-            lc_pred = 0
-        
-        if self.task == params.REGRESSION or self.task == params.DUAL:
-            ttlc_pred = self.ttlc_forward(lstm_out)
-        else:
-            ttlc_pred = 0
         
         return {'lc_pred':lc_pred, 'ttlc_pred':ttlc_pred, 'features': lstm_out}
     
@@ -186,7 +176,7 @@ class NovelTransformerTraj(nn.Module):
     
     def forward(self, x, y, y_mask):
         
-        x = x[0]
+        
         #temporal encoder
         #print_shape('x',x)
         temp_x = self.temp_encoder_embedding(x)
@@ -307,7 +297,7 @@ class ConstantX(nn.Module):
     def forward(self, x, states_min, states_max, output_states_min, output_states_max, traj_labels):
         traj_pred = torch.ones((self.batch_size, self.out_seq_len, 2), requires_grad = False )
         #print(len(x))
-        x = x[0]
+        
         x = x.cpu()
         #classification => always lane keeping
 
@@ -377,16 +367,21 @@ class TransformerTraj(nn.Module):
         self.task = hyperparams_dict['task']
         self.multi_modal = hyperparams_dict['multi modal']
         self.prob_output = hyperparams_dict['probabilistic output']
+        self.man_based= parameters.MAN_BASED
         self.in_seq_len = parameters.IN_SEQ_LEN
+        self.decoder_in_dim = 2
+        
         if parameters.TV_ONLY:
             self.input_dim = 2
         else:
             self.input_dim = 18
+        if self.man_based:
+            self.input_dim += 3
+            self.decoder_in_dim += 3
         if self.prob_output:
             self.output_dim = 5 # muY, muX, sigY, sigX, rho 
         else:
             self.output_dim = 2
-        self.decoder_in_dim = 2
         self.dropout = nn.Dropout(drop_prob)
         
         ''' 1. Positional encoder: '''
@@ -426,7 +421,6 @@ class TransformerTraj(nn.Module):
     
     def forward(self, x, y, y_mask):
         #print(len(x))
-        x = x[0]
         #print_shape('x',x)
         #encoder
         x = self.encoder_embedding(x)
@@ -467,7 +461,9 @@ class TransformerTraj(nn.Module):
                 llc_traj_pred = self.prob_activation_func(llc_traj_pred)
                 
             traj_pred = torch.stack([lk_traj_pred, rlc_traj_pred, llc_traj_pred], dim=1) # lk =0, rlc=1, llc=2
+        #print_shape('decoder_out', decoder_out)
         man_pred = self.man_fc(decoder_out)
+        #print_shape('man_pred', man_pred)
         return {'traj_pred':traj_pred, 'man_pred': man_pred, 'multi_modal': self.multi_modal}
     
     def prob_activation_func(self,x):
