@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import Dataset 
 import models 
 import params
+import constants
 import models_dict as m
 import training_functions
 
@@ -60,8 +61,8 @@ def test_model_dict(model_dict, p):
         keep_plot_info= False, 
         unbalanced = p.UNBALANCED,
         force_recalc_start_indexes = False,
-        traj_output = (task==params.TRAJECTORYPRED))
-    #val_dataset = Dataset.LCDataset(p.TRAIN_DATASET_DIR, p.VAL_DATA_FILES,  data_type = model_dict['data type'], state_type = model_dict['state type'], keep_plot_info= False, traj_output = (task==params.TRAJECTORYPRED), states_min = tr_dataset.states_min, states_max = tr_dataset.states_max, output_states_min = tr_dataset.output_states_min, output_states_max = tr_dataset.output_states_max)
+        traj_output = (task==constants.TRAJECTORYPRED))
+    #val_dataset = Dataset.LCDataset(p.TRAIN_DATASET_DIR, p.VAL_DATA_FILES,  data_type = model_dict['data type'], state_type = model_dict['state type'], keep_plot_info= False, traj_output = (task==constants.TRAJECTORYPRED), states_min = tr_dataset.states_min, states_max = tr_dataset.states_max, output_states_min = tr_dataset.output_states_min, output_states_max = tr_dataset.output_states_max)
     
     te_dataset = Dataset.LCDataset(p.TEST_DATASET_DIR, p.TE_DATA_FILES,
         in_seq_len = p.IN_SEQ_LEN,
@@ -70,7 +71,7 @@ def test_model_dict(model_dict, p):
         data_type = model_dict['data type'], 
         state_type = model_dict['state type'], 
         keep_plot_info= True, 
-        traj_output = (task==params.TRAJECTORYPRED), 
+        traj_output = (task==constants.TRAJECTORYPRED), 
         import_states = True,
         unbalanced = p.UNBALANCED,
         force_recalc_start_indexes = False,
@@ -100,7 +101,7 @@ if __name__ == '__main__':
     p = params.Parameters(SELECTED_MODEL = 'CONSTANT_PARAMETER', SELECTED_DATASET = 'HIGHD', UNBALANCED = False, ABLATION = False)
 
     model_dict = m.MODELS[p.SELECTED_MODEL]
-    model_dict['hyperparams']['task'] = params.TRAJECTORYPRED
+    model_dict['hyperparams']['task'] = constants.TRAJECTORYPRED
     model_dict['state type'] = 'ours' #it has to be ours for constant parameter model
     model_dict['tag'] = training_functions.update_tag(model_dict)
     test_model_dict(model_dict, p)
@@ -109,7 +110,7 @@ if __name__ == '__main__':
     p = params.Parameters(SELECTED_MODEL = 'TRANSFORMER_TRAJ', SELECTED_DATASET = 'HIGHD', UNBALANCED = False, ABLATION = False)
 
     model_dict = m.MODELS[p.SELECTED_MODEL]
-    model_dict['hyperparams']['task'] = params.TRAJECTORYPRED
+    model_dict['hyperparams']['task'] = constants.TRAJECTORYPRED
     model_dict['hyperparams']['multi modal'] = False
     model_dict['state type'] = 'wirth'
     model_dict['tag'] = training_functions.update_tag(model_dict)

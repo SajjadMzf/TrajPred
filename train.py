@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import Dataset 
 import models 
 import params
+import constants
 import models_dict as m
 import training_functions
 
@@ -67,7 +68,7 @@ def train_model_dict(model_dict, p):
         keep_plot_info= False, 
         unbalanced = p.UNBALANCED,
         force_recalc_start_indexes = False,
-        traj_output = (task==params.TRAJECTORYPRED))
+        traj_output = (task==constants.TRAJECTORYPRED))
     #print(tr_dataset.states_max-tr_dataset.states_min)
     #assert np.all((tr_dataset.states_max-tr_dataset.states_min)>0)
     #print('output state min: {}, output state max: {}'.format(tr_dataset.output_states_min, tr_dataset.output_states_max))
@@ -79,7 +80,7 @@ def train_model_dict(model_dict, p):
         data_type = model_dict['data type'], 
         state_type = model_dict['state type'], 
         keep_plot_info= False, 
-        traj_output = (task==params.TRAJECTORYPRED), 
+        traj_output = (task==constants.TRAJECTORYPRED), 
         import_states = True,
         unbalanced = p.UNBALANCED,
         force_recalc_start_indexes = False,
@@ -94,7 +95,7 @@ def train_model_dict(model_dict, p):
         data_type = model_dict['data type'],
         state_type = model_dict['state type'], 
         keep_plot_info= True, 
-        traj_output = (task==params.TRAJECTORYPRED), 
+        traj_output = (task==constants.TRAJECTORYPRED), 
         import_states = True,
         unbalanced = p.UNBALANCED,
         force_recalc_start_indexes = False,
@@ -147,12 +148,11 @@ if __name__ == '__main__':
     p = params.Parameters(SELECTED_MODEL = 'TRANSFORMER_TRAJ', SELECTED_DATASET = 'HIGHD', UNBALANCED = False, ABLATION = False)
 
     #1
-    model_dict = m.MODELS[p.SELECTED_MODEL]
+    
 
-    model_dict['hyperparams']['task'] = params.TRAJECTORYPRED
-    model_dict['hyperparams']['multi modal'] = False
-    model_dict['hyperparams']['layer number'] = 3
-    model_dict['state type'] = 'wirth'
-    model_dict['tag'] = training_functions.update_tag(model_dict)
+    p.model_dictionary['hyperparams']['task'] = constants.TRAJECTORYPRED
+    p.model_dictionary['hyperparams']['multi modal'] = False
+    p.model_dictionary['hyperparams']['layer number'] = 3
+    p.model_dictionary['state type'] = 'wirth'
 
-    train_model_dict(model_dict, p)
+    train_model_dict(p)

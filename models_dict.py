@@ -1,6 +1,6 @@
 import torch
 import models
-import params
+import constants
 #
 
 # Model Hyperparameters 
@@ -13,7 +13,7 @@ MODELS = {
         'hyperparams':{
             'hidden dim':512,
             'tv only': False,
-            'task': params.DUAL,
+            'task': constants.DUAL,
             'curriculum loss': False,
             'curriculum seq': False,
             'curriculum virtual':False,
@@ -33,7 +33,7 @@ MODELS = {
             'layer number': 1,
             'tv only': False,
             'hidden dim':512,
-            'task': params.REGRESSION,
+            'task': constants.REGRESSION,
             'curriculum loss': False,
             'curriculum seq': False,
             'curriculum virtual':False,
@@ -53,7 +53,7 @@ MODELS = {
             'layer number': 1,
             'tv only': False,
             'hidden dim':512,
-            'task': params.REGRESSION,
+            'task': constants.REGRESSION,
             'curriculum loss': False,
             'curriculum seq': False,
             'curriculum virtual':False,
@@ -73,7 +73,7 @@ MODELS = {
             'kernel size': 3,
             'channel number':16,
             'merge channels': True,
-            'task': params.DUAL,
+            'task': constants.DUAL,
             'curriculum loss': False,
             'curriculum seq': False,
             'curriculum virtual':False,
@@ -94,7 +94,7 @@ MODELS = {
             'kernel size': 3,
             'channel number':16,
             'merge channels': True,
-            'task': params.DUAL,
+            'task': constants.DUAL,
             'curriculum loss': False,
             'curriculum seq': False,
             'curriculum virtual':False,
@@ -118,7 +118,7 @@ MODELS = {
             'head number': 8,
             'multi modal': False,
             'probabilistic output': True,
-            'task': params.TRAJECTORYPRED
+            'task': constants.TRAJECTORYPRED
         },
         'optimizer': torch.optim.Adam,
         'lc loss function': torch.nn.CrossEntropyLoss,
@@ -139,7 +139,7 @@ MODELS = {
             'feedforward dim': 128,
             'multi modal': False,
             'probabilistic output': True,
-            'task': params.TRAJECTORYPRED
+            'task': constants.TRAJECTORYPRED
         },
         'optimizer': torch.optim.Adam,
         'lc loss function': torch.nn.CrossEntropyLoss,
@@ -160,7 +160,7 @@ MODELS = {
             'head number': 8,
             'multi modal': False,
             'probabilistic output': True,
-            'task': params.TRAJECTORYPRED
+            'task': constants.TRAJECTORYPRED
         },
         'optimizer': torch.optim.Adam,
         'lc loss function': torch.nn.CrossEntropyLoss,
@@ -178,7 +178,7 @@ MODELS = {
         'tag': '',
         'hyperparams':{
             'parameter': 'Last Velocity', #Options: Last Velocity, Last Acceleration, Mean Velocity, Mean Acceleration
-            'task': params.TRAJECTORYPRED
+            'task': constants.TRAJECTORYPRED
         },
         'optimizer': torch.optim.Adam,
         'lc loss function': torch.nn.CrossEntropyLoss,

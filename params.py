@@ -2,11 +2,14 @@ import os
 import torch
 import torch.utils.data as utils_data
 import numpy as np
+import models
+import models_dict as m
 
 class Parameters:
     def __init__(self, SELECTED_MODEL = 'VCNN', SELECTED_DATASET = 'HIGHD', UNBALANCED = False, ABLATION = False):
         # High Level Param
         self.SELECTED_MODEL = SELECTED_MODEL#'REGIONATTCNN3'#'VCNN'
+        self.model_dictionary = m.MODELS[self.SELECTED_MODEL]
         self.SELECTED_DATASET = SELECTED_DATASET
         self.UNBALANCED = UNBALANCED
         self.ABLATION = ABLATION
@@ -148,12 +151,7 @@ class Parameters:
         
          
 
-
-# Different Tasks
-CLASSIFICATION = 0
-REGRESSION = 1
-DUAL = 2 
-TRAJECTORYPRED = 3   
+  
             
         
             
