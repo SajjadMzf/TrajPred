@@ -112,25 +112,18 @@ def train_model_dict(p):
     
     p.export_experiment()
     # Save results:
-    log_file_dir = p.TABLES_DIR + p.SELECTED_DATASET + '_' + p.model_dictionary['name'] + '.csv'  
-    log_dict = p.model_dictionary['hyperparams'].copy()
-    log_dict['state type'] = p.model_dictionary['state type']
-    tb_hp_dic = log_dict.copy()
-    log_dict.update(val_result_dic)
-    log_dict.update(te_result_dic)
-    log_columns = [key for key in log_dict]
-    log_columns = ', '.join(log_columns) + '\n'
-    result_line = [str(log_dict[key]) for key in log_dict]
-    result_line = ', '.join(result_line) + '\n'
-    if os.path.exists(log_file_dir) == False:
-        result_line = log_columns + result_line
-    with open(log_file_dir, 'a') as f:
-        f.write(result_line)
+    if p.parameter_tuning_experiment:
+        log_file_dir = os.path.join(p.TABLES_DIR,p.tuning_experiment_name + '.csv')  
+        log_columns = [key for key in p.log_dict]
+        log_columns = ', '.join(log_columns) + '\n'
+        result_line = [str(p.log_dict[key]) for key in p.log_dict]
+        result_line = ', '.join(result_line) + '\n'
+        if os.path.exists(log_file_dir) == False:
+            result_line = log_columns + result_line
+        with open(log_file_dir, 'a') as f:
+            f.write(result_line)
 
-    tb.add_hparams(
-            tb_hp_dic,
-            te_result_dic
-        )
+   
     tb.close()
 
 if __name__ == '__main__':
@@ -147,7 +140,11 @@ if __name__ == '__main__':
 
     #1
     p = params.ParametersHandler('Transformer_Traj.yaml', 'highD.yaml', './config')
+    tuning_experiment_name = 'Testing new hyperparams loading'
+    selected_params = ['experiment_tag','SELECTED_MODEL', 'SELECTED_DATASET', 'UNBALANCED', 'ABLATION']
+    selected_metrics = ['FDE_table', 'RMSE_table']
     
+    p.tune_params(tuning_experiment_name, selected_params, selected_metrics)
     train_model_dict(p)
     
 

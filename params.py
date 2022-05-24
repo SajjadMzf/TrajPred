@@ -8,6 +8,7 @@ import yaml
 import copy
 class ParametersHandler:
     def __init__(self, model, dataset, parameters_dir, experiments_dir = 'experiments/', models_dir = 'models/', datasets_dir = 'datasets/', constants_file = 'constants.yaml', hyperparams_file = 'hyperparams.yaml'):
+        self.parameter_tuning_experiment = False 
         self.model_file = os.path.join(os.path.join(parameters_dir, models_dir), model)
         self.dataset_file = os.path.join(os.path.join(parameters_dir, datasets_dir), dataset)
         self.hyperparams_file = os.path.join(parameters_dir, hyperparams_file)
@@ -47,6 +48,13 @@ class ParametersHandler:
         if not os.path.exists(self.constants['DIRS']['VIS_DIR']):
             os.mkdir(self.constants['DIRS']['VIS_DIR'])
     
+    def tune_params(self, tuning_experiment_name, selected_params, selected_metrics):
+        self.parameter_tuning_experiment = True
+        self.tuning_experiment_name = tuning_experiment_name
+        self.log_dict = {}
+        for param_str in selected_params:
+            self.log_dict[param_str] = eval('self.{}'.format(param_str))
+        self.selected_metrics = selected_metrics
     def match_parameters(self):
         self.SELECTED_MODEL = self.model['name']#'REGIONATTCNN3'#'VCNN'
         self.SELECTED_DATASET = self.dataset['name']
