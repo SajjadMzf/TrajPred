@@ -3,159 +3,159 @@ import torch
 import torch.utils.data as utils_data
 import numpy as np
 import models
-import models_dict as m
-
-class Parameters:
-    def __init__(self, SELECTED_MODEL = 'VCNN', SELECTED_DATASET = 'HIGHD', UNBALANCED = False, ABLATION = False):
-        # High Level Param
-        self.SELECTED_MODEL = SELECTED_MODEL#'REGIONATTCNN3'#'VCNN'
-        self.model_dictionary = m.MODELS[self.SELECTED_MODEL]
-        self.SELECTED_DATASET = SELECTED_DATASET
-        self.UNBALANCED = UNBALANCED
-        self.ABLATION = ABLATION
-        self.DEBUG_MODE = True
-        self.PLOT_TRAJS = False
-        self.PLOT_TRAJS_NUM = 100
-        self.TV_ONLY = False
-        self.MAN_BASED = True
+from datetime import datetime
+import yaml
+import copy
+class ParametersHandler:
+    def __init__(self, model, dataset, parameters_dir, experiments_dir = 'experiments/', models_dir = 'models/', datasets_dir = 'datasets/', constants_file = 'constants.yaml', hyperparams_file = 'hyperparams.yaml'):
+        self.model_file = os.path.join(os.path.join(parameters_dir, models_dir), model)
+        self.dataset_file = os.path.join(os.path.join(parameters_dir, datasets_dir), dataset)
+        self.hyperparams_file = os.path.join(parameters_dir, hyperparams_file)
+        self.constants_file = os.path.join(parameters_dir, constants_file)
+        self.model_dataset = '{}_{}'.format(model.split('.')[0], dataset.split('.')[0])
+        self.experiments_dir = experiments_dir
+        now = datetime.now()
+        self.experiment_file = '{}_{}'.format(self.model_dataset, now)
+        self.latest_experiment_file = os.path.join(self.experiments_dir, self.experiment_file) 
         
-        self.ROBUST_PREDICTOR = True
-        # Dataset Hyperparameters:
-        self.DATASETS = {
-            'HIGHD':{
-                'abb_tr_ind':range(1,46),
-                'abb_val_ind':range(46,51),
-                'abb_te_ind':range(51,56),
-                'tr_ind':range(1,47),
-                'val_ind':range(47,52),
-                'te_ind':range(52,57),
-                'image_width': 200,
-                'image_height': 80,
-            }
-        }
-        self.IMAGE_HEIGHT = self.DATASETS[self.SELECTED_DATASET]['image_height']
-        self.IMAGE_WIDTH = self.DATASETS[self.SELECTED_DATASET]['image_width']
+
+        with open(self.hyperparams_file, 'r') as f:
+            self.hyperparams = yaml.load(f, Loader = yaml.FullLoader)
+        
+        with open(self.constants_file, 'r') as f:
+            self.constants = yaml.load(f, Loader = yaml.FullLoader)
+        
+        with open(self.dataset_file, 'r') as f:
+            self.dataset = yaml.load(f, Loader = yaml.FullLoader)
+        
+        with open(self.model_file, 'r') as f:
+            self.model = yaml.load(f, Loader = yaml.FullLoader)
+        
+        self.create_dirs()
+        self.match_parameters()
+
+
+    def create_dirs(self):
+        if not os.path.exists(self.constants['DIRS']['MODELS_DIR']):
+            os.mkdir(self.constants['DIRS']['MODELS_DIR'])
+        if not os.path.exists(self.constants['DIRS']['RESULTS_DIR']):
+            os.mkdir(self.constants['DIRS']['RESULTS_DIR'])
+        if not os.path.exists(self.constants['DIRS']['TABLES_DIR']):
+            os.mkdir(self.constants['DIRS']['TABLES_DIR'])
+        if not os.path.exists(self.constants['DIRS']['FIGS_DIR']):
+            os.mkdir(self.constants['DIRS']['FIGS_DIR'])
+        if not os.path.exists(self.constants['DIRS']['VIS_DIR']):
+            os.mkdir(self.constants['DIRS']['VIS_DIR'])
+    
+    def match_parameters(self):
+        self.SELECTED_MODEL = self.model['name']#'REGIONATTCNN3'#'VCNN'
+        self.SELECTED_DATASET = self.dataset['name']
+        self.experiment_tag = self.experiment_file
+        self.UNBALANCED = not self.hyperparams['dataset']['balanced']
+        self.ABLATION = self.hyperparams['dataset']['ablation']
+        self.DEBUG_MODE = self.hyperparams['experiment']['debug_mode']
+        self.TV_ONLY = self.hyperparams['model']['tv_only']
+        self.MAN_BASED = self.hyperparams['model']['man_based']
+        
+        
+        self.IMAGE_HEIGHT = self.dataset['image_height']
+        self.IMAGE_WIDTH = self.dataset['image_width']
         
         if self.ABLATION:
-            self.TR_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in self.DATASETS[self.SELECTED_DATASET]['abb_tr_ind']]
-            self.VAL_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in self.DATASETS[self.SELECTED_DATASET]['abb_val_ind']]
-            self.TE_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in self.DATASETS[self.SELECTED_DATASET]['abb_te_ind']]
+            self.TR_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in eval(self.dataset['abb_tr_ind'])]
+            self.VAL_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in eval(self.dataset['abb_val_ind'])]
+            self.TE_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in eval(self.dataset['abb_te_ind'])]
         else:
-            self.TR_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in self.DATASETS[self.SELECTED_DATASET]['tr_ind']]
-            self.VAL_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in self.DATASETS[self.SELECTED_DATASET]['val_ind']]
-            self.TE_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in self.DATASETS[self.SELECTED_DATASET]['te_ind']]
-
+            self.TR_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in eval(self.dataset['tr_ind'])]
+            self.VAL_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in eval(self.dataset['val_ind'])]
+            self.TE_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in eval(self.dataset['te_ind'])]
+        #print(self.TR_DATA_FILES)
+        #exit()
         # Prediction Problem Hyperparameters:
-        self.FPS = 5
-        self.SEQ_LEN = 30
-        self.IN_SEQ_LEN = 15
-        self.TGT_SEQ_LEN = 25 # out_Seq_len
-        self.SKIP_SEQ_LEN = 5 # end_of_seq_skip_len
-        self.CLASSIFICATION_OUTPUT_SIZE = 1 #3 => traj+label
-        self.TRAJ_OUTPUT_SIZE = 2 + self.CLASSIFICATION_OUTPUT_SIZE #3 => traj+label
-        # Metrics Hyperparameters:
-        self.ACCEPTED_GAP = 0
-        self.THR = 0.34
+        self.FPS = self.hyperparams['problem']['FPS']
+        self.SEQ_LEN = self.hyperparams['problem']['SEQ_LEN']
+        self.IN_SEQ_LEN = self.hyperparams['problem']['IN_SEQ_LEN']
+        self.TGT_SEQ_LEN = self.hyperparams['problem']['TGT_SEQ_LEN'] # out_Seq_len
+        self.SKIP_SEQ_LEN = self.hyperparams['problem']['SKIP_SEQ_LEN'] # end_of_seq_skip_len
+        
 
         # Training  Hyperparameters
-        self.CUDA = True
-        self.BATCH_SIZE = 16 #64
-        self.LR = 0.0001#  0.001
-        self.LR_WU = False
-        self.LR_WU_BATCHES = 400
-        self.LR_WU_CURRENT_BATCH = 0
-        self.TRAJ2CLASS_LOSS_RATIO = 1
-        self.LR_DECAY = 1
-        self.LR_DECAY_EPOCH = 10
-        self.NUM_EPOCHS = 50
-        self.PATIENCE =1
-        self.TR_JUMP_STEP =1 
+        self.CUDA = self.hyperparams['experiment']['cuda']
+        self.BATCH_SIZE = self.hyperparams['training']['batch_size'] #64
+        self.LR = self.hyperparams['training']['lr']#  0.001
+        self.LR_WU = self.hyperparams['training']['lr_wu']
+        self.LR_WU_BATCHES = self.hyperparams['training']['lr_wu_batches']
+        self.LR_WU_CURRENT_BATCH = self.hyperparams['training']['lr_wu_current_batch']
+        self.TRAJ2CLASS_LOSS_RATIO = self.hyperparams['training']['traj2class_loss_ratio']
+        self.LR_DECAY = self.hyperparams['training']['lr_decay']
+        self.LR_DECAY_EPOCH = self.hyperparams['training']['lr_decay_epoch']
+        self.NUM_EPOCHS = self.hyperparams['training']['num_epochs']
+        self.PATIENCE = self.hyperparams['training']['patience']
+        self.TR_JUMP_STEP = self.hyperparams['training']['tr_jump_step']
 
         if self.UNBALANCED:
-            self.unblanaced_ext = 'U'
+            self.unblanaced_ext = self.constants['UNBALANCED_EXT']
         else:
             self.unblanaced_ext = ''
-        self.TRAIN_DATASET_DIR = '../../Dataset/Processed_highD/RenderedDataset/'
-        self.TEST_DATASET_DIR = '../../Dataset/Processed_highD/RenderedDataset/'
+        self.TRAIN_DATASET_DIR = self.constants['DIRS']['TRAIN_DATASET_DIR']
+        self.TEST_DATASET_DIR = self.constants['DIRS']['TEST_DATASET_DIR']
         
 
-        self.MODELS_DIR = 'models/'
-        self.RESULTS_DIR = 'results/'
-        self.PLOT_TRAJS_DIR = self.RESULTS_DIR + 'traj_plots/'
-        self.TABLES_DIR = self.RESULTS_DIR + 'tables/'
-        self.FIGS_DIR = self.RESULTS_DIR + 'figures/'
-        self.VIS_DIR = self.RESULTS_DIR + 'vis_data/'
+        self.MODELS_DIR = self.constants['DIRS']['MODELS_DIR']
+        self.RESULTS_DIR = self.constants['DIRS']['RESULTS_DIR']
+        self.TABLES_DIR = self.constants['DIRS']['TABLES_DIR']
+        self.FIGS_DIR = self.constants['DIRS']['FIGS_DIR']
+        self.VIS_DIR = self.constants['DIRS']['VIS_DIR']
+        
+       
+        
+        # eval string attributes
+        #print(self.model['hyperparams']['task'])
+        self.model_dictionary = copy.deepcopy(self.model)# we dont modify self.model as we might export/import it to/from YALM files
+        self.model_dictionary['ref'] = eval(self.model_dictionary['ref'])
+        self.model_dictionary['optimizer'] = eval(self.model_dictionary['optimizer'])
+        self.model_dictionary['lc loss function'] = eval(self.model_dictionary['lc loss function'])
+        self.model_dictionary['traj loss function'] = eval(self.model_dictionary['traj loss function'])
+        self.model_dictionary['hyperparams']['task'] = self.constants['TASKS'][self.model_dictionary['hyperparams']['task']]
+        #print(self.model['hyperparams']['task'])
+        #exit()
+        self.CLASSIFICATION = self.constants['TASKS']['CLASSIFICATION']
+        self.REGRESSION = self.constants['TASKS']['REGRESSION']
+        self.DUAL = self.constants['TASKS']['DUAL']
+        self.TRAJECTORYPRED = self.constants['TASKS']['TRAJECTORYPRED']
 
-        if not os.path.exists(self.MODELS_DIR):
-            os.mkdir(self.MODELS_DIR)
-        if not os.path.exists(self.RESULTS_DIR):
-            os.mkdir(self.RESULTS_DIR)
-        if not os.path.exists(self.TABLES_DIR):
-            os.mkdir(self.TABLES_DIR)
-        if not os.path.exists(self.FIGS_DIR):
-            os.mkdir(self.FIGS_DIR)
-        if not os.path.exists(self.VIS_DIR):
-            os.mkdir(self.VIS_DIR)  
+    
+    # Export experiment after training a model (Do not export an imported experiment or it will overwrite it!)
+    def export_experiment(self):
+        name_dict = {'experiment file name': self.latest_experiment_file}
+        #if self.DEBUG_MODE:
+        #    print('Experiment export is skipped due to debug mode.')
+        #else:
+        print('Experiment file is: ', self.latest_experiment_file)
+        with open(self.latest_experiment_file, 'w') as f:
+            experiment = yaml.dump_all([name_dict, self.hyperparams, self.model, self.dataset], f, default_flow_style= False, explicit_start = True ) 
         
-        
-        @property
-        def SELECTED_DATASET(self):
-            return self._SELECTED_DATASET
-        
-        @SELECTED_DATASET.setter
-        def SELECTED_DATASET(self, val):
-            self._SELECTED_DATASET = val
-            self.IMAGE_HEIGHT = self.DATASETS[self._SELECTED_DATASET]['image_height']
-            self.IMAGE_WIDTH = self.DATASETS[self._SELECTED_DATASET]['image_width']
-            if self._ABLATION:
-                self.TR_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in self.DATASETS[self._SELECTED_DATASET]['abb_tr_ind']]
-                self.VAL_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in self.DATASETS[self._SELECTED_DATASET]['abb_val_ind']]
-                self.TE_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in self.DATASETS[self._SELECTED_DATASET]['abb_te_ind']]
-            else:
-                self.TR_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in self.DATASETS[self._SELECTED_DATASET]['tr_ind']]
-                self.VAL_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in self.DATASETS[self._SELECTED_DATASET]['val_ind']]
-                self.TE_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in self.DATASETS[self._SELECTED_DATASET]['te_ind']]
-            
-            self.DATASET_DIR = '../../Dataset/Processed_highD/RenderedDataset/'
-        
-        
-        @property 
-        def ABLATION(self):
-            return self._ABLATION
-        
-        @ABLATION.setter
-        def ABLATION(self, val):
-            self._ABLATION = val
-            if self._ABLATION:
-                self.TR_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in self.DATASETS[self._SELECTED_DATASET]['abb_tr_ind']]
-                self.VAL_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in self.DATASETS[self._SELECTED_DATASET]['abb_val_ind']]
-                self.TE_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in self.DATASETS[self._SELECTED_DATASET]['abb_te_ind']]
-            else:
-                self.TR_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in self.DATASETS[self._SELECTED_DATASET]['tr_ind']]
-                self.VAL_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in self.DATASETS[self._SELECTED_DATASET]['val_ind']]
-                self.TE_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in self.DATASETS[self._SELECTED_DATASET]['te_ind']]
-        
-        @property
-        def UNBALANCED(self):
-            return self._UNBALANCED
+    # Import an already trained model for evaluation or reproducing the results
+    def import_experiment(self, experiment_file):
+        with open(experiment_file, 'r') as f:
+            experiment = yaml.load_all(f, Loader=yaml.FullLoader)
+            experiment_list = []
+            for item in experiment:
+                experiment_list.append(item)
+            name_dict = experiment_list[0]
+            self.hyperparams = experiment_list[1]
+            self.model = experiment_list[2]
+            self.dataset = experiment_list[3]
+        self.latest_experiment_file = name_dict['experiment file name']
+        self.experiment_file = self.latest_experiment_file.split('/')[-1]
+        print('Experiment file is: ', self.latest_experiment_file)
+        self.match_parameters()
 
-        @UNBALANCED.setter 
-        def UNBALANCED(self, val):
-            self._UNBALANCED = val
-            if self._UNBALANCED:
-                self.unblanaced_ext = 'U'
-            else:
-                self.unblanaced_ext = ''
-            self.DATASET_DIR = '../../Dataset/Processed_highD/RenderedDataset/'
-        
-        
-         
+    
 
-  
-            
-        
-            
+
 
         
 
-        
+
+

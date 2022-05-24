@@ -16,7 +16,6 @@ import matplotlib.pyplot as plt
 import Dataset 
 import models 
 import params
-import constants
 
 import training_functions
 
@@ -55,7 +54,6 @@ def train_model_dict(p):
         traj_loss_func = training_functions.NLL_loss
     else:
         traj_loss_func = p.model_dictionary['traj loss function']()
-    ttlc_loss_func = p.model_dictionary['ttlc loss function']()
     task = p.model_dictionary['hyperparams']['task']
     
     # Instantiate Dataset: 
@@ -68,7 +66,7 @@ def train_model_dict(p):
         keep_plot_info= False, 
         unbalanced = p.UNBALANCED,
         force_recalc_start_indexes = False,
-        traj_output = (task==constants.TRAJECTORYPRED))
+        traj_output = (task==p.TRAJECTORYPRED))
     #print(tr_dataset.states_max-tr_dataset.states_min)
     #assert np.all((tr_dataset.states_max-tr_dataset.states_min)>0)
     #print('output state min: {}, output state max: {}'.format(tr_dataset.output_states_min, tr_dataset.output_states_max))
@@ -80,7 +78,7 @@ def train_model_dict(p):
         data_type = p.model_dictionary['data type'], 
         state_type = p.model_dictionary['state type'], 
         keep_plot_info= False, 
-        traj_output = (task==constants.TRAJECTORYPRED), 
+        traj_output = (task==p.TRAJECTORYPRED), 
         import_states = True,
         unbalanced = p.UNBALANCED,
         force_recalc_start_indexes = False,
@@ -95,7 +93,7 @@ def train_model_dict(p):
         data_type = p.model_dictionary['data type'],
         state_type = p.model_dictionary['state type'], 
         keep_plot_info= True, 
-        traj_output = (task==constants.TRAJECTORYPRED), 
+        traj_output = (task==p.TRAJECTORYPRED), 
         import_states = True,
         unbalanced = p.UNBALANCED,
         force_recalc_start_indexes = False,
@@ -109,10 +107,10 @@ def train_model_dict(p):
     #exit()
     # Train/Evaluate:
     tb = SummaryWriter()
-    val_result_dic = training_functions.train_top_func(p, model, optimizer, lc_loss_func, traj_loss_func, task, tr_dataset, val_dataset,device, model_tag = p.model_dictionary['tag'], tensorboard = tb)    
-    te_result_dic, traj_df = training_functions.eval_top_func(p, model, lc_loss_func, traj_loss_func, task, te_dataset, device, model_tag = p.model_dictionary['tag'], tensorboard = tb)
+    val_result_dic = training_functions.train_top_func(p, model, optimizer, lc_loss_func, traj_loss_func, task, tr_dataset, val_dataset,device, tensorboard = tb)    
+    te_result_dic, traj_df = training_functions.eval_top_func(p, model, lc_loss_func, traj_loss_func, task, te_dataset, device,  tensorboard = tb)
     
-    
+    p.export_experiment()
     # Save results:
     log_file_dir = p.TABLES_DIR + p.SELECTED_DATASET + '_' + p.model_dictionary['name'] + '.csv'  
     log_dict = p.model_dictionary['hyperparams'].copy()
@@ -145,14 +143,12 @@ if __name__ == '__main__':
     #torch.cuda.empty_cache()
     print('---------------------------------------------------------------------------------------')
     print('---------------------------------------------------------------------------------------')
-    p = params.Parameters(SELECTED_MODEL = 'TRANSFORMER_TRAJ', SELECTED_DATASET = 'HIGHD', UNBALANCED = False, ABLATION = False)
+    #p = params.Parameters(SELECTED_MODEL = 'TRANSFORMER_TRAJ', SELECTED_DATASET = 'HIGHD', UNBALANCED = False, ABLATION = False)
 
     #1
+    p = params.ParametersHandler('Transformer_Traj.yaml', 'highD.yaml', './config')
+    
+    train_model_dict(p)
     
 
-    p.model_dictionary['hyperparams']['task'] = constants.TRAJECTORYPRED
-    p.model_dictionary['hyperparams']['multi modal'] = False
-    p.model_dictionary['hyperparams']['layer number'] = 3
-    p.model_dictionary['state type'] = 'wirth'
-
-    train_model_dict(p)
+    

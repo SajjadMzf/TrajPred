@@ -9,7 +9,6 @@ from sklearn.metrics import confusion_matrix, roc_curve, auc, roc_auc_score
 import torch.nn.functional as F
 import logging
 from time import time
-import constants
 import math
 from debugging_utils import *
 
@@ -552,11 +551,11 @@ class VanillaLSTM(nn.Module):
         self.dropout = nn.Dropout(drop_prob)
         # Define the output layer
         
-        if self.task == constants.CLASSIFICATION or self.task == constants.DUAL:
+        if self.task == p.CLASSIFICATION or self.task == p.DUAL:
             self.fc1 = nn.Linear(self.hidden_dim, 128)
             self.fc2 = nn.Linear(128,3)
         
-        if self.task == constants.REGRESSION or self.task == constants.DUAL:
+        if self.task == p.REGRESSION or self.task == p.DUAL:
             self.fc1_ttlc = nn.Linear(self.hidden_dim, 512)
             self.fc2_ttlc = nn.Linear(512,1)
         
@@ -601,12 +600,12 @@ class VanillaLSTM(nn.Module):
     def forward(self,x_in):
         lstm_out = self.lstm_forward(x_in)
         
-        if self.task == constants.CLASSIFICATION or self.task == constants.DUAL:
+        if self.task == p.CLASSIFICATION or self.task == p.DUAL:
             lc_pred = self.lc_forward(lstm_out)
         else:
             lc_pred = 0
         
-        if self.task == constants.REGRESSION or self.task == constants.DUAL:
+        if self.task == p.REGRESSION or self.task == p.DUAL:
             ttlc_pred = self.ttlc_forward(lstm_out)
         else:
             ttlc_pred = 0
@@ -636,11 +635,11 @@ class MLP(nn.Module):
         
         self.dropout = nn.Dropout(drop_prob)
 
-        if self.task == constants.CLASSIFICATION or self.task == constants.DUAL:
+        if self.task == p.CLASSIFICATION or self.task == p.DUAL:
                 self.fc1 = nn.Linear(self.input_dim*self.in_seq_len, self.hidden_dim)
                 self.fc2 = nn.Linear(self.hidden_dim,3)
             
-        if self.task == constants.REGRESSION or self.task == constants.DUAL:
+        if self.task == p.REGRESSION or self.task == p.DUAL:
             self.fc1_ttlc = nn.Linear(self.input_dim*self.in_seq_len, 512)
             self.fc2_ttlc = nn.Linear(512,1)
 
@@ -669,12 +668,12 @@ class MLP(nn.Module):
     
     def forward(self, x_in):
         features = 0
-        if self.task == constants.CLASSIFICATION or self.task == constants.DUAL:
+        if self.task == p.CLASSIFICATION or self.task == p.DUAL:
             lc_pred = self.lc_forward(x_in)
         else:
             lc_pred = 0
         
-        if self.task == constants.REGRESSION or self.task == constants.DUAL:
+        if self.task == p.REGRESSION or self.task == p.DUAL:
             ttlc_pred = self.ttlc_forward(x_in)
         else:
             ttlc_pred = 0
@@ -708,11 +707,11 @@ class VanillaLSTM(nn.Module):
         self.dropout = nn.Dropout(drop_prob)
         # Define the output layer
         
-        if self.task == constants.CLASSIFICATION or self.task == constants.DUAL:
+        if self.task == p.CLASSIFICATION or self.task == p.DUAL:
             self.fc1 = nn.Linear(self.hidden_dim, 128)
             self.fc2 = nn.Linear(128,3)
         
-        if self.task == constants.REGRESSION or self.task == constants.DUAL:
+        if self.task == p.REGRESSION or self.task == p.DUAL:
             self.fc1_ttlc = nn.Linear(self.hidden_dim, 512)
             self.fc2_ttlc = nn.Linear(512,1)
         
@@ -757,12 +756,12 @@ class VanillaLSTM(nn.Module):
     def forward(self,x_in):
         lstm_out = self.lstm_forward(x_in)
         
-        if self.task == constants.CLASSIFICATION or self.task == constants.DUAL:
+        if self.task == p.CLASSIFICATION or self.task == p.DUAL:
             lc_pred = self.lc_forward(lstm_out)
         else:
             lc_pred = 0
         
-        if self.task == constants.REGRESSION or self.task == constants.DUAL:
+        if self.task == p.REGRESSION or self.task == p.DUAL:
             ttlc_pred = self.ttlc_forward(lstm_out)
         else:
             ttlc_pred = 0
@@ -793,11 +792,11 @@ class VanillaGRU(nn.Module):
         self.dropout = nn.Dropout(drop_prob)
         # Define the output layer
         
-        if self.task == constants.CLASSIFICATION or self.task == constants.DUAL:
+        if self.task == p.CLASSIFICATION or self.task == p.DUAL:
             self.fc1 = nn.Linear(self.hidden_dim, 128)
             self.fc2 = nn.Linear(128,3)
         
-        if self.task == constants.REGRESSION or self.task == constants.DUAL:
+        if self.task == p.REGRESSION or self.task == p.DUAL:
             self.fc1_ttlc = nn.Linear(self.hidden_dim, 512)
             self.fc2_ttlc = nn.Linear(512,1)
         
@@ -841,12 +840,12 @@ class VanillaGRU(nn.Module):
     def forward(self,x_in):
         gru_out = self.gru_forward(x_in)
         
-        if self.task == constants.CLASSIFICATION or self.task == constants.DUAL:
+        if self.task == p.CLASSIFICATION or self.task == p.DUAL:
             lc_pred = self.lc_forward(gru_out)
         else:
             lc_pred = 0
         
-        if self.task == constants.REGRESSION or self.task == constants.DUAL:
+        if self.task == p.REGRESSION or self.task == p.DUAL:
             ttlc_pred = self.ttlc_forward(gru_out)
         else:
             ttlc_pred = 0
@@ -883,11 +882,11 @@ class VanillaCNN(nn.Module):
         self.init_pool6 = nn.MaxPool2d(2, padding = 1)
         self.dropout = nn.Dropout(drop_prob)
         
-        if self.task == constants.CLASSIFICATION or self.task == constants.DUAL:
+        if self.task == p.CLASSIFICATION or self.task == p.DUAL:
             self.fc1 = nn.Linear(2*11*13*self.num_channels, 128)
             self.fc2 = nn.Linear(128,3)
         
-        if self.task == constants.REGRESSION or self.task == constants.DUAL:
+        if self.task == p.REGRESSION or self.task == p.DUAL:
             self.fc1_ttlc = nn.Linear(2*11*13*self.num_channels, 512)
             self.fc2_ttlc = nn.Linear(512,1)
         
@@ -924,12 +923,12 @@ class VanillaCNN(nn.Module):
     
     def forward(self,x_in):
         (conv1_out, conv2_out, conv3_out, conv4_out, conv5_out, conv6_out) = self.conv_forward(x_in)
-        if self.task == constants.CLASSIFICATION or self.task == constants.DUAL:
+        if self.task == p.CLASSIFICATION or self.task == p.DUAL:
             lc_pred = self.lc_forward(conv6_out)
         else:
             lc_pred = 0
         
-        if self.task == constants.REGRESSION or self.task == constants.DUAL:
+        if self.task == p.REGRESSION or self.task == p.DUAL:
             ttlc_pred = self.ttlc_forward(conv6_out)
         else:
             ttlc_pred = 0
@@ -969,11 +968,11 @@ class ATTCNN3(nn.Module):
         self.dropout = nn.Dropout(drop_prob)
         self.fc1 = nn.Linear(2*11*13*self.num_channels, 4)
 
-        if self.task == constants.CLASSIFICATION or self.task == constants.DUAL:
+        if self.task == p.CLASSIFICATION or self.task == p.DUAL:
             self.fc3 = nn.Linear(12*26*self.num_channels,128)# 6*13
             self.fc4 = nn.Linear(128, 3)
 
-        if self.task == constants.REGRESSION or self.task == constants.DUAL:
+        if self.task == p.REGRESSION or self.task == p.DUAL:
             self.fc1_ttlc = nn.Linear(12*26*self.num_channels, 512)
             self.fc2_ttlc = nn.Linear(512,1)
 
@@ -1038,12 +1037,12 @@ class ATTCNN3(nn.Module):
         back = torch.cat((back_right, back_left), dim = 2)
         attended_features = torch.cat((front, back), dim = 3)
         
-        if self.task == constants.CLASSIFICATION or self.task == constants.DUAL:
+        if self.task == p.CLASSIFICATION or self.task == p.DUAL:
             lc_pred = self.lc_forward(attended_features)
         else:
             lc_pred = 0
         
-        if self.task == constants.REGRESSION or self.task == constants.DUAL:
+        if self.task == p.REGRESSION or self.task == p.DUAL:
             ttlc_pred = self.ttlc_forward(attended_features)
         else:
             ttlc_pred = 0

@@ -26,6 +26,8 @@ class LCDataset(Dataset):
 
         super(LCDataset, self).__init__()
         self.data_files = data_files
+        #print(data_files)
+        #exit()
         self.dataset_dirs = [os.path.join(dataset_dir, data_file) for data_file in data_files]
         self.file_size = []
         self.dataset_size = 0
