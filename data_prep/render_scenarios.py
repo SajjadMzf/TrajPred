@@ -163,7 +163,7 @@ class RenderScenarios:
                     break
 
                 output_states.append(output_state)
-                if fr==0:
+                if fr==0: # first time-step is repeated so that when we calc the diff, the first timestep would be zero displacement. 
                     output_states.append(output_state)
                 
                 if p.GENERATE_IMAGE_DATA:
@@ -202,7 +202,7 @@ class RenderScenarios:
             self.scenarios[scenario_idx]['states_9svs'] = np.array(states_9svs)
             self.scenarios[scenario_idx]['valid'] = True
             output_states = np.array(output_states)
-            output_states = output_states[1:,:]- output_states[:-1,:]
+            output_states = output_states[1:,:]- output_states[:-1,:] # output_states[i] = x[i]-x[i-1] except for i=0 where output_states =0
             self.scenarios[scenario_idx]['output_states'] = output_states
             
             saved_data_number += 1
@@ -347,7 +347,7 @@ class RenderScenarios:
 
         ## Output States:
         output_state = np.zeros((2))
-        output_state[0] = lateral_pos_centre_line(tv_itr, tv_lane_ind)
+        output_state[0] = fix_sign(frame_data[rc.Y][tv_itr])
         output_state[1] = fix_sign(frame_data[rc.X][tv_itr])
         
         

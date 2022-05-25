@@ -46,7 +46,7 @@ def train_model_dict(p):
     random.seed(1)
 
     # Instantiate Model:
-    
+    #print('x')
     model = p.model_dictionary['ref'](p.BATCH_SIZE, device, p.model_dictionary['hyperparams'], p)
     optimizer = p.model_dictionary['optimizer'](params = model.parameters(), lr = p.LR)
     lc_loss_func = p.model_dictionary['lc loss function']()
@@ -55,7 +55,7 @@ def train_model_dict(p):
     else:
         traj_loss_func = p.model_dictionary['traj loss function']()
     task = p.model_dictionary['hyperparams']['task']
-    
+    #print('x')
     # Instantiate Dataset: 
     tr_dataset = Dataset.LCDataset(p.TRAIN_DATASET_DIR, p.TR_DATA_FILES,
         in_seq_len = p.IN_SEQ_LEN,
@@ -71,6 +71,7 @@ def train_model_dict(p):
     #assert np.all((tr_dataset.states_max-tr_dataset.states_min)>0)
     #print('output state min: {}, output state max: {}'.format(tr_dataset.output_states_min, tr_dataset.output_states_max))
     #exit()
+    #print('x')
     val_dataset = Dataset.LCDataset(p.TRAIN_DATASET_DIR, p.VAL_DATA_FILES,
         in_seq_len = p.IN_SEQ_LEN,
         out_seq_len = p.TGT_SEQ_LEN,
@@ -109,7 +110,7 @@ def train_model_dict(p):
     tb = SummaryWriter()
     val_result_dic = training_functions.train_top_func(p, model, optimizer, lc_loss_func, traj_loss_func, task, tr_dataset, val_dataset,device, tensorboard = tb)    
     te_result_dic, traj_df = training_functions.eval_top_func(p, model, lc_loss_func, traj_loss_func, task, te_dataset, device,  tensorboard = tb)
-    
+    #print('x')
     p.export_experiment()
     # Save results:
     if p.parameter_tuning_experiment:
@@ -134,17 +135,15 @@ if __name__ == '__main__':
     #        'classifier dim': 128,
     #        'head number': 8,
     #torch.cuda.empty_cache()
-    print('---------------------------------------------------------------------------------------')
-    print('---------------------------------------------------------------------------------------')
     #p = params.Parameters(SELECTED_MODEL = 'TRANSFORMER_TRAJ', SELECTED_DATASET = 'HIGHD', UNBALANCED = False, ABLATION = False)
 
     #1
     p = params.ParametersHandler('Transformer_Traj.yaml', 'highD.yaml', './config')
-    tuning_experiment_name = 'Testing new hyperparams loading'
-    selected_params = ['experiment_tag','SELECTED_MODEL', 'SELECTED_DATASET', 'UNBALANCED', 'ABLATION']
-    selected_metrics = ['FDE_table', 'RMSE_table']
+    #tuning_experiment_name = 'Testing new hyperparams loading'
+    #selected_params = ['experiment_tag','SELECTED_MODEL', 'SELECTED_DATASET', 'UNBALANCED', 'ABLATION']
+    #selected_metrics = ['FDE_table', 'RMSE_table']
     
-    p.tune_params(tuning_experiment_name, selected_params, selected_metrics)
+    #p.tune_params(tuning_experiment_name, selected_params, selected_metrics)
     train_model_dict(p)
     
 
