@@ -113,11 +113,16 @@ class NovelTransformerTraj(nn.Module):
         self.prob_output = hyperparams_dict['probabilistic output']
         self.in_seq_len = parameters.IN_SEQ_LEN
         self.input_dim = 18
+        self.decoder_in_dim = 2
+        self.man_based = parameters.MAN_BASED
+        if self.man_based:
+            self.input_dim += 3
+            self.decoder_in_dim += 3
         if self.prob_output:
             self.output_dim = 5 # muY, muX, sigY, sigX, rho 
         else:
             self.output_dim = 2
-        self.decoder_in_dim = 2
+        
         self.dropout = nn.Dropout(drop_prob)
         
         ''' 1. Positional encoder: '''
@@ -289,7 +294,7 @@ class ConstantX(nn.Module):
         self.fps = parameters.FPS
         self.input_dim = 18
         self.output_dim = 2
-        print('Constant Model should only be run with ours_states that includes velocity, acceleration features')
+        #print('Constant Model should only be run with ours_states that includes velocity, acceleration features')
         
 
         self.unused_layer = nn.Linear(1,1)   
@@ -349,7 +354,7 @@ class ConstantX(nn.Module):
         #print(traj_labels[0])
         #print(self.traj_pred[0])
         #exit()
-        return {'traj_pred':traj_pred.to(self.device), 'multi_modal': False}
+        return {'traj_pred':traj_pred.to(self.device),'man_pred':torch.zeros((traj_pred.shape[0],traj_pred.shape[1],3), device=self.device), 'multi_modal': False}
 
 class TransformerTraj(nn.Module): 
     def __init__(self, batch_size, device, hyperparams_dict, parameters, drop_prob = 0.1):

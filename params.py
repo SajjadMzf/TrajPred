@@ -35,7 +35,12 @@ class ParametersHandler:
         self.create_dirs()
         self.match_parameters()
 
-
+    def new_experiment(self):
+        now = datetime.now()
+        self.experiment_file = '{}_{}'.format(self.model_dataset, now)
+        self.latest_experiment_file = os.path.join(self.experiments_dir, self.experiment_file) 
+        self.match_parameters()
+        
     def create_dirs(self):
         if not os.path.exists(self.constants['DIRS']['MODELS_DIR']):
             os.mkdir(self.constants['DIRS']['MODELS_DIR'])
@@ -81,7 +86,6 @@ class ParametersHandler:
         #exit()
         # Prediction Problem Hyperparameters:
         self.FPS = self.hyperparams['problem']['FPS']
-        self.SEQ_LEN = self.hyperparams['problem']['SEQ_LEN']
         self.IN_SEQ_LEN = self.hyperparams['problem']['IN_SEQ_LEN']
         self.TGT_SEQ_LEN = self.hyperparams['problem']['TGT_SEQ_LEN'] # out_Seq_len
         self.SKIP_SEQ_LEN = self.hyperparams['problem']['SKIP_SEQ_LEN'] # end_of_seq_skip_len

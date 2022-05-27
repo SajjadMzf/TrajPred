@@ -137,14 +137,52 @@ if __name__ == '__main__':
     #torch.cuda.empty_cache()
     #p = params.Parameters(SELECTED_MODEL = 'TRANSFORMER_TRAJ', SELECTED_DATASET = 'HIGHD', UNBALANCED = False, ABLATION = False)
 
-    #1
-    p = params.ParametersHandler('Transformer_Traj.yaml', 'highD.yaml', './config')
-    #tuning_experiment_name = 'Testing new hyperparams loading'
-    #selected_params = ['experiment_tag','SELECTED_MODEL', 'SELECTED_DATASET', 'UNBALANCED', 'ABLATION']
-    #selected_metrics = ['FDE_table', 'RMSE_table']
+    tuning_experiment_name = 'different sequence length for  man_based prediction novel tf'
+    selected_params = ['experiment_tag', 'DEBUG_MODE', 'IN_SEQ_LEN', 'TGT_SEQ_LEN',]
+    selected_metrics = ['FDE_table', 'RMSE_table']
     
-    #p.tune_params(tuning_experiment_name, selected_params, selected_metrics)
+    p = params.ParametersHandler('Novel_Transformer_Traj.yaml', 'highD.yaml', './config')
+    #1
+    p.hyperparams['problem']['IN_SEQ_LEN'] = 10
+    p.hyperparams['problem']['TGT_SEQ_LEN'] = 25
+    p.new_experiment()
+    p.tune_params(tuning_experiment_name, selected_params, selected_metrics)
     train_model_dict(p)
     
+    #2
+    p.hyperparams['problem']['IN_SEQ_LEN'] = 10
+    p.hyperparams['problem']['TGT_SEQ_LEN'] = 25
+    p.new_experiment()
+    p.tune_params(tuning_experiment_name, selected_params, selected_metrics)
+    train_model_dict(p)
+    #3
+    p.hyperparams['problem']['IN_SEQ_LEN'] = 10
+    p.hyperparams['problem']['TGT_SEQ_LEN'] = 30
+    p.new_experiment()
+    p.tune_params(tuning_experiment_name, selected_params, selected_metrics)
+    train_model_dict(p)
+    
+    #1
+    p.hyperparams['problem']['IN_SEQ_LEN'] = 15
+    p.hyperparams['problem']['TGT_SEQ_LEN'] = 20
+    p.new_experiment()
+    p.tune_params(tuning_experiment_name, selected_params, selected_metrics)
+    train_model_dict(p)
+    #2
+    p.hyperparams['problem']['IN_SEQ_LEN'] = 15
+    p.hyperparams['problem']['TGT_SEQ_LEN'] = 25
+    p.new_experiment()
+    p.tune_params(tuning_experiment_name, selected_params, selected_metrics)
+    train_model_dict(p)
+    #3
+    p.hyperparams['problem']['IN_SEQ_LEN'] = 15
+    p.hyperparams['problem']['TGT_SEQ_LEN'] = 30
+    p.new_experiment()
+    p.tune_params(tuning_experiment_name, selected_params, selected_metrics)
+    train_model_dict(p)
+    
+    
+   
+
 
     
