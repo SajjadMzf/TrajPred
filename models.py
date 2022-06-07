@@ -21,7 +21,7 @@ class LSTM_EncDec(nn.Module):
         self.batch_size = batch_size
         self.device = device
         
-        self.hidden_dim = hyperparams_dict['hidden dim']
+        self.hidden_dim = hyperparams_dict['model dim']
         self.num_layers = hyperparams_dict['layer number']
         self.task = hyperparams_dict['task']
         self.multi_modal = hyperparams_dict['multi modal']
@@ -29,7 +29,9 @@ class LSTM_EncDec(nn.Module):
         self.in_seq_len = parameters.IN_SEQ_LEN
         self.output_dim = 2
         self.dropout = nn.Dropout(drop_prob)
-        
+        self.tgt_seq_len = parameters.TGT_SEQ_LEN
+        self.man_based = parameters.MAN_BASED
+        self.decoder_in_dim = 2
         if parameters.TV_ONLY:
             self.input_dim = 2
         else:
@@ -49,39 +51,46 @@ class LSTM_EncDec(nn.Module):
         self.lstm_enc = nn.LSTM(self.input_dim, self.hidden_dim, self.num_layers, batch_first = True, dropout= drop_prob)
         
         # decoder
-        self.lstm_dec = nn.LSTM(self.input_dim, self.hidden_dim, self.num_layers, batch_first = True, dropout= drop_prob)
+        self.lstm_dec = nn.LSTM(self.decoder_in_dim, self.hidden_dim, self.num_layers, batch_first = True, dropout= drop_prob)
         self.fc = nn.Linear(self.hidden_dim, self.output_dim)
         
-        # Define the output layer
+        self.man_fc = nn.Linear(self.hidden_dim,3)
         
-        
-
-    def init_hidden(self):
-        # This is what we'll initialise our hidden state as
-        return (torch.zeros(self.num_layers, self.batch_size, self.hidden_dim),
-                torch.zeros(self.num_layers, self.batch_size, self.hidden_dim))
-
-    def lstm_forward(self, x_in):
-        # Forward pass through LSTM layer
-        # shape of lstm_out: [batch_size, seq_len, hidden_dim]
-        # shape of self.hidden: (a, b), where a and b both 
-        # have shape (num_layers, batch_size, hidden_dim).
-        
-        
-        x = x_in.view(self.batch_size, self.in_seq_len, self.input_dim)
-        lstm_out, self.hidden = self.lstm(x)
-        
-        # Only take the output from the final timetep
-        # Can pass on the entirety of lstm_out to the next layer if it is a seq2seq prediction
-        lstm_out = lstm_out.transpose(0,1)
-        out = self.dropout(lstm_out[-1].view(self.batch_size, -1))
-        return out
     
-    def forward(self,x_in):
-        lstm_out = self.lstm_forward(x_in)
-        
-        
-        return {'lc_pred':lc_pred, 'ttlc_pred':ttlc_pred, 'features': lstm_out}
+    def forward(self,x,y, teacher_force = True):
+        y = y [:,0] # supports single modal only
+        enc_out, enc_hidden = self.lstm_enc(x) # enc_out: batch_size, seq_len, hidden_dim, enc_hidden[0] num layer, batch_size, hiddem dim
+        if teacher_force:
+            dec_out, dec_hidden = self.lstm_dec(y, enc_hidden) 
+            traj_pred = self.fc(dec_out)
+            man_pred = self.man_fc(dec_out)
+        else:
+            current_dec_hidden = enc_hidden
+            current_dec_in = y[:,0:1]
+            traj_pred = []
+            man_pred = []
+            for i in range(self.tgt_seq_len):
+                dec_out, current_dec_hidden = self.lstm_dec(current_dec_in, current_dec_hidden)
+                current_traj = self.fc(dec_out)
+                
+                current_man = self.man_fc(dec_out)
+                
+                if self.man_based:
+                    current_dec_in = torch.cat((current_traj[:,:,:2], current_man), dim = -1)
+                else:
+                    current_dec_in = current_traj[:,:,:2]
+                traj_pred.append(current_traj)
+                man_pred.append(current_man)
+
+            traj_pred = torch.cat(traj_pred, dim = 1)
+            man_pred = torch.cat(man_pred, dim =1)
+
+        if self.prob_output:
+            traj_pred = self.prob_activation_func(traj_pred)
+        traj_pred = torch.stack([traj_pred], dim=1)
+
+        return {'traj_pred':traj_pred, 'man_pred': man_pred, 'multi_modal': self.multi_modal}
+       
     
     def prob_activation_func(self,x):
        muY = x[:,:,0:1]

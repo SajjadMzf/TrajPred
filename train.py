@@ -137,18 +137,14 @@ if __name__ == '__main__':
     #torch.cuda.empty_cache()
     #p = params.Parameters(SELECTED_MODEL = 'TRANSFORMER_TRAJ', SELECTED_DATASET = 'HIGHD', UNBALANCED = False, ABLATION = False)
 
-    tuning_experiment_name = 'different sequence length for  man_based prediction novel tf'
-    selected_params = ['experiment_tag', 'DEBUG_MODE', 'IN_SEQ_LEN', 'TGT_SEQ_LEN',]
-    selected_metrics = ['FDE_table', 'RMSE_table']
+    #tuning_experiment_name = 'different sequence length for  man_based prediction novel tf'
+    #selected_params = ['experiment_tag', 'DEBUG_MODE', 'IN_SEQ_LEN', 'TGT_SEQ_LEN',]
+    #selected_metrics = ['FDE_table', 'RMSE_table']
     
-    p = params.ParametersHandler('Novel_Transformer_Traj.yaml', 'highD.yaml', './config')
+    p = params.ParametersHandler('LSTM_ED.yaml', 'highD.yaml', './config')
     #1
-    p.hyperparams['problem']['IN_SEQ_LEN'] = 10
-    p.hyperparams['problem']['TGT_SEQ_LEN'] = 25
-    p.new_experiment()
-    p.tune_params(tuning_experiment_name, selected_params, selected_metrics)
     train_model_dict(p)
-    
+    '''
     #2
     p.hyperparams['problem']['IN_SEQ_LEN'] = 10
     p.hyperparams['problem']['TGT_SEQ_LEN'] = 25
@@ -180,6 +176,7 @@ if __name__ == '__main__':
     p.new_experiment()
     p.tune_params(tuning_experiment_name, selected_params, selected_metrics)
     train_model_dict(p)
+    '''
     
     
    
