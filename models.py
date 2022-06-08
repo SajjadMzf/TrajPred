@@ -38,7 +38,6 @@ class LSTM_EncDec(nn.Module):
             self.input_dim = 18
         
         if self.man_based:
-            self.input_dim += 3
             self.decoder_in_dim += 3
         
         if self.prob_output:
@@ -389,7 +388,6 @@ class TransformerTraj(nn.Module):
         else:
             self.input_dim = 18
         if self.man_based:
-            self.input_dim += 3
             self.decoder_in_dim += 3
         if self.prob_output:
             self.output_dim = 5 # muY, muX, sigY, sigX, rho 
@@ -430,8 +428,12 @@ class TransformerTraj(nn.Module):
             self.rlc_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
             self.llc_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
         ''' 6. Manouvre Output '''
-        self.man_fc = nn.Linear(self.model_dim, 3)
-    
+        self.man_fc1 = nn.Linear(self.model_dim, self.classifier_dim)
+        self.man_fc2 = nn.Linear(self.classifier_dim, 3)
+        
+        self.enc_man_fc1 = nn.Linear(self.in_seq_len*self.model_dim, self.classifier_dim)
+        self.enc_man_fc2 = nn.Linear(self.classifier_dim, 3)
+
     def forward(self, x, y, y_mask):
         #print(len(x))
         #print_shape('x',x)
@@ -475,9 +477,13 @@ class TransformerTraj(nn.Module):
                 
             traj_pred = torch.stack([lk_traj_pred, rlc_traj_pred, llc_traj_pred], dim=1) # lk =0, rlc=1, llc=2
         #print_shape('decoder_out', decoder_out)
-        man_pred = self.man_fc(decoder_out)
+        man_pred = self.man_fc2(F.relu(self.man_fc1(decoder_out)))
+        #print_shape('encoder_out',encoder_out)
+        encoder_out_flattened = encoder_out.reshape(self.batch_size, self.in_seq_len*self.model_dim)
+        #print_shape('encoder_out_flattened',encoder_out_flattened)
+        enc_man_pred = self.enc_man_fc2(F.relu(self.enc_man_fc1(encoder_out_flattened)))
         #print_shape('man_pred', man_pred)
-        return {'traj_pred':traj_pred, 'man_pred': man_pred, 'multi_modal': self.multi_modal}
+        return {'traj_pred':traj_pred, 'man_pred': man_pred, 'enc_man_pred': enc_man_pred, 'multi_modal': self.multi_modal}
     
     def prob_activation_func(self,x):
        muY = x[:,:,0:1]

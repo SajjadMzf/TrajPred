@@ -141,7 +141,7 @@ if __name__ == '__main__':
     #selected_params = ['experiment_tag', 'DEBUG_MODE', 'IN_SEQ_LEN', 'TGT_SEQ_LEN',]
     #selected_metrics = ['FDE_table', 'RMSE_table']
     
-    p = params.ParametersHandler('LSTM_ED.yaml', 'highD.yaml', './config')
+    p = params.ParametersHandler('Transformer_Traj.yaml', 'highD.yaml', './config')
     #1
     train_model_dict(p)
     '''
