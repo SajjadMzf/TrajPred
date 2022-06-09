@@ -103,9 +103,9 @@ if __name__ == '__main__':
     test_model_dict(model_dict, p)
     '''
     #torch.cuda.empty_cache()
-    p = params.ParametersHandler('Constant_Parameter.yaml', 'highD.yaml', './config')
-    #p = params.ParametersHandler('Transformer_Traj.yaml', 'highD.yaml', './config')
-    #experiment_file = 'experiments/Transformer_Traj_highD_2022-05-26 19:01:26.610784'
-    #p.import_experiment(experiment_file)
+    #p = params.ParametersHandler('Constant_Parameter.yaml', 'highD.yaml', './config')
+    p = params.ParametersHandler('Transformer_Traj.yaml', 'highD.yaml', './config')
+    experiment_file = 'experiments/Transformer_Traj_highD_2022-06-08 13:46:58.645374'
+    p.import_experiment(experiment_file)
     test_model_dict(p)
     

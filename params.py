@@ -69,6 +69,8 @@ class ParametersHandler:
         self.DEBUG_MODE = self.hyperparams['experiment']['debug_mode']
         self.TV_ONLY = self.hyperparams['model']['tv_only']
         self.MAN_BASED = self.hyperparams['model']['man_based']
+        self.MAN_DEC_IN = self.hyperparams['model']['man_dec_in']
+        self.MAN_DEC_OUT = self.hyperparams['model']['man_dec_out']
         
         
         self.IMAGE_HEIGHT = self.dataset['image_height']

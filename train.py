@@ -135,48 +135,58 @@ if __name__ == '__main__':
     #        'classifier dim': 128,
     #        'head number': 8,
     #torch.cuda.empty_cache()
-    #p = params.Parameters(SELECTED_MODEL = 'TRANSFORMER_TRAJ', SELECTED_DATASET = 'HIGHD', UNBALANCED = False, ABLATION = False)
-
-    #tuning_experiment_name = 'different sequence length for  man_based prediction novel tf'
-    #selected_params = ['experiment_tag', 'DEBUG_MODE', 'IN_SEQ_LEN', 'TGT_SEQ_LEN',]
-    #selected_metrics = ['FDE_table', 'RMSE_table']
+    
+    tuning_experiment_name = 'different model parameters for transformer traj non man_based'
+    selected_params = ['experiment_tag', 'DEBUG_MODE', 
+                        'MAN_DEC_IN', 
+                        'MAN_DEC_OUT', 
+                        'model[\'hyperparams\'][\'layer number\']',
+                        'model[\'hyperparams\'][\'model dim\']',
+                        'model[\'hyperparams\'][\'head number\']',
+                         ]
+    selected_metrics = ['FDE_table', 'RMSE_table']
     
     p = params.ParametersHandler('Transformer_Traj.yaml', 'highD.yaml', './config')
     #1
     train_model_dict(p)
-    '''
+    
     #2
-    p.hyperparams['problem']['IN_SEQ_LEN'] = 10
-    p.hyperparams['problem']['TGT_SEQ_LEN'] = 25
+    p.model['hyperparams']['layer number'] = 1
+    p.model['hyperparams']['model dim'] = 128
+    p.model['hyperparams']['head number'] = 2
     p.new_experiment()
     p.tune_params(tuning_experiment_name, selected_params, selected_metrics)
     train_model_dict(p)
     #3
-    p.hyperparams['problem']['IN_SEQ_LEN'] = 10
-    p.hyperparams['problem']['TGT_SEQ_LEN'] = 30
+    p.model['hyperparams']['layer number'] = 2
+    p.model['hyperparams']['model dim'] = 128
+    p.model['hyperparams']['head number'] = 4
     p.new_experiment()
     p.tune_params(tuning_experiment_name, selected_params, selected_metrics)
     train_model_dict(p)
     
-    #1
-    p.hyperparams['problem']['IN_SEQ_LEN'] = 15
-    p.hyperparams['problem']['TGT_SEQ_LEN'] = 20
+    #4
+    p.model['hyperparams']['layer number'] = 3
+    p.model['hyperparams']['model dim'] = 128
+    p.model['hyperparams']['head number'] = 8
     p.new_experiment()
     p.tune_params(tuning_experiment_name, selected_params, selected_metrics)
     train_model_dict(p)
-    #2
-    p.hyperparams['problem']['IN_SEQ_LEN'] = 15
-    p.hyperparams['problem']['TGT_SEQ_LEN'] = 25
+    #5
+    p.model['hyperparams']['layer number'] = 1
+    p.model['hyperparams']['model dim'] = 512
+    p.model['hyperparams']['head number'] = 2
     p.new_experiment()
     p.tune_params(tuning_experiment_name, selected_params, selected_metrics)
     train_model_dict(p)
-    #3
-    p.hyperparams['problem']['IN_SEQ_LEN'] = 15
-    p.hyperparams['problem']['TGT_SEQ_LEN'] = 30
+    #6
+    p.model['hyperparams']['layer number'] = 1
+    p.model['hyperparams']['model dim'] = 512
+    p.model['hyperparams']['head number'] = 8
     p.new_experiment()
     p.tune_params(tuning_experiment_name, selected_params, selected_metrics)
     train_model_dict(p)
-    '''
+    
     
     
    

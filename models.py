@@ -31,13 +31,14 @@ class LSTM_EncDec(nn.Module):
         self.dropout = nn.Dropout(drop_prob)
         self.tgt_seq_len = parameters.TGT_SEQ_LEN
         self.man_based = parameters.MAN_BASED
+        self.man_dec_in = parameters.MAN_DEC_IN
         self.decoder_in_dim = 2
         if parameters.TV_ONLY:
             self.input_dim = 2
         else:
             self.input_dim = 18
         
-        if self.man_based:
+        if self.man_dec_in:
             self.decoder_in_dim += 3
         
         if self.prob_output:
@@ -74,7 +75,7 @@ class LSTM_EncDec(nn.Module):
                 
                 current_man = self.man_fc(dec_out)
                 
-                if self.man_based:
+                if self.man_dec_in:
                     current_dec_in = torch.cat((current_traj[:,:,:2], current_man), dim = -1)
                 else:
                     current_dec_in = current_traj[:,:,:2]
@@ -123,8 +124,9 @@ class NovelTransformerTraj(nn.Module):
         self.input_dim = 18
         self.decoder_in_dim = 2
         self.man_based = parameters.MAN_BASED
-        if self.man_based:
-            self.input_dim += 3
+        self.man_dec_in = parameters.MAN_DEC_IN
+
+        if self.man_dec_in:
             self.decoder_in_dim += 3
         if self.prob_output:
             self.output_dim = 5 # muY, muX, sigY, sigX, rho 
@@ -380,6 +382,7 @@ class TransformerTraj(nn.Module):
         self.multi_modal = hyperparams_dict['multi modal']
         self.prob_output = hyperparams_dict['probabilistic output']
         self.man_based= parameters.MAN_BASED
+        self.man_dec_in = parameters.MAN_DEC_IN
         self.in_seq_len = parameters.IN_SEQ_LEN
         self.decoder_in_dim = 2
         
@@ -387,7 +390,7 @@ class TransformerTraj(nn.Module):
             self.input_dim = 2
         else:
             self.input_dim = 18
-        if self.man_based:
+        if self.man_dec_in:
             self.decoder_in_dim += 3
         if self.prob_output:
             self.output_dim = 5 # muY, muX, sigY, sigX, rho 
