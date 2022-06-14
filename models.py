@@ -13,6 +13,153 @@ import math
 from debugging_utils import *
 
 
+
+class ManouvreTransformerTraj(nn.Module): 
+    def __init__(self, batch_size, device, hyperparams_dict, parameters, drop_prob = 0.1):
+        super(ManouvreTransformerTraj, self).__init__()
+
+        self.batch_size = batch_size
+        self.device = device
+        
+        self.model_dim = hyperparams_dict['model dim']# Dimension of transformer model ()
+        self.ff_dim = hyperparams_dict['feedforward dim']
+        self.classifier_dim = hyperparams_dict['classifier dim']
+        self.layers_num = hyperparams_dict['layer number']
+        self.head_num = hyperparams_dict['head number']
+        self.task = hyperparams_dict['task']
+        self.multi_modal = parameters.MULTI_MODAL
+        
+        self.prob_output = hyperparams_dict['probabilistic output']
+        self.man_based= parameters.MAN_BASED
+        self.man_dec_in = parameters.MAN_DEC_IN
+        self.in_seq_len = parameters.IN_SEQ_LEN
+        self.decoder_in_dim = 2
+        if self.multi_modal == False or self.man_dec_in == False or parameters.MAN_DEC_OUT == False:
+            print('not supported')
+            exit()
+        if parameters.TV_ONLY:
+            self.input_dim = 2
+        else:
+            self.input_dim = 18
+        if self.man_dec_in:
+            self.decoder_in_dim += 3
+        if self.prob_output:
+            self.output_dim = 5 # muY, muX, sigY, sigX, rho 
+        else:
+            self.output_dim = 2
+        self.dropout = nn.Dropout(drop_prob)
+        
+        ''' 1. Positional encoder: '''
+        self.positional_encoder = PositionalEncoding(dim_model=self.model_dim, dropout_p=drop_prob, max_len=100)
+        
+        ''' 2. Transformer Encoder: '''
+        self.encoder_embedding = nn.Linear(self.input_dim, self.model_dim)
+        encoder_layers = nn.TransformerEncoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
+        self.transformer_encoder = nn.TransformerEncoder(encoder_layers, self.layers_num)
+        
+        ''' 3. Transformer Decoder: '''
+        self.decoder_embedding = nn.Linear(self.decoder_in_dim, self.model_dim)
+        self.man_decoder_embedding = nn.Linear(2, self.model_dim)
+        lk_decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
+        rlc_decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
+        llc_decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
+        man_decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
+
+        self.lk_transformer_decoder = nn.TransformerDecoder(lk_decoder_layers, self.layers_num)
+        self.rlc_transformer_decoder = nn.TransformerDecoder(rlc_decoder_layers, self.layers_num)
+        self.llc_transformer_decoder = nn.TransformerDecoder(llc_decoder_layers, self.layers_num)
+        self.man_transformer_decoder = nn.TransformerDecoder(man_decoder_layers, self.layers_num)
+        
+
+        ''' 5. Trajectory Output '''
+        self.lk_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
+        self.rlc_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
+        self.llc_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
+        ''' 6. Manouvre Output '''
+        self.man_fc = nn.Linear(self.model_dim, 3)
+        
+        self.enc_man_fc1 = nn.Linear(self.in_seq_len*self.model_dim, self.classifier_dim)
+        self.enc_man_fc2 = nn.Linear(self.classifier_dim, 3)
+
+    def forward(self, x, y, y_mask):
+        #encoder
+        x = self.encoder_embedding(x)
+        x = self.positional_encoder(x)
+        encoder_out = self.transformer_encoder(x)
+        
+        encoder_out_flattened = encoder_out.reshape(self.batch_size, self.in_seq_len*self.model_dim)
+        enc_man_pred = self.enc_man_fc2(F.relu(self.enc_man_fc1(encoder_out_flattened)))
+        
+        #traj decoder
+        lk_y = self.decoder_embedding(y[:,0,:,:self.decoder_in_dim])
+        lk_y = self.positional_encoder(lk_y)
+        lk_decoder_out = self.lk_transformer_decoder(lk_y, encoder_out, tgt_mask = y_mask)
+        
+        rlc_y = self.decoder_embedding(y[:,1,:,:self.decoder_in_dim])
+        rlc_y = self.positional_encoder(rlc_y)
+        rlc_decoder_out = self.rlc_transformer_decoder(rlc_y, encoder_out, tgt_mask = y_mask)
+        
+        llc_y = self.decoder_embedding(y[:,2,:,:self.decoder_in_dim])
+        llc_y = self.positional_encoder(llc_y)
+        llc_decoder_out = self.llc_transformer_decoder(llc_y, encoder_out, tgt_mask = y_mask)
+
+        #traj decoder linear layer
+        
+        lk_traj_pred = self.lk_trajectory_fc(lk_decoder_out)
+        rlc_traj_pred = self.rlc_trajectory_fc(rlc_decoder_out)
+        llc_traj_pred = self.llc_trajectory_fc(llc_decoder_out)
+        if self.prob_output:
+            lk_traj_pred = self.prob_activation_func(lk_traj_pred)
+            rlc_traj_pred = self.prob_activation_func(rlc_traj_pred)
+            llc_traj_pred = self.prob_activation_func(llc_traj_pred) 
+        traj_pred = torch.stack([lk_traj_pred, rlc_traj_pred, llc_traj_pred], dim=1) # lk =0, rlc=1, llc=2
+        #print_shape('decoder_out', decoder_out)
+        
+        # man decoder
+        man_y = y[:,0,:,:2]
+        man_y = self.man_decoder_embedding(man_y)
+        man_y = self.positional_encoder(man_y)
+        man_decoder_out = self.man_transformer_decoder(man_y, encoder_out, tgt_mask = y_mask)
+
+        # man decoder linear layer
+        man_pred = self.man_fc(man_decoder_out)
+        
+        
+        
+        return {'traj_pred':traj_pred, 'man_pred': man_pred, 'enc_man_pred': enc_man_pred}
+    
+    def prob_activation_func(self,x):
+       muY = x[:,:,0:1]
+       muX = x[:,:,1:2]
+       sigY = x[:,:,2:3]
+       sigX = x[:,:,3:4]
+       rho = x[:,:,4:5]
+       sigX = torch.exp(sigX)
+       sigY = torch.exp(sigY)
+       rho = torch.tanh(rho)
+       x = torch.cat([muX, muY, sigX, sigY, rho],dim=2)
+       return x
+
+    
+
+    def get_y_mask(self, size) -> torch.tensor:
+        # Generates a squeare matrix where the each row allows one word more to be seen
+        mask = torch.tril(torch.ones(size, size) == 1) # Lower triangular matrix
+        mask = mask.float()
+        mask = mask.masked_fill(mask == 0, float('-inf')) # Convert zeros to -inf
+        mask = mask.masked_fill(mask == 1, float(0.0)) # Convert ones to 0
+        
+        # EX for size=5:
+        # [[0., -inf, -inf, -inf, -inf],
+        #  [0.,   0., -inf, -inf, -inf],
+        #  [0.,   0.,   0., -inf, -inf],
+        #  [0.,   0.,   0.,   0., -inf],
+        #  [0.,   0.,   0.,   0.,   0.]]
+        
+        return mask
+
+
+
 class LSTM_EncDec(nn.Module):
 
     def __init__(self, batch_size, device, hyperparams_dict, parameters, drop_prob = 0.5):
@@ -24,7 +171,10 @@ class LSTM_EncDec(nn.Module):
         self.hidden_dim = hyperparams_dict['model dim']
         self.num_layers = hyperparams_dict['layer number']
         self.task = hyperparams_dict['task']
-        self.multi_modal = hyperparams_dict['multi modal']
+        self.multi_modal = parameters.MULTI_MODAL
+        if self.multi_modal:
+            print('multi modality not supported')
+            exit()
         self.prob_output = hyperparams_dict['probabilistic output']
         self.in_seq_len = parameters.IN_SEQ_LEN
         self.output_dim = 2
@@ -89,7 +239,7 @@ class LSTM_EncDec(nn.Module):
             traj_pred = self.prob_activation_func(traj_pred)
         traj_pred = torch.stack([traj_pred], dim=1)
 
-        return {'traj_pred':traj_pred, 'man_pred': man_pred, 'multi_modal': self.multi_modal}
+        return {'traj_pred':traj_pred, 'man_pred': man_pred}
        
     
     def prob_activation_func(self,x):
@@ -118,7 +268,10 @@ class NovelTransformerTraj(nn.Module):
         self.layers_num = hyperparams_dict['layer number']
         self.head_num = hyperparams_dict['head number']
         self.task = hyperparams_dict['task']
-        self.multi_modal = hyperparams_dict['multi modal']
+        self.multi_modal = parameters.MULTI_MODAL
+        if self.multi_modal:
+            print('multi modality not supported')
+            exit()
         self.prob_output = hyperparams_dict['probabilistic output']
         self.in_seq_len = parameters.IN_SEQ_LEN
         self.input_dim = 18
@@ -258,7 +411,7 @@ class NovelTransformerTraj(nn.Module):
             traj_pred = torch.stack([lk_traj_pred, rlc_traj_pred, llc_traj_pred], dim=1)
         man_pred = self.man_fc(spat_decoder_out)
         
-        return {'traj_pred':traj_pred, 'man_pred': man_pred,'multi_modal': self.multi_modal}
+        return {'traj_pred':traj_pred, 'man_pred': man_pred}
     
     def get_y_mask(self, size) -> torch.tensor:
         # Generates a squeare matrix where the each row allows one word more to be seen
@@ -296,7 +449,10 @@ class ConstantX(nn.Module):
 
         self.batch_size = batch_size
         self.device = device
-        
+        self.multi_modal = parameters.MULTI_MODAL
+        if self.multi_modal:
+            print('multi modality not supported')
+            exit()
         self.constant_parameter = hyperparams_dict['parameter']# Dimension of transformer model ()
         self.task = hyperparams_dict['task']
         self.in_seq_len = parameters.IN_SEQ_LEN
@@ -364,7 +520,7 @@ class ConstantX(nn.Module):
         #print(traj_labels[0])
         #print(self.traj_pred[0])
         #exit()
-        return {'traj_pred':traj_pred.to(self.device),'man_pred':torch.zeros((traj_pred.shape[0],traj_pred.shape[1],3), device=self.device), 'multi_modal': False}
+        return {'traj_pred':traj_pred.to(self.device),'man_pred':torch.zeros((traj_pred.shape[0],traj_pred.shape[1],3), device=self.device)}
 
 class TransformerTraj(nn.Module): 
     def __init__(self, batch_size, device, hyperparams_dict, parameters, drop_prob = 0.1):
@@ -379,7 +535,10 @@ class TransformerTraj(nn.Module):
         self.layers_num = hyperparams_dict['layer number']
         self.head_num = hyperparams_dict['head number']
         self.task = hyperparams_dict['task']
-        self.multi_modal = hyperparams_dict['multi modal']
+        self.multi_modal = parameters.MULTI_MODAL
+        if self.multi_modal:
+            print('multi modality not supported')
+            exit()
         self.prob_output = hyperparams_dict['probabilistic output']
         self.man_based= parameters.MAN_BASED
         self.man_dec_in = parameters.MAN_DEC_IN
@@ -486,7 +645,7 @@ class TransformerTraj(nn.Module):
         #print_shape('encoder_out_flattened',encoder_out_flattened)
         enc_man_pred = self.enc_man_fc2(F.relu(self.enc_man_fc1(encoder_out_flattened)))
         #print_shape('man_pred', man_pred)
-        return {'traj_pred':traj_pred, 'man_pred': man_pred, 'enc_man_pred': enc_man_pred, 'multi_modal': self.multi_modal}
+        return {'traj_pred':traj_pred, 'man_pred': man_pred, 'enc_man_pred': enc_man_pred}
     
     def prob_activation_func(self,x):
        muY = x[:,:,0:1]
@@ -519,6 +678,9 @@ class TransformerTraj(nn.Module):
         return mask
 
 
+
+
+
 class PositionalEncoding(nn.Module):
     def __init__(self, dim_model, dropout_p, max_len):
         super().__init__()
@@ -548,527 +710,4 @@ class PositionalEncoding(nn.Module):
         return self.dropout(token_embedding + self.pos_encoding[:, :token_embedding.size(1), :])
 
 
-
-
-class VanillaLSTM(nn.Module):
-
-    def __init__(self, batch_size, device, hyperparams_dict, parameters, drop_prob = 0.5):
-        super(VanillaLSTM, self).__init__()
-        
-        self.batch_size = batch_size
-        self.device = device
-        
-        self.hidden_dim = hyperparams_dict['hidden dim']
-        self.num_layers = hyperparams_dict['layer number']
-        self.only_tv = hyperparams_dict['tv only']
-        self.task = hyperparams_dict['task']
-
-        self.in_seq_len = parameters.IN_SEQ_LEN
-        # Initial Convs
-        if self.only_tv:
-            self.input_dim = 2
-        else:
-            self.input_dim = 18
-
-        self.lstm = nn.LSTM(self.input_dim, self.hidden_dim, self.num_layers, batch_first = True, dropout= drop_prob)
-        self.dropout = nn.Dropout(drop_prob)
-        # Define the output layer
-        
-        if self.task == p.CLASSIFICATION or self.task == p.DUAL:
-            self.fc1 = nn.Linear(self.hidden_dim, 128)
-            self.fc2 = nn.Linear(128,3)
-        
-        if self.task == p.REGRESSION or self.task == p.DUAL:
-            self.fc1_ttlc = nn.Linear(self.hidden_dim, 512)
-            self.fc2_ttlc = nn.Linear(512,1)
-        
-        
-
-    def init_hidden(self):
-        # This is what we'll initialise our hidden state as
-        return (torch.zeros(self.num_layers, self.batch_size, self.hidden_dim),
-                torch.zeros(self.num_layers, self.batch_size, self.hidden_dim))
-
-    def lstm_forward(self, x_in):
-        # Forward pass through LSTM layer
-        # shape of lstm_out: [batch_size, seq_len, hidden_dim]
-        # shape of self.hidden: (a, b), where a and b both 
-        # have shape (num_layers, batch_size, hidden_dim).
-        x_in = x_in[0]
-        if self.only_tv:
-            x_in = x_in[:,:,:2]
-        x = x_in.view(self.batch_size, self.in_seq_len, self.input_dim)
-        lstm_out, self.hidden = self.lstm(x)
-        
-        # Only take the output from the final timetep
-        # Can pass on the entirety of lstm_out to the next layer if it is a seq2seq prediction
-        lstm_out = lstm_out.transpose(0,1)
-        out = self.dropout(lstm_out[-1].view(self.batch_size, -1))
-        return out
-    
-    def ttlc_forward(self, x):
-        x = self.dropout(x)
-        out = F.relu(self.fc1_ttlc(x))
-        out = self.dropout(out)
-        out = F.relu(self.fc2_ttlc(out))
-        return out
-    
-    def lc_forward(self, x):
-        x = self.dropout(x)
-        out = F.relu(self.fc1(x))
-        out = self.dropout(out)
-        out = self.fc2(out)
-        return out
-
-    def forward(self,x_in):
-        lstm_out = self.lstm_forward(x_in)
-        
-        if self.task == p.CLASSIFICATION or self.task == p.DUAL:
-            lc_pred = self.lc_forward(lstm_out)
-        else:
-            lc_pred = 0
-        
-        if self.task == p.REGRESSION or self.task == p.DUAL:
-            ttlc_pred = self.ttlc_forward(lstm_out)
-        else:
-            ttlc_pred = 0
-        
-        return {'lc_pred':lc_pred, 'ttlc_pred':ttlc_pred, 'features': lstm_out}
-
-
-# Previous methods
-class MLP(nn.Module):
-
-    def __init__(self, batch_size, device, hyperparams_dict, parameters, drop_prob = 0.5):
-        super(MLP, self).__init__()
-        
-        self.batch_size = batch_size
-        self.device = device
-        
-        self.hidden_dim = hyperparams_dict['hidden dim']
-        self.only_tv = hyperparams_dict['tv only']
-        self.task = hyperparams_dict['task']
-
-        self.in_seq_len = parameters.IN_SEQ_LEN
-        # Initial Convs
-        if self.only_tv:
-            self.input_dim = 2
-        else:
-            self.input_dim = 18
-        
-        self.dropout = nn.Dropout(drop_prob)
-
-        if self.task == p.CLASSIFICATION or self.task == p.DUAL:
-                self.fc1 = nn.Linear(self.input_dim*self.in_seq_len, self.hidden_dim)
-                self.fc2 = nn.Linear(self.hidden_dim,3)
-            
-        if self.task == p.REGRESSION or self.task == p.DUAL:
-            self.fc1_ttlc = nn.Linear(self.input_dim*self.in_seq_len, 512)
-            self.fc2_ttlc = nn.Linear(512,1)
-
-    def lc_forward(self,x_in):
-        
-        x_in = x_in[0]
-        if self.only_tv:
-            x_in = x_in[:,:,:2]
-        x = x_in.view(self.batch_size, self.in_seq_len * self.input_dim)
-        h1 = F.relu(self.fc1(x))
-        out = self.dropout(h1)
-        out = self.fc2(out)
-        return out
-
-    def ttlc_forward(self,x_in):
-        
-        x_in = x_in[0]
-        if self.only_tv:
-            x_in = x_in[:,:,:2]
-        x = x_in.view(self.batch_size, self.in_seq_len * self.input_dim)
-        h1 = F.relu(self.fc1_ttlc(x))
-        out = self.dropout(h1)
-        out = self.fc2_ttlc(out)
-
-        return out
-    
-    def forward(self, x_in):
-        features = 0
-        if self.task == p.CLASSIFICATION or self.task == p.DUAL:
-            lc_pred = self.lc_forward(x_in)
-        else:
-            lc_pred = 0
-        
-        if self.task == p.REGRESSION or self.task == p.DUAL:
-            ttlc_pred = self.ttlc_forward(x_in)
-        else:
-            ttlc_pred = 0
-        
-        return {'lc_pred':lc_pred, 'ttlc_pred':ttlc_pred, 'features': features}
-
-        
-
-
-class VanillaLSTM(nn.Module):
-
-    def __init__(self, batch_size, device, hyperparams_dict, parameters, drop_prob = 0.5):
-        super(VanillaLSTM, self).__init__()
-        
-        self.batch_size = batch_size
-        self.device = device
-        
-        self.hidden_dim = hyperparams_dict['hidden dim']
-        self.num_layers = hyperparams_dict['layer number']
-        self.only_tv = hyperparams_dict['tv only']
-        self.task = hyperparams_dict['task']
-
-        self.in_seq_len = parameters.IN_SEQ_LEN
-        # Initial Convs
-        if self.only_tv:
-            self.input_dim = 2
-        else:
-            self.input_dim = 18
-
-        self.lstm = nn.LSTM(self.input_dim, self.hidden_dim, self.num_layers, batch_first = True, dropout= drop_prob)
-        self.dropout = nn.Dropout(drop_prob)
-        # Define the output layer
-        
-        if self.task == p.CLASSIFICATION or self.task == p.DUAL:
-            self.fc1 = nn.Linear(self.hidden_dim, 128)
-            self.fc2 = nn.Linear(128,3)
-        
-        if self.task == p.REGRESSION or self.task == p.DUAL:
-            self.fc1_ttlc = nn.Linear(self.hidden_dim, 512)
-            self.fc2_ttlc = nn.Linear(512,1)
-        
-        
-
-    def init_hidden(self):
-        # This is what we'll initialise our hidden state as
-        return (torch.zeros(self.num_layers, self.batch_size, self.hidden_dim),
-                torch.zeros(self.num_layers, self.batch_size, self.hidden_dim))
-
-    def lstm_forward(self, x_in):
-        # Forward pass through LSTM layer
-        # shape of lstm_out: [batch_size, seq_len, hidden_dim]
-        # shape of self.hidden: (a, b), where a and b both 
-        # have shape (num_layers, batch_size, hidden_dim).
-        x_in = x_in[0]
-        if self.only_tv:
-            x_in = x_in[:,:,:2]
-        x = x_in.view(self.batch_size, self.in_seq_len, self.input_dim)
-        lstm_out, self.hidden = self.lstm(x)
-        
-        # Only take the output from the final timetep
-        # Can pass on the entirety of lstm_out to the next layer if it is a seq2seq prediction
-        lstm_out = lstm_out.transpose(0,1)
-        out = self.dropout(lstm_out[-1].view(self.batch_size, -1))
-        return out
-    
-    def ttlc_forward(self, x):
-        x = self.dropout(x)
-        out = F.relu(self.fc1_ttlc(x))
-        out = self.dropout(out)
-        out = F.relu(self.fc2_ttlc(out))
-        return out
-    
-    def lc_forward(self, x):
-        x = self.dropout(x)
-        out = F.relu(self.fc1(x))
-        out = self.dropout(out)
-        out = self.fc2(out)
-        return out
-
-    def forward(self,x_in):
-        lstm_out = self.lstm_forward(x_in)
-        
-        if self.task == p.CLASSIFICATION or self.task == p.DUAL:
-            lc_pred = self.lc_forward(lstm_out)
-        else:
-            lc_pred = 0
-        
-        if self.task == p.REGRESSION or self.task == p.DUAL:
-            ttlc_pred = self.ttlc_forward(lstm_out)
-        else:
-            ttlc_pred = 0
-        
-        return {'lc_pred':lc_pred, 'ttlc_pred':ttlc_pred, 'features': lstm_out}
-        
-class VanillaGRU(nn.Module):
-
-    def __init__(self, batch_size, device, hyperparams_dict, parameters, drop_prob = 0.5):
-        super(VanillaGRU, self).__init__()
-        
-        self.batch_size = batch_size
-        self.device = device
-        
-        self.hidden_dim = hyperparams_dict['hidden dim']
-        self.num_layers = hyperparams_dict['layer number']
-        self.only_tv = hyperparams_dict['tv only']
-        self.task = hyperparams_dict['task']
-
-        self.in_seq_len = parameters.IN_SEQ_LEN
-        # Initial Convs
-        if self.only_tv:
-            self.input_dim = 2
-        else:
-            self.input_dim = 18
-
-        self.gru = nn.GRU(self.input_dim, self.hidden_dim, self.num_layers, batch_first = True, dropout= drop_prob)
-        self.dropout = nn.Dropout(drop_prob)
-        # Define the output layer
-        
-        if self.task == p.CLASSIFICATION or self.task == p.DUAL:
-            self.fc1 = nn.Linear(self.hidden_dim, 128)
-            self.fc2 = nn.Linear(128,3)
-        
-        if self.task == p.REGRESSION or self.task == p.DUAL:
-            self.fc1_ttlc = nn.Linear(self.hidden_dim, 512)
-            self.fc2_ttlc = nn.Linear(512,1)
-        
-        
-
-    def init_hidden(self):
-        # This is what we'll initialise our hidden state as
-        return (torch.zeros(self.num_layers, self.batch_size, self.hidden_dim))
-
-    def gru_forward(self, x_in):
-        # Forward pass through LSTM layer
-        # shape of lstm_out: [batch_size, seq_len, hidden_dim]
-        # shape of self.hidden: (a, b), where a and b both 
-        # have shape (num_layers, batch_size, hidden_dim).
-        x_in = x_in[0]
-        if self.only_tv:
-            x_in = x_in[:,:,:2]
-        x = x_in.view(self.batch_size, self.in_seq_len, self.input_dim)
-        gru_out, self.hidden = self.gru(x)
-        
-        # Only take the output from the final timetep
-        # Can pass on the entirety of lstm_out to the next layer if it is a seq2seq prediction
-        gru_out = gru_out.transpose(0,1)
-        out = self.dropout(gru_out[-1].view(self.batch_size, -1))
-        return out
-    
-    def ttlc_forward(self, x):
-        x = self.dropout(x)
-        out = F.relu(self.fc1_ttlc(x))
-        out = self.dropout(out)
-        out = F.relu(self.fc2_ttlc(out))
-        return out
-    
-    def lc_forward(self, x):
-        x = self.dropout(x)
-        out = F.relu(self.fc1(x))
-        out = self.dropout(out)
-        out = self.fc2(out)
-        return out
-
-    def forward(self,x_in):
-        gru_out = self.gru_forward(x_in)
-        
-        if self.task == p.CLASSIFICATION or self.task == p.DUAL:
-            lc_pred = self.lc_forward(gru_out)
-        else:
-            lc_pred = 0
-        
-        if self.task == p.REGRESSION or self.task == p.DUAL:
-            ttlc_pred = self.ttlc_forward(gru_out)
-        else:
-            ttlc_pred = 0
-        
-        return {'lc_pred':lc_pred, 'ttlc_pred':ttlc_pred, 'features': gru_out}
-        
-
-class VanillaCNN(nn.Module):
-
-    def __init__(self, batch_size, device, hyperparams_dict, parameters, drop_prob = 0.5):
-        super(VanillaCNN, self).__init__()
-        
-        self.batch_size = batch_size
-        self.device = device
-        # Hyperparams:
-        self.num_channels = hyperparams_dict['channel number']
-        self.kernel_size = hyperparams_dict['kernel size']
-        self.single_merged_ch = hyperparams_dict['merge channels']
-        self.task = hyperparams_dict['task']
-        self.padding = int((self.kernel_size -1)/2) 
-        
-        self.in_seq_len = parameters.IN_SEQ_LEN
-        self.image_height = parameters.IMAGE_HEIGHT
-        self.image_width = parameters.IMAGE_WIDTH 
-        # Initial Convs
-        if self.single_merged_ch:
-            self.in_channel = self.in_seq_len
-      
-        self.init_conv1 = nn.Conv2d(self.in_channel,self.num_channels, kernel_size=self.kernel_size, stride=1, padding = self.padding)  # (100,75)
-        self.init_pool2 = nn.MaxPool2d(2, padding = 1) 
-        self.init_conv3 = nn.Conv2d(self.num_channels, self.num_channels, kernel_size=self.kernel_size, stride=1, padding = self.padding) # (51,38)
-        self.init_pool4 = nn.MaxPool2d(2)
-        self.init_conv5 = nn.Conv2d(self.num_channels, self.num_channels, kernel_size=self.kernel_size, stride=1, padding = self.padding) # (25, 19)
-        self.init_pool6 = nn.MaxPool2d(2, padding = 1)
-        self.dropout = nn.Dropout(drop_prob)
-        
-        if self.task == p.CLASSIFICATION or self.task == p.DUAL:
-            self.fc1 = nn.Linear(2*11*13*self.num_channels, 128)
-            self.fc2 = nn.Linear(128,3)
-        
-        if self.task == p.REGRESSION or self.task == p.DUAL:
-            self.fc1_ttlc = nn.Linear(2*11*13*self.num_channels, 512)
-            self.fc2_ttlc = nn.Linear(512,1)
-        
-
-    def conv_forward(self, x_in):
-        
-        x_in = x_in[0]
-        if self.single_merged_ch:
-            x_in = torch.mean(x_in, 2, True)
-        x = x_in.view(-1, self.in_channel, self.image_height, self.image_width)
-        conv1_out = self.init_conv1(x)
-        conv2_out = F.relu(self.init_pool2(conv1_out))
-        conv3_out = self.init_conv3(conv2_out)
-        conv4_out = F.relu(self.init_pool4(conv3_out))     
-        conv5_out = self.init_conv5(conv4_out) 
-        conv6_out = F.relu(self.init_pool6(conv5_out)) 
-        return (conv1_out, conv2_out, conv3_out, conv4_out, conv5_out, conv6_out)
-    
-    def lc_forward(self, conv_out):
-        x = conv_out.view(-1, 2*11*13*self.num_channels)
-        x = self.dropout(x)
-        out = F.relu(self.fc1(x))
-        out = self.dropout(out)
-        out = self.fc2(out)
-        return out
-            
-    def ttlc_forward(self, conv_out):
-        x = conv_out.view(-1, 2*11*13*self.num_channels)
-        x = self.dropout(x)
-        out = F.relu(self.fc1_ttlc(x))
-        out = self.dropout(out)
-        out = F.relu(self.fc2_ttlc(out))
-        return out
-    
-    def forward(self,x_in):
-        (conv1_out, conv2_out, conv3_out, conv4_out, conv5_out, conv6_out) = self.conv_forward(x_in)
-        if self.task == p.CLASSIFICATION or self.task == p.DUAL:
-            lc_pred = self.lc_forward(conv6_out)
-        else:
-            lc_pred = 0
-        
-        if self.task == p.REGRESSION or self.task == p.DUAL:
-            ttlc_pred = self.ttlc_forward(conv6_out)
-        else:
-            ttlc_pred = 0
-        
-        return {'lc_pred':lc_pred, 'ttlc_pred':ttlc_pred, 'features': conv6_out}
-
-        
-
-class ATTCNN3(nn.Module):
-
-    def __init__(self, batch_size, device, hyperparams_dict, parameters, drop_prob = 0.5):
-        super(ATTCNN3, self).__init__()
-        
-        self.batch_size = batch_size
-        self.device = device
-        # Hyperparams:
-        self.num_channels = hyperparams_dict['channel number']
-        self.kernel_size = hyperparams_dict['kernel size']
-        self.single_merged_ch = hyperparams_dict['merge channels']
-        self.task = hyperparams_dict['task']
-        self.padding = int((self.kernel_size -1)/2) 
-
-        self.in_seq_len = parameters.IN_SEQ_LEN
-        self.image_height = parameters.IMAGE_HEIGHT
-        self.image_width = parameters.IMAGE_WIDTH 
-        # Initial Convs
-        if self.single_merged_ch:
-            self.in_channel = self.in_seq_len
-
-
-        self.init_conv1 = nn.Conv2d(self.in_channel,self.num_channels, kernel_size=self.kernel_size, stride=1, padding = self.padding)  # (100,75)
-        self.init_pool2 = nn.MaxPool2d(2, padding = 1) 
-        self.init_conv3 = nn.Conv2d(self.num_channels, self.num_channels, kernel_size=self.kernel_size, stride=1, padding = self.padding) # (51,38)
-        self.init_pool4 = nn.MaxPool2d(2)
-        self.init_conv5 = nn.Conv2d(self.num_channels, self.num_channels, kernel_size=self.kernel_size, stride=1, padding = self.padding) # (25, 19)
-        self.init_pool6 = nn.MaxPool2d(2, padding = 1)
-        self.dropout = nn.Dropout(drop_prob)
-        self.fc1 = nn.Linear(2*11*13*self.num_channels, 4)
-
-        if self.task == p.CLASSIFICATION or self.task == p.DUAL:
-            self.fc3 = nn.Linear(12*26*self.num_channels,128)# 6*13
-            self.fc4 = nn.Linear(128, 3)
-
-        if self.task == p.REGRESSION or self.task == p.DUAL:
-            self.fc1_ttlc = nn.Linear(12*26*self.num_channels, 512)
-            self.fc2_ttlc = nn.Linear(512,1)
-
-    def conv_forward(self, x_in):
-        
-        x_in = x_in[0]
-        if self.single_merged_ch:
-            x_in = torch.mean(x_in, 2, True)
-        x = x_in.view(-1, self.in_channel, self.image_height, self.image_width)
-        conv1_out = self.init_conv1(x)
-        conv2_out = F.relu(self.init_pool2(conv1_out))
-        conv3_out = self.init_conv3(conv2_out)
-        conv4_out = F.relu(self.init_pool4(conv3_out))     
-        conv5_out = self.init_conv5(conv4_out) 
-        conv6_out = F.relu(self.init_pool6(conv5_out)) 
-        
-        return conv6_out
-    
-    def attention_coef_forward(self, conv_out):
-        x = conv_out.view(-1, 2*11*13*self.num_channels)
-        out = F.softmax(self.fc1(x), dim = -1)
-        return out
-
-    def lc_forward(self, attended_features):        
-        x = attended_features.view(-1, 26*12*self.num_channels)
-        x = self.dropout(x)
-        out = F.relu(self.fc3(x))
-        out = self.dropout(out)
-        out = self.fc4(out)
-        return out
-
-    def ttlc_forward(self, attended_features):
-        
-        x = attended_features.view(-1, 26*12*self.num_channels)
-        x = self.dropout(x)
-        out = F.relu(self.fc1_ttlc(x))
-        out = self.dropout(out)
-        out = F.relu(self.fc2_ttlc(out))
-        return out
-
-    
-    def forward(self,x_in, seq_itr = 0):
-        conv6_out= self.conv_forward(x_in)
-        
-        attention_coef = self.attention_coef_forward(conv6_out)
-        front_right = conv6_out[:,:,:6, :13]
-        front_left = conv6_out[:,:,5:,:13]
-        back_right = conv6_out[:,:,:6,13:]
-        back_left = conv6_out[:,:,5:,13:]
-        
-        front_right_coef = attention_coef[:,0].unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).expand(*front_right.size())
-        front_left_coef = attention_coef[:,1].unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).expand(*front_right.size())
-        back_right_coef = attention_coef[:,2].unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).expand(*front_right.size())
-        back_left_coef = attention_coef[:,3].unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).expand(*front_right.size())
-        if seq_itr<10:
-            front_right =front_right * front_right_coef
-            front_left =front_left * front_left_coef
-            back_right =back_right * back_right_coef
-            back_left =back_left * back_left_coef
-
-        front = torch.cat((front_right, front_left), dim = 2)
-        back = torch.cat((back_right, back_left), dim = 2)
-        attended_features = torch.cat((front, back), dim = 3)
-        
-        if self.task == p.CLASSIFICATION or self.task == p.DUAL:
-            lc_pred = self.lc_forward(attended_features)
-        else:
-            lc_pred = 0
-        
-        if self.task == p.REGRESSION or self.task == p.DUAL:
-            ttlc_pred = self.ttlc_forward(attended_features)
-        else:
-            ttlc_pred = 0
-        return {'lc_pred':lc_pred, 'ttlc_pred':ttlc_pred, 'features': conv6_out, 'attention': attention_coef}
-        
 

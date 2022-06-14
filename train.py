@@ -146,10 +146,11 @@ if __name__ == '__main__':
                          ]
     selected_metrics = ['FDE_table', 'RMSE_table']
     
-    p = params.ParametersHandler('Transformer_Traj.yaml', 'highD.yaml', './config')
+    p = params.ParametersHandler('ManouvreTransformerTraj.yaml', 'highD.yaml', './config')
     #1
     train_model_dict(p)
     
+    '''
     #2
     p.model['hyperparams']['layer number'] = 1
     p.model['hyperparams']['model dim'] = 128
@@ -186,6 +187,7 @@ if __name__ == '__main__':
     p.new_experiment()
     p.tune_params(tuning_experiment_name, selected_params, selected_metrics)
     train_model_dict(p)
+    '''
     
     
     

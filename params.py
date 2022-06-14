@@ -71,6 +71,7 @@ class ParametersHandler:
         self.MAN_BASED = self.hyperparams['model']['man_based']
         self.MAN_DEC_IN = self.hyperparams['model']['man_dec_in']
         self.MAN_DEC_OUT = self.hyperparams['model']['man_dec_out']
+        self.MULTI_MODAL = self.hyperparams['model']['multi_modal']
         
         
         self.IMAGE_HEIGHT = self.dataset['image_height']
