@@ -22,7 +22,8 @@ class LCDataset(Dataset):
     force_recalc_start_indexes = False,
     import_states = False, # import min-max of states
     output_states_min = 0, 
-    output_states_max = 0):
+    output_states_max = 0,
+    deploy_data = False):
 
         super(LCDataset, self).__init__()
         self.data_files = data_files
@@ -51,7 +52,8 @@ class LCDataset(Dataset):
         
         self.start_indexes = []
         for data_file in self.dataset_dirs:
-            self.start_indexes.append(self.get_samples_start_index(in_seq_len, out_seq_len, end_of_seq_skip_len, data_file, force_recalc = force_recalc_start_indexes))
+            start_indexes = self.get_samples_start_index(in_seq_len, out_seq_len, end_of_seq_skip_len, data_file, force_recalc = force_recalc_start_indexes)
+            self.start_indexes.append(start_indexes)
         
         if unbalanced == False:
             self.balance_dataset(force_recalc_start_indexes)
@@ -121,7 +123,9 @@ class LCDataset(Dataset):
                 for itr, tv_id in enumerate(tv_ids):
                     if (itr+in_seq_len+out_seq_len+end_of_seq_skip_len) <= len_scenario:
                         if np.all(tv_ids[itr:(itr+in_seq_len+out_seq_len+end_of_seq_skip_len)] == tv_id):
-                            samples_start_index.append(itr)            
+                            samples_start_index.append(itr)
+                        else:
+                            raise(ValueError('TV ID was not consistent'))           
             samples_start_index = np.array(samples_start_index)
             np.save(sample_start_indx_file, samples_start_index)
         else:
@@ -173,8 +177,7 @@ class LCDataset(Dataset):
                 #print('loading {}'.format(sample_start_indx_file))
                 balanced_start_indexes = np.load(sample_start_indx_file)
             self.start_indexes.append(balanced_start_indexes)
-
-
+        self.start_indexes = np.array(self.start_indexes)
 
     def __getitem__(self, idx):
         assert(idx != self.dataset_size)

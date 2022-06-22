@@ -146,7 +146,7 @@ if __name__ == '__main__':
                          ]
     selected_metrics = ['FDE_table', 'RMSE_table']
     
-    p = params.ParametersHandler('ManouvreTransformerTraj.yaml', 'highD.yaml', './config')
+    p = params.ParametersHandler(''ManouvreTransformerTraj.yaml'', 'highD.yaml', './config')
     #1
     train_model_dict(p)
     
