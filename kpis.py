@@ -21,16 +21,15 @@ font = {'size'   : 22}
 matplotlib.rcParams['figure.figsize'] = (18, 12)
 matplotlib.rc('font', **font)
 
-def calc_metric(p, task, all_lc_preds, all_att_coef, all_labels, all_traj_preds, all_traj_labels, man_preds, man_labels, traj_label_min, traj_label_max, epoch=None, eval_type = 'Test', figure_name= None):
+def calc_metric(p, all_lc_preds, all_att_coef, all_labels, all_traj_preds, all_traj_labels, man_preds, man_labels, traj_label_min, traj_label_max, epoch=None, eval_type = 'Test', figure_name= None):
    
     num_samples = all_labels.shape[0]
     all_preds = np.argmax(all_lc_preds, axis =-1)
     
     
-    if task == p.TRAJECTORYPRED:
-        traj_metrics, man_metrics, traj_df, RMSE_table, FDE_table = calc_traj_metrics(p, all_traj_preds, all_traj_labels, man_preds, man_labels, traj_label_min, traj_label_max)
-    else:
-        raise(ValueError('unsupported value for task'))
+    
+    traj_metrics, man_metrics, traj_df, RMSE_table, FDE_table = calc_traj_metrics(p, all_traj_preds, all_traj_labels, man_preds, man_labels, traj_label_min, traj_label_max)
+    
 
     if eval_type == 'Test' and p.parameter_tuning_experiment:
         for metric_str in p.selected_metrics:

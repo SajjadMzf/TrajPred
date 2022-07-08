@@ -26,7 +26,6 @@ class ManouvreTransformerTraj(nn.Module):
         self.classifier_dim = hyperparams_dict['classifier dim']
         self.layers_num = hyperparams_dict['layer number']
         self.head_num = hyperparams_dict['head number']
-        self.task = hyperparams_dict['task']
         self.multi_modal = parameters.MULTI_MODAL
         
         self.prob_output = hyperparams_dict['probabilistic output']
@@ -174,7 +173,7 @@ class LSTM_EncDec(nn.Module):
         
         self.hidden_dim = hyperparams_dict['model dim']
         self.num_layers = hyperparams_dict['layer number']
-        self.task = hyperparams_dict['task']
+        
         self.multi_modal = parameters.MULTI_MODAL
         if self.multi_modal:
             print('multi modality not supported')
@@ -271,7 +270,7 @@ class NovelTransformerTraj(nn.Module):
         self.classifier_dim = hyperparams_dict['classifier dim']
         self.layers_num = hyperparams_dict['layer number']
         self.head_num = hyperparams_dict['head number']
-        self.task = hyperparams_dict['task']
+        
         self.multi_modal = parameters.MULTI_MODAL
         if self.multi_modal:
             print('multi modality not supported')
@@ -458,7 +457,7 @@ class ConstantX(nn.Module):
             print('multi modality not supported')
             exit()
         self.constant_parameter = hyperparams_dict['parameter']# Dimension of transformer model ()
-        self.task = hyperparams_dict['task']
+        
         self.in_seq_len = parameters.IN_SEQ_LEN
         self.out_seq_len = parameters.TGT_SEQ_LEN
         self.fps = parameters.FPS
@@ -538,7 +537,6 @@ class TransformerTraj(nn.Module):
         self.classifier_dim = hyperparams_dict['classifier dim']
         self.layers_num = hyperparams_dict['layer number']
         self.head_num = hyperparams_dict['head number']
-        self.task = hyperparams_dict['task']
         self.multi_modal = parameters.MULTI_MODAL
         if self.multi_modal:
             print('multi modality not supported')

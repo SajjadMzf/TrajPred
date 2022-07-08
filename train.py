@@ -54,7 +54,6 @@ def train_model_dict(p):
         traj_loss_func = training_functions.NLL_loss
     else:
         traj_loss_func = p.model_dictionary['traj loss function']()
-    task = p.model_dictionary['hyperparams']['task']
     #print('x')
     # Instantiate Dataset: 
     tr_dataset = Dataset.LCDataset(p.TRAIN_DATASET_DIR, p.TR_DATA_FILES,
@@ -65,8 +64,7 @@ def train_model_dict(p):
         state_type = p.model_dictionary['state type'], 
         keep_plot_info= False, 
         unbalanced = p.UNBALANCED,
-        force_recalc_start_indexes = False,
-        traj_output = (task==p.TRAJECTORYPRED))
+        force_recalc_start_indexes = False)
     #print(tr_dataset.states_max-tr_dataset.states_min)
     #assert np.all((tr_dataset.states_max-tr_dataset.states_min)>0)
     #print('output state min: {}, output state max: {}'.format(tr_dataset.output_states_min, tr_dataset.output_states_max))
@@ -79,7 +77,6 @@ def train_model_dict(p):
         data_type = p.model_dictionary['data type'], 
         state_type = p.model_dictionary['state type'], 
         keep_plot_info= False, 
-        traj_output = (task==p.TRAJECTORYPRED), 
         import_states = True,
         unbalanced = p.UNBALANCED,
         force_recalc_start_indexes = False,
@@ -94,7 +91,6 @@ def train_model_dict(p):
         data_type = p.model_dictionary['data type'],
         state_type = p.model_dictionary['state type'], 
         keep_plot_info= True, 
-        traj_output = (task==p.TRAJECTORYPRED), 
         import_states = True,
         unbalanced = p.UNBALANCED,
         force_recalc_start_indexes = False,
@@ -108,8 +104,8 @@ def train_model_dict(p):
     #exit()
     # Train/Evaluate:
     tb = SummaryWriter()
-    val_result_dic = training_functions.train_top_func(p, model, optimizer, lc_loss_func, traj_loss_func, task, tr_dataset, val_dataset,device, tensorboard = tb)    
-    te_result_dic, traj_df = training_functions.eval_top_func(p, model, lc_loss_func, traj_loss_func, task, te_dataset, device,  tensorboard = tb)
+    val_result_dic = training_functions.train_top_func(p, model, optimizer, lc_loss_func, traj_loss_func, tr_dataset, val_dataset,device, tensorboard = tb)    
+    te_result_dic, traj_df = training_functions.eval_top_func(p, model, lc_loss_func, traj_loss_func, te_dataset, device,  tensorboard = tb)
     #print('x')
     p.export_experiment()
     # Save results:

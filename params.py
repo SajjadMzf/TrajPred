@@ -125,15 +125,12 @@ class ParametersHandler:
        
         
         # eval string attributes
-        #print(self.model['hyperparams']['task'])
         self.model_dictionary = copy.deepcopy(self.model)# we dont modify self.model as we might export/import it to/from YALM files
         self.model_dictionary['ref'] = eval(self.model_dictionary['ref'])
         self.model_dictionary['optimizer'] = eval(self.model_dictionary['optimizer'])
         self.model_dictionary['lc loss function'] = eval(self.model_dictionary['lc loss function'])
         self.model_dictionary['traj loss function'] = eval(self.model_dictionary['traj loss function'])
-        self.model_dictionary['hyperparams']['task'] = self.constants['TASKS'][self.model_dictionary['hyperparams']['task']]
-        #print(self.model['hyperparams']['task'])
-        #exit()
+        
         self.CLASSIFICATION = self.constants['TASKS']['CLASSIFICATION']
         self.REGRESSION = self.constants['TASKS']['REGRESSION']
         self.DUAL = self.constants['TASKS']['DUAL']

@@ -23,7 +23,7 @@ matplotlib.rcParams['figure.figsize'] = (18, 12)
 matplotlib.rc('font', **font)
 
 
-def eval_top_func(p, model, lc_loss_func, traj_loss_func, task, te_dataset, device, tensorboard = None):
+def eval_top_func(p, model, lc_loss_func, traj_loss_func, te_dataset, device, tensorboard = None):
     model = model.to(device)
     
     te_loader = utils_data.DataLoader(dataset = te_dataset, shuffle = True, batch_size = p.BATCH_SIZE, drop_last= True, pin_memory= True, num_workers= 12)
@@ -37,7 +37,7 @@ def eval_top_func(p, model, lc_loss_func, traj_loss_func, task, te_dataset, devi
     
     start = time()
     
-    test_acc, test_loss, test_lc_loss, test_traj_loss, auc, max_j, precision, recall, f1, rmse, fde, traj_df = eval_model(p,model, lc_loss_func, traj_loss_func, task, te_loader, te_dataset, ' N/A', device, eval_type = 'Test', vis_data_path = vis_data_path, figure_name = figure_name)
+    test_acc, test_loss, test_lc_loss, test_traj_loss, auc, max_j, precision, recall, f1, rmse, fde, traj_df = eval_model(p,model, lc_loss_func, traj_loss_func, te_loader, te_dataset, ' N/A', device, eval_type = 'Test', vis_data_path = vis_data_path, figure_name = figure_name)
     end = time()
     total_time = end-start
     #print("Test finished in:", total_time, "sec.")
@@ -57,7 +57,7 @@ def eval_top_func(p, model, lc_loss_func, traj_loss_func, task, te_dataset, devi
     return result_dic, traj_df
 
 
-def train_top_func(p, model, optimizer, lc_loss_func, traj_loss_func, task, tr_dataset, val_dataset, device, tensorboard = None):
+def train_top_func(p, model, optimizer, lc_loss_func, traj_loss_func, tr_dataset, val_dataset, device, tensorboard = None):
     
     model = model.to(device)
     
@@ -77,10 +77,10 @@ def train_top_func(p, model, optimizer, lc_loss_func, traj_loss_func, task, tr_d
     for epoch in range(p.NUM_EPOCHS):
         #print("Epoch: {} Started!".format(epoch+1))
         start = time()
-        tr_loss, tr_lc_loss, tr_traj_loss = train_model(p, model, optimizer, scheduler, tr_loader, lc_loss_func, traj_loss_func, task,  epoch+1, device, calc_train_acc= False)
+        tr_loss, tr_lc_loss, tr_traj_loss = train_model(p, model, optimizer, scheduler, tr_loader, lc_loss_func, traj_loss_func,  epoch+1, device, calc_train_acc= False)
         val_start = time()
 
-        val_acc,val_loss, val_lc_loss, val_traj_loss, auc, max_j, precision, recall, f1, rmse, fde, traj_df = eval_model(p, model, lc_loss_func, traj_loss_func, task, val_loader, val_dataset, epoch+1, device, eval_type = 'Validation')
+        val_acc,val_loss, val_lc_loss, val_traj_loss, auc, max_j, precision, recall, f1, rmse, fde, traj_df = eval_model(p, model, lc_loss_func, traj_loss_func, val_loader, val_dataset, epoch+1, device, eval_type = 'Validation')
         val_end = time()
         print('val_time:', val_end-val_start)
         #print("Validation Accuracy:",val_acc,' Avg Pred Time: ', val_avg_pred_time, " Avg Loss: ", val_loss," at Epoch", epoch+1)
@@ -125,7 +125,7 @@ def train_top_func(p, model, optimizer, lc_loss_func, traj_loss_func, task, tr_d
     return result_dic
 
 
-def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, traj_loss_func, task, epoch, device, vis_step = 20, calc_train_acc = True):
+def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, traj_loss_func, epoch, device, vis_step = 20, calc_train_acc = True):
     # Number of samples with correct classification
     # total size of train data
     total = len(train_loader.dataset)
@@ -153,22 +153,19 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, traj
         labels = labels.to(device)
         target_labels = labels[:, p.IN_SEQ_LEN:]
         enc_target_label = labels[:,p.IN_SEQ_LEN-1:p.IN_SEQ_LEN]
-        #print_value('task', task)
-        #exit()    
-        if task == p.TRAJECTORYPRED: # seperate traj input data from other
-            label_onehot = F.one_hot(labels, num_classes= 3)
-            label_enc_in = label_onehot[:,:p.IN_SEQ_LEN]
-            label_dec_in = label_onehot[:,(p.IN_SEQ_LEN-1):(p.IN_SEQ_LEN-1+p.TGT_SEQ_LEN)]
-            target_data = data_tuple[-1] # selecting target data from data tuple
-            tv_only_data = target_data[:,:p.IN_SEQ_LEN] # if tv's only, we use same output states for input data
-            target_data = target_data[:,(p.IN_SEQ_LEN-1):]
-            target_data_in = target_data[:,:p.TGT_SEQ_LEN ] # target data into decoder
-            target_data_out = target_data[:,1:(p.TGT_SEQ_LEN+1)] #ground truth data
-            in_data_tuple = data_tuple[:-1]
-            in_data_tuple = in_data_tuple[0]
+           
+        
+        label_onehot = F.one_hot(labels, num_classes= 3)
+        label_enc_in = label_onehot[:,:p.IN_SEQ_LEN]
+        label_dec_in = label_onehot[:,(p.IN_SEQ_LEN-1):(p.IN_SEQ_LEN-1+p.TGT_SEQ_LEN)]
+        target_data = data_tuple[-1] # selecting target data from data tuple
+        tv_only_data = target_data[:,:p.IN_SEQ_LEN] # if tv's only, we use same output states for input data
+        target_data = target_data[:,(p.IN_SEQ_LEN-1):]
+        target_data_in = target_data[:,:p.TGT_SEQ_LEN ] # target data into decoder
+        target_data_out = target_data[:,1:(p.TGT_SEQ_LEN+1)] #ground truth data
+        in_data_tuple = data_tuple[:-1]
+        in_data_tuple = in_data_tuple[0]
 
-        else:
-            in_data_tuple = data_tuple[0]
         
         if p.TV_ONLY:
             current_data = tv_only_data
@@ -182,14 +179,14 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, traj
         optimizer.zero_grad()
         
         # 2. feeding data to model (forward method will be computed)
-        if task == p.TRAJECTORYPRED and 'TRANSFORMER_TRAJ' in p.SELECTED_MODEL:
+        if 'TRANSFORMER_TRAJ' in p.SELECTED_MODEL:
             target_data_in = torch.stack([target_data_in,target_data_in,target_data_in], dim = 1)
             output_dict = model(x = current_data, y = target_data_in, y_mask = model.get_y_mask(p.TGT_SEQ_LEN).to(device))
             traj_pred = output_dict['traj_pred']
             man_pred = output_dict['man_pred']
             enc_man_pred = output_dict['enc_man_pred']
 
-        elif task == p.TRAJECTORYPRED and 'LSTM_ED' in p.SELECTED_MODEL:
+        elif 'LSTM_ED' in p.SELECTED_MODEL:
             target_data_in = torch.stack([target_data_in,target_data_in,target_data_in], dim = 1)
             output_dict = model(x = current_data, y = target_data_in, teacher_force = True)
             traj_pred = output_dict['traj_pred']
@@ -206,36 +203,33 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, traj
         
         #lc_loss = 0
         
-        if task == p.TRAJECTORYPRED:
-            if p.MULTI_MODAL == True:
-                #print_shape('traj_pred', traj_pred)
-                #print_shape('target_data_out', target_data_out) 
-                manouvre_index = target_labels
-                for i in range(p.TGT_SEQ_LEN):
-                    current_selected_traj = traj_pred[np.arange(traj_pred.shape[0]), manouvre_index[:,i],i,:]
-                    current_selected_traj = torch.unsqueeze(current_selected_traj, dim = 1)
-                    #print_shape('current_selected_traj', current_selected_traj)
-                    if i == 0:
-                        selected_traj_pred = current_selected_traj
-                    else:
-                        selected_traj_pred =  torch.cat((selected_traj_pred, current_selected_traj), dim=1)
-                traj_pred = selected_traj_pred
-                #print_shape('traj_pred', traj_pred)
-            else:
-                traj_pred = torch.squeeze(traj_pred, dim =1)
-
-            traj_loss = traj_loss_func(traj_pred, target_data_out)#/len(train_loader)  #TODO: seperate loss function for traj and label
-            
-            if p.MAN_DEC_OUT:
-                lc_loss = lc_loss_func(man_pred.reshape(-1,3), target_labels.reshape(-1))
-                enc_lc_loss = lc_loss_func(enc_man_pred.reshape(-1,3), enc_target_label.reshape(-1))
-            else:
-                lc_loss = 0
-                enc_lc_loss = 0
+        
+        if p.MULTI_MODAL == True:
+            #print_shape('traj_pred', traj_pred)
+            #print_shape('target_data_out', target_data_out) 
+            manouvre_index = target_labels
+            for i in range(p.TGT_SEQ_LEN):
+                current_selected_traj = traj_pred[np.arange(traj_pred.shape[0]), manouvre_index[:,i],i,:]
+                current_selected_traj = torch.unsqueeze(current_selected_traj, dim = 1)
+                #print_shape('current_selected_traj', current_selected_traj)
+                if i == 0:
+                    selected_traj_pred = current_selected_traj
+                else:
+                    selected_traj_pred =  torch.cat((selected_traj_pred, current_selected_traj), dim=1)
+            traj_pred = selected_traj_pred
+            #print_shape('traj_pred', traj_pred)
         else:
-            enc_lc_loss = 0
+            traj_pred = torch.squeeze(traj_pred, dim =1)
+
+        traj_loss = traj_loss_func(traj_pred, target_data_out)#/len(train_loader)  #TODO: seperate loss function for traj and label
+        
+        if p.MAN_DEC_OUT:
+            lc_loss = lc_loss_func(man_pred.reshape(-1,3), target_labels.reshape(-1))
+            enc_lc_loss = lc_loss_func(enc_man_pred.reshape(-1,3), enc_target_label.reshape(-1))
+        else:
             lc_loss = 0
-            traj_loss = 0
+            enc_lc_loss = 0
+        
         loss = lc_loss + enc_lc_loss + p.TRAJ2CLASS_LOSS_RATIO*traj_loss 
         # 4. Calculating new grdients given the loss value
         loss.backward()
@@ -275,7 +269,7 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, traj
     return avg_loss, avg_lc_loss, avg_traj_loss
         
 
-def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_dataset, epoch, device, eval_type = 'Validation', vis_data_path = None, figure_name = None):
+def eval_model(p, model, lc_loss_func, traj_loss_func, test_loader, test_dataset, epoch, device, eval_type = 'Validation', vis_data_path = None, figure_name = None):
     total = len(test_loader.dataset)
     # number of batch
     num_batch = int(np.floor(total/model.batch_size))
@@ -328,21 +322,18 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_d
         enc_target_label = labels[:,p.IN_SEQ_LEN-1:p.IN_SEQ_LEN]
         
         
-        if task == p.TRAJECTORYPRED:
-            label_onehot = F.one_hot(labels, num_classes= 3)
-            label_enc_in = label_onehot[:,:p.IN_SEQ_LEN]
-            label_dec_in = label_onehot[:,(p.IN_SEQ_LEN-1):(p.IN_SEQ_LEN-1+p.TGT_SEQ_LEN)] #prediction window + 1 timestep before for initialisation
-            target_data = data_tuple[-1]
-            tv_only_data = target_data[:,:p.IN_SEQ_LEN]
-            target_data = target_data[:,(p.IN_SEQ_LEN-1):]
-            
-            target_data_out = target_data[:,1:(p.TGT_SEQ_LEN+1)] #trajectory labels are target data except the first element.
-            in_data_tuple = data_tuple[:-1]
-            in_data_tuple = in_data_tuple[0]
-        else:
-            print('not supported')
-            exit()
-            #in_data_tuple = data_tuple
+        
+        label_onehot = F.one_hot(labels, num_classes= 3)
+        label_enc_in = label_onehot[:,:p.IN_SEQ_LEN]
+        label_dec_in = label_onehot[:,(p.IN_SEQ_LEN-1):(p.IN_SEQ_LEN-1+p.TGT_SEQ_LEN)] #prediction window + 1 timestep before for initialisation
+        target_data = data_tuple[-1]
+        tv_only_data = target_data[:,:p.IN_SEQ_LEN]
+        target_data = target_data[:,(p.IN_SEQ_LEN-1):]
+        
+        target_data_out = target_data[:,1:(p.TGT_SEQ_LEN+1)] #trajectory labels are target data except the first element.
+        in_data_tuple = data_tuple[:-1]
+        in_data_tuple = in_data_tuple[0]
+        
         
         if p.TV_ONLY:
             current_data = tv_only_data
@@ -353,7 +344,7 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_d
         
         st_time = time()
         
-        if task == p.TRAJECTORYPRED and 'TRANSFORMER_TRAJ' in p.SELECTED_MODEL:
+        if 'TRANSFORMER_TRAJ' in p.SELECTED_MODEL:
             label_dec_in = label_dec_in[:,:1] # initialise decoder with one timestep before prediction window.
             target_data_in = target_data[:,:1] #initalise target data input to transformer decoder with the first element of target data
             
@@ -403,7 +394,7 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_d
             man_pred = torch.unsqueeze(man_pred, dim = 1)
             #man_pred = target_data_in[:,:,1:,2:] #this is not correct since target_data_in has one_hot of man pred  
 
-        elif task == p.TRAJECTORYPRED and p.SELECTED_MODEL== 'CONSTANT_PARAMETER':
+        elif p.SELECTED_MODEL== 'CONSTANT_PARAMETER':
             target_data_in = target_data
             output_dict = model(current_data, test_dataset.states_min, test_dataset.states_max, test_dataset.output_states_min, test_dataset.output_states_max, target_data_in)
             traj_pred = output_dict['traj_pred']
@@ -414,7 +405,7 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_d
             traj_pred = traj_pred.unsqueeze(1)
             #print(traj_pred.size())
             predicted_data_dist = traj_pred[:,0]
-        elif task == p.TRAJECTORYPRED and 'LSTM_ED' in p.SELECTED_MODEL:
+        elif 'LSTM_ED' in p.SELECTED_MODEL:
             label_dec_in = label_dec_in[:,:1]
             target_data_in = target_data[:,:1] #initalise target data input to transformer decoder with the first element of target data
             if p.MAN_DEC_IN:
@@ -435,60 +426,57 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_d
         
         
 
-        if task == p.TRAJECTORYPRED:
+        
             
-            traj_pred = traj_pred[:,0]
-            traj_loss = traj_loss_func(predicted_data_dist, target_data_out)/len(test_loader) 
-            if p.MAN_DEC_OUT:
-                #print_shape('man_pred', man_pred)
-                #print_shape('target_labels', target_labels)
-                lc_loss = lc_loss_func(man_pred[:,0].reshape(-1,3), target_labels.reshape(-1))
-                enc_lc_loss = lc_loss_func(enc_man_pred.reshape(-1,3), enc_target_label.reshape(-1))
-            else:
-                lc_loss = 0
-                enc_lc_loss = 0
+        traj_pred = traj_pred[:,0]
+        traj_loss = traj_loss_func(predicted_data_dist, target_data_out)/len(test_loader) 
+        if p.MAN_DEC_OUT:
+            #print_shape('man_pred', man_pred)
+            #print_shape('target_labels', target_labels)
+            lc_loss = lc_loss_func(man_pred[:,0].reshape(-1,3), target_labels.reshape(-1))
+            enc_lc_loss = lc_loss_func(enc_man_pred.reshape(-1,3), enc_target_label.reshape(-1))
         else:
-            traj_loss = 0
             lc_loss = 0
             enc_lc_loss = 0
+        
         
         
         loss = enc_lc_loss + lc_loss + p.TRAJ2CLASS_LOSS_RATIO*traj_loss 
     
         if eval_type == 'Test':
             
-            if task == p.TRAJECTORYPRED:
-                traj_min = test_dataset.output_states_min
-                traj_max = test_dataset.output_states_max
-                x_y_dist_pred = traj_pred
-                x_y_pred = traj_pred[:,:,:2]
-                x_y_label = data_tuple[-1]
-                unnormalised_traj_pred = x_y_pred.cpu().data*(traj_max-traj_min) + traj_min
-                unnormalised_traj_label = x_y_label.cpu().data*(traj_max-traj_min) + traj_min
-                plot_dict['input_features'] = in_data_tuple
-                plot_dict['traj_labels'] = unnormalised_traj_label.numpy()
-                plot_dict['traj_preds']= unnormalised_traj_pred.numpy()
-                plot_dict['traj_dist_preds'] = x_y_dist_pred.cpu().data.numpy()
-                plot_dict['man_labels'] = labels.cpu().data.numpy()
-                if p.MAN_DEC_OUT:
-                    plot_dict['man_preds'] = man_pred[:,0].cpu().data.numpy()
-                    plot_dict['enc_man_preds'] = enc_man_pred.cpu().data.numpy()
+            
+            traj_min = test_dataset.output_states_min
+            traj_max = test_dataset.output_states_max
+            x_y_dist_pred = traj_pred
+            x_y_pred = traj_pred[:,:,:2]
+            x_y_label = data_tuple[-1]
+            unnormalised_traj_pred = x_y_pred.cpu().data*(traj_max-traj_min) + traj_min
+            unnormalised_traj_label = x_y_label.cpu().data*(traj_max-traj_min) + traj_min
+            plot_dict['input_features'] = in_data_tuple
+            plot_dict['traj_labels'] = unnormalised_traj_label.numpy()
+            plot_dict['traj_preds']= unnormalised_traj_pred.numpy()
+            plot_dict['traj_dist_preds'] = x_y_dist_pred.cpu().data.numpy()
+            plot_dict['man_labels'] = labels.cpu().data.numpy()
+            if p.MAN_DEC_OUT:
+                plot_dict['man_preds'] = man_pred[:,0].cpu().data.numpy()
+                plot_dict['enc_man_preds'] = enc_man_pred.cpu().data.numpy()
                 
         
-        if task == p.CLASSIFICATION or task == p.DUAL or task == p.TRAJECTORYPRED:
-            if p.MAN_DEC_OUT:
-                avg_lc_loss += lc_loss.data/(len(test_loader))
-                avg_enc_lc_loss += enc_lc_loss.data/(len(test_loader))
-            else:
-                avg_lc_loss = 0
-                avg_enc_lc_loss = 0
-        if task == p.TRAJECTORYPRED:
-            all_traj_preds[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size)] = traj_pred.cpu().data
-            all_traj_labels[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size)] = data_tuple[-1].cpu().data
+        
+        if p.MAN_DEC_OUT:
+            avg_lc_loss += lc_loss.data/(len(test_loader))
+            avg_enc_lc_loss += enc_lc_loss.data/(len(test_loader))
+        else:
+            avg_lc_loss = 0
+            avg_enc_lc_loss = 0
+        
+        all_traj_preds[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size)] = traj_pred.cpu().data
+        all_traj_labels[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size)] = data_tuple[-1].cpu().data
 
-            if p.MAN_DEC_OUT:
-                all_man_preds[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size)] = man_pred[:,0].cpu().data
-            all_man_labels[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size)] = label_onehot.cpu().data
+        if p.MAN_DEC_OUT:
+            all_man_preds[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size)] = man_pred[:,0].cpu().data
+        all_man_labels[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size)] = label_onehot.cpu().data
 
         if p.SELECTED_MODEL == 'REGIONATTCNN3':
             all_att_coef[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size)] = output_dict['attention'].cpu().data
@@ -505,7 +493,7 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_d
             plot_dicts.append(plot_dict)
     
   
-    traj_metrics, man_metrics, traj_df = calc_metric(p, task, all_lc_preds, all_att_coef, all_labels, all_traj_preds, all_traj_labels, all_man_preds, all_man_labels, test_dataset.output_states_min, test_dataset.output_states_max, epoch, eval_type = eval_type, figure_name = figure_name)
+    traj_metrics, man_metrics, traj_df = calc_metric(p, all_lc_preds, all_att_coef, all_labels, all_traj_preds, all_traj_labels, all_man_preds, all_man_labels, test_dataset.output_states_min, test_dataset.output_states_max, epoch, eval_type = eval_type, figure_name = figure_name)
     accuracy, precision, recall = man_metrics
     f1=0
     FPR=0

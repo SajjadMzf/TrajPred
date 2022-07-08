@@ -47,7 +47,6 @@ def test_model_dict(p):
         traj_loss_func = training_functions.NLL_loss
     else:
         traj_loss_func = p.model_dictionary['traj loss function']()
-    task = p.model_dictionary['hyperparams']['task']
     # Instantiate Dataset: 
     tr_dataset = Dataset.LCDataset(p.TRAIN_DATASET_DIR, p.TR_DATA_FILES, 
         in_seq_len = p.IN_SEQ_LEN,
@@ -57,9 +56,8 @@ def test_model_dict(p):
         state_type = p.model_dictionary['state type'], 
         keep_plot_info= False, 
         unbalanced = p.UNBALANCED,
-        force_recalc_start_indexes = False,
-        traj_output = (task==p.TRAJECTORYPRED))
-    #val_dataset = Dataset.LCDataset(p.TRAIN_DATASET_DIR, p.VAL_DATA_FILES,  data_type = p.model_dictionary['data type'], state_type = p.model_dictionary['state type'], keep_plot_info= False, traj_output = (task==p.TRAJECTORYPRED), states_min = tr_dataset.states_min, states_max = tr_dataset.states_max, output_states_min = tr_dataset.output_states_min, output_states_max = tr_dataset.output_states_max)
+        force_recalc_start_indexes = False)
+    #val_dataset = Dataset.LCDataset(p.TRAIN_DATASET_DIR, p.VAL_DATA_FILES,  data_type = p.model_dictionary['data type'], state_type = p.model_dictionary['state type'], keep_plot_info= False, states_min = tr_dataset.states_min, states_max = tr_dataset.states_max, output_states_min = tr_dataset.output_states_min, output_states_max = tr_dataset.output_states_max)
     
     te_dataset = Dataset.LCDataset(p.TEST_DATASET_DIR, p.TE_DATA_FILES,
         in_seq_len = p.IN_SEQ_LEN,
@@ -68,7 +66,6 @@ def test_model_dict(p):
         data_type = p.model_dictionary['data type'], 
         state_type = p.model_dictionary['state type'], 
         keep_plot_info= True, 
-        traj_output = (task==p.TRAJECTORYPRED), 
         import_states = True,
         unbalanced = p.UNBALANCED,
         force_recalc_start_indexes = False,
@@ -76,32 +73,14 @@ def test_model_dict(p):
         states_max = tr_dataset.states_max,
         output_states_min = tr_dataset.output_states_min, 
         output_states_max = tr_dataset.output_states_max)
-    '''
-    print('training')
-    print(tr_dataset.states_max)
-    print(tr_dataset.states_min)
-    print('validation')
-    print(val_dataset.states_max)
-    print(val_dataset.states_min)
-    print('test')
-    print(te_dataset.states_max)
-    print(te_dataset.states_min)
-    exit()
-    '''
+    
     # Evaluate:
-    te_result_dic, traj_df = training_functions.eval_top_func(p, model, lc_loss_func, traj_loss_func, task, te_dataset, device)
+    te_result_dic, traj_df = training_functions.eval_top_func(p, model, lc_loss_func, traj_loss_func, te_dataset, device)
     
 
 if __name__ == '__main__':
 
-    '''
-    p = params.Parameters(SELECTED_MODEL = 'CONSTANT_PARAMETER', SELECTED_DATASET = 'HIGHD', UNBALANCED = False, ABLATION = False)
-
    
-    p.model_dictionary['hyperparams']['task'] = p.TRAJECTORYPRED
-    p.model_dictionary['state type'] = 'ours' #it has to be ours for constant parameter model
-    test_model_dict(model_dict, p)
-    '''
     #torch.cuda.empty_cache()
     #p = params.ParametersHandler('Constant_Parameter.yaml', 'highD.yaml', './config')
     p = params.ParametersHandler('ManouvreTransformerTraj.yaml', 'highD.yaml', './config')

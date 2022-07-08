@@ -15,7 +15,6 @@ class LCDataset(Dataset):
     end_of_seq_skip_len,
     state_type = '', 
     keep_plot_info = True, 
-    traj_output = False, 
     states_min = 0, 
     states_max = 0, 
     unbalanced = False,
@@ -34,7 +33,6 @@ class LCDataset(Dataset):
         self.dataset_size = 0
         self.state_data_name = 'state_'+ state_type + '_data'
         self.data_type= data_type
-        self.traj_output = traj_output
         self.in_seq_len = in_seq_len
         self.out_seq_len = out_seq_len
         self.end_of_seq_skip_len = end_of_seq_skip_len
@@ -73,15 +71,12 @@ class LCDataset(Dataset):
             self.states_min = 0
             self.states_max = 1
         
-        if traj_output:
-            if import_states == True:
-                self.output_states_min = output_states_min
-                self.output_states_max = output_states_max
-            else:
-                self.output_states_min, self.output_states_max = self.get_features_range('output_states_data')
+        
+        if import_states == True:
+            self.output_states_min = output_states_min
+            self.output_states_max = output_states_max
         else:
-            self.output_states_min = 0
-            self.output_states_max = 1
+            self.output_states_min, self.output_states_max = self.get_features_range('output_states_data')
 
     def __len__(self):
         return self.dataset_size
@@ -225,21 +220,14 @@ class LCDataset(Dataset):
                 images = torch.from_numpy(image_data[start_index:(start_index+self.in_seq_len)].astype(np.float32))
                 states = torch.from_numpy(states.astype(np.float32))
                 data_output = [images, states]
-            if self.traj_output:
-                output_state_data = f['output_states_data']
-                output_states = output_state_data[(start_index):(start_index+self.total_seq_len)]
-                output_states = (output_states-self.output_states_min)/(self.output_states_max-self.output_states_min)
-                #label = np.absolute(labels_data[(start_index+self.in_seq_len-1):(start_index+self.total_seq_len)]).astype(np.long)
-                #print('label:{}'.format(label.shape))
-                #print('output_states:{}')
-                #label = np.expand_dims(label, axis = -1)
-                #print_shape('label',label)
-                #print_shape('output_states',output_states)
-                #exit()
-                #output_states = np.concatenate((output_states, label), axis = -1)
-                output_states = torch.from_numpy(output_states.astype(np.float32))
-                #label = torch.from_numpy(label)
-                data_output.append(output_states)
+            
+            output_state_data = f['output_states_data']
+            output_states = output_state_data[(start_index):(start_index+self.total_seq_len)]
+            output_states = (output_states-self.output_states_min)/(self.output_states_max-self.output_states_min)
+            
+            output_states = torch.from_numpy(output_states.astype(np.float32))
+            #label = torch.from_numpy(label)
+            data_output.append(output_states)
                 
 
             label = np.absolute(labels_data[(start_index):(start_index+self.total_seq_len)].astype(np.long))
