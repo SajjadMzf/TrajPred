@@ -135,7 +135,7 @@ if __name__ == '__main__':
     #        'classifier dim': 128,
     #        'head number': 8,
     #torch.cuda.empty_cache()
-    
+    '''
     tuning_experiment_name = 'different model parameters for transformer traj non man_based'
     selected_params = ['experiment_tag', 'DEBUG_MODE', 
                         'MAN_DEC_IN', 
@@ -145,8 +145,8 @@ if __name__ == '__main__':
                         'model[\'hyperparams\'][\'head number\']',
                          ]
     selected_metrics = ['FDE_table', 'RMSE_table']
-    
-    p = params.ParametersHandler(''ManouvreTransformerTraj.yaml'', 'highD.yaml', './config')
+    '''
+    p = params.ParametersHandler('ManouvreTransformerTraj.yaml', 'highD.yaml', './config')
     #1
     train_model_dict(p)
     

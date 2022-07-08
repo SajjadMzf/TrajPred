@@ -10,6 +10,25 @@ from mpl_toolkits.mplot3d import Axes3D
 import read_csv as rc
 import param as p
 import torch
+
+from time import time
+import random
+
+import torch
+import torch.utils.data as utils_data
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
+
+import sys
+sys.path.insert(1,'../')
+import Dataset 
+import models 
+import params 
+import training_functions 
+
+
+
 class BEVPlotter:
     """This class is for plotting results).
     """
@@ -34,7 +53,7 @@ class BEVPlotter:
         self.traj_vis_dir = "../../SAMPLE/" + p.model_name + "/traj_vis"
         if not os.path.exists(self.traj_vis_dir):
             os.makedirs(self.traj_vis_dir)
-
+        #print(torch.cuda.is_available())
         with open(self.result_file, 'rb') as handle:
             self.scenarios = pickle.load(handle)
 
@@ -69,7 +88,7 @@ class BEVPlotter:
                 sorted_scenarios_dict[sorted_index]['traj_labels'].append(scenario['traj_labels'][batch_itr])
                 sorted_scenarios_dict[sorted_index]['traj_preds'].append(scenario['traj_preds'][batch_itr])
                 sorted_scenarios_dict[sorted_index]['frames'].append(scenario['frames'][batch_itr])
-                sorted_scenarios_dict[sorted_index]['input_features'].append(scenario['input_fetures'][batch_itr])
+                sorted_scenarios_dict[sorted_index]['input_features'].append(scenario['input_features'][batch_itr])
                 
                 
         
@@ -85,9 +104,30 @@ class BEVPlotter:
             sorted_scenarios_dict[i]['frames'] = [sorted_scenarios_dict[i]['frames'][indx] for indx in sorted_indxs]
             sorted_scenarios_dict[i]['input_features'] = [sorted_scenarios_dict[i]['input_features'][indx] for indx in sorted_indxs]
             
+        self.in_seq_len = in_seq_len
+        self.tgt_seq_len = tgt_seq_len
         return sorted_scenarios_dict
     
-    def whatif_render(self, scenario_number, wif_man):
+    def whatif_render(self, dl_params,  scenario_number, wif_man):
+        if torch.cuda.is_available() and dl_params.CUDA:
+            self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+            torch.cuda.manual_seed_all(0)
+        else:
+            self.device = torch.device("cpu")
+                
+        torch.manual_seed(1)
+        torch.cuda.manual_seed_all(1)
+        torch.backends.cudnn.deterministic = True
+        np.random.seed(1)
+        random.seed(1)
+
+        # Instantiate Model:
+        
+        model = dl_params.model_dictionary['ref'](1, self.device, dl_params.model_dictionary['hyperparams'], dl_params)
+        model = model.to(self.device)
+        best_model_path = '../'+dl_params.MODELS_DIR + dl_params.experiment_tag + '.pt'
+        model.load_state_dict(torch.load(best_model_path))
+
         sorted_dict = self.sort_scenarios()
         plotted_data_number = 0
         
@@ -104,13 +144,61 @@ class BEVPlotter:
             traj_preds = sorted_dict[scenario_number]['traj_preds'][j]
             frames = sorted_dict[scenario_number]['frames'][j]
             input_features = sorted_dict[scenario_number]['input_features'][j]
+
+            initial_traj = traj_labels[self.in_seq_len-1:self.in_seq_len]
+            initial_traj = (initial_traj-traj_min)/(traj_max-traj_min)
+            wif_traj_pred = self.eval_model(dl_params, model, input_features, initial_traj, wif_man)
+            wif_traj_pred = wif_traj_pred*(traj_max-traj_min) + traj_min
+
             scenario_tuple = (man_labels, man_preds, enc_man_preds, traj_labels, traj_preds, frames, data_file)
-            self.render_single_scenario(tv_id, scenario_tuple, plotted_data_number, summary_image =True)
+            self.render_single_scenario(scenario_number, tv_id, scenario_tuple, plotted_data_number, summary_image =True, wif_man = wif_man[1:], wif_traj = wif_traj_pred)
             plotted_data_number += 1
             print("Scene Number: {}".format(plotted_data_number))
-            if plotted_data_number >= self.num_output:
-                break
+            
         
+    def eval_model(self,dl_params, model, input_features, initial_traj, wif_man):
+        wif_man = torch.from_numpy(wif_man)
+
+        wif_man = torch.unsqueeze(wif_man, dim =0)
+        x = input_features
+        x = torch.unsqueeze(x, dim = 0) #batch dim
+        y = torch.from_numpy(initial_traj) 
+        y = torch.unsqueeze(y, dim = 0) #batch dim
+        x = x.to(self.device)
+        y = y.to(self.device)
+        wif_man = wif_man.to(self.device)
+        wif_man_one_hot = F.one_hot(wif_man, num_classes =3)
+        y = torch.cat((y, wif_man_one_hot[:,0:1]), dim =-1) # TODO this has to be replaced by predicted man label by encoder
+            
+        y = torch.stack((y,y,y), dim = 1) #mm
+        
+
+        for seq_itr in range(self.tgt_seq_len):
+            output_dict = model(x = x, y = y, y_mask = model.get_y_mask(y.size(2)).to(self.device))
+            traj_dist_pred = output_dict['traj_pred']
+            traj_dist_pred = traj_dist_pred[:,:,seq_itr:seq_itr+1]
+            enc_man_pred = output_dict['enc_man_pred']
+            #if seq_itr == 0:
+            #    current_man_pred = torch.argmax(enc_man_pred, dim = -1)
+            #else:
+            #    current_man_pred = torch.argmax(man_pred[:,seq_itr-1], dim = -1)
+            selected_traj_pred = traj_dist_pred[:,wif_man[0,seq_itr+1],:,:2]
+            if dl_params.MAN_DEC_OUT==True:
+                #man_pred_dec_in = man_pred[:,seq_itr:(seq_itr+1)]
+                #man_pred_dec_in = F.one_hot(torch.argmax(man_pred_dec_in, dim = -1), num_classes = 3) 
+                #man_pred_dec_in = torch.unsqueeze(man_pred_dec_in, dim = 1)
+                #print_shape('traj_pred_dec_in', traj_pred_dec_in)
+                #print_shape('man_pred_dec_in', man_pred_dec_in)
+                selected_traj_pred = torch.cat((selected_traj_pred, wif_man_one_hot[:,(seq_itr+1):(seq_itr+2)]), dim = -1)
+                selected_traj_pred = torch.stack([selected_traj_pred, selected_traj_pred, selected_traj_pred], dim =1)
+            else:
+                print('Not supported')
+            y = torch.cat((y, selected_traj_pred), dim = 2)
+            #selected_traj_pred = torch.stack([selected_traj_pred,selected_traj_pred,selected_traj_pred], dim = )
+        y = y[0,0,1:,:2]
+        return y.cpu().detach().numpy()
+
+
     def iterative_render(self):
         sorted_dict = self.sort_scenarios()
         plotted_data_number = 0
@@ -126,7 +214,7 @@ class BEVPlotter:
                 traj_preds = sorted_dict[i]['traj_preds'][j]
                 frames = sorted_dict[i]['frames'][j]
                 scenario_tuple = (man_labels, man_preds, enc_man_preds, traj_labels, traj_preds, frames, data_file)
-                self.render_single_scenario(tv_id, scenario_tuple, plotted_data_number, summary_image =True)
+                self.render_single_scenario(i, tv_id, scenario_tuple, plotted_data_number, summary_image =True)
                 plotted_data_number += 1
                 print("Scene Number: {}".format(plotted_data_number))
                 if plotted_data_number >= self.num_output:
@@ -136,7 +224,7 @@ class BEVPlotter:
         return plotted_data_number
 
 
-    def render_single_scenario(self, tv_id, scenario_tuple, scenario_number, summary_image):
+    def render_single_scenario(self, scenario_number, tv_id, scenario_tuple, plot_number, summary_image, wif_man = [], wif_traj = []):
         (man_labels, man_preds, enc_man_preds, traj_labels, traj_preds, frames, data_file) = scenario_tuple
         enc_man_preds = self.softmax(enc_man_preds)
         for i in range(man_preds.shape[0]):
@@ -153,15 +241,15 @@ class BEVPlotter:
         self.frames_data, image_width = rc.read_track_csv(track_path, pickle_path, group_by = 'frames', reload = False, fr_div = self.fr_div)
         self.statics = rc.read_static_info(static_path)
         prev_data_file = data_file
-        self.image_width = int(image_width*p.IMAGE_SCALE )
-        self.image_height = int(self.metas[rc.LOWER_LANE_MARKINGS][-1]*p.IMAGE_SCALE + p.BORDER_PIXELS)
+        self.image_width = int(image_width*p.X_IMAGE_SCALE )
+        self.image_height = int(self.metas[rc.LOWER_LANE_MARKINGS][-1]*p.Y_IMAGE_SCALE + p.BORDER_PIXELS)
 
         driving_dir = self.statics[tv_id][rc.DRIVING_DIRECTION]
                         
         #self.plot_overview(man_labels, man_preds, traj_labels,traj_preds, plotted_data_number)
         traj_imgs = []
         tv_track = []
-        tv_future_track = ([],[])
+        tv_future_track = ([],[], [])
         tv_lane_ind = None
         for fr in range(in_seq_len+tgt_seq_len):
             frame = frames[fr]
@@ -180,7 +268,9 @@ class BEVPlotter:
                 in_seq_len,
                 tv_track =  tv_track,
                 tv_lane_ind = tv_lane_ind,
-                tv_future_track = tv_future_track
+                tv_future_track = tv_future_track,
+                wif_man = wif_man,
+                wif_traj = wif_traj
                 )
             if not summary_image:
                 traj_imgs.append(traj_img)
@@ -189,14 +279,14 @@ class BEVPlotter:
                 break
         
         traj_imgs = np.array(traj_imgs)
-        scenario_id = '{}_{}_{}'.format(data_file, tv_id, scenario_number)
+        scenario_id = 'File{}_TV{}_SN{}_PN{}'.format(data_file, tv_id, scenario_number, plot_number)
         self.save_image_sequence(p.model_name, traj_imgs, self.traj_vis_dir,scenario_id , summary_image)
         
     
     def render_scenarios(self)-> "Number of rendered and saved scenarios":
         plotted_data_number = 0
         prev_data_file = -1
-        for _, scenario in enumerate(self.scenarios):
+        for i, scenario in enumerate(self.scenarios):
             for batch_itr, tv_id in enumerate(scenario['tv']):
                 man_labels = scenario['man_labels'][batch_itr]
                 man_preds = scenario['man_preds'][batch_itr]
@@ -206,7 +296,7 @@ class BEVPlotter:
                 frames = scenario['frames'][batch_itr]
                 data_file = int(scenario['data_file'][batch_itr].split('.')[0])
                 scenario_tuple = (man_labels, man_preds, enc_man_preds, traj_labels, traj_preds, frames, data_file)
-                self.render_single_scenario(tv_id, scenario_tuple, plotted_data_number, summary_image = False)
+                self.render_single_scenario(i, tv_id, scenario_tuple, plotted_data_number, summary_image = False)
                 plotted_data_number += 1
                 print("Scene Number: {}".format(plotted_data_number))
                 if plotted_data_number >= self.num_output:
@@ -232,7 +322,9 @@ class BEVPlotter:
         in_seq_len,
         tv_lane_ind,
         tv_track = [],
-        tv_future_track = []
+        tv_future_track = [],
+        wif_man = [],
+        wif_traj = []
         ):
         
         assert(frame_data[rc.FRAME]==frame) 
@@ -240,27 +332,27 @@ class BEVPlotter:
 
         tv_itr = np.nonzero(frame_data[rc.TRACK_ID] == tv_id)[0][0]
         
-        tv_lane_markings = self.metas[rc.UPPER_LANE_MARKINGS]*p.IMAGE_SCALE if driving_dir == 1 else self.metas[rc.LOWER_LANE_MARKINGS]*p.IMAGE_SCALE
+        tv_lane_markings = self.metas[rc.UPPER_LANE_MARKINGS]*p.Y_IMAGE_SCALE if driving_dir == 1 else self.metas[rc.LOWER_LANE_MARKINGS]*p.Y_IMAGE_SCALE
         tv_lane_markings = tv_lane_markings.astype(int)
 
         vehicle_in_frame_number = len(frame_data[rc.TRACK_ID])
         
-        corner_x = lambda itr: int(frame_data[rc.X][itr]*p.IMAGE_SCALE)
-        corner_y = lambda itr: int(frame_data[rc.Y][itr]*p.IMAGE_SCALE) 
-        veh_width = lambda itr: int(frame_data[rc.WIDTH][itr]*p.IMAGE_SCALE)
-        veh_height = lambda itr: int(frame_data[rc.HEIGHT][itr]*p.IMAGE_SCALE)
-        center_x = lambda itr: int(frame_data[rc.X][itr]*p.IMAGE_SCALE+ frame_data[rc.WIDTH][itr]*p.IMAGE_SCALE/2)
-        center_y = lambda itr: int(frame_data[rc.Y][itr]*p.IMAGE_SCALE+ frame_data[rc.HEIGHT][itr]*p.IMAGE_SCALE/2)  
-        center2corner_x = lambda center, itr: int(center - frame_data[rc.WIDTH][itr]*p.IMAGE_SCALE/2)
-        center2corner_y = lambda center, itr: int(center - frame_data[rc.HEIGHT][itr]*p.IMAGE_SCALE/2)
+        corner_x = lambda itr: int(frame_data[rc.X][itr]*p.X_IMAGE_SCALE)
+        corner_y = lambda itr: int(frame_data[rc.Y][itr]*p.Y_IMAGE_SCALE) 
+        veh_width = lambda itr: int(frame_data[rc.WIDTH][itr]*p.X_IMAGE_SCALE)
+        veh_height = lambda itr: int(frame_data[rc.HEIGHT][itr]*p.Y_IMAGE_SCALE)
+        center_x = lambda itr: int(frame_data[rc.X][itr]*p.X_IMAGE_SCALE+ frame_data[rc.WIDTH][itr]*p.X_IMAGE_SCALE/2)
+        center_y = lambda itr: int(frame_data[rc.Y][itr]*p.Y_IMAGE_SCALE+ frame_data[rc.HEIGHT][itr]*p.Y_IMAGE_SCALE/2)  
+        center2corner_x = lambda center, itr: int(center - frame_data[rc.WIDTH][itr]*p.X_IMAGE_SCALE/2)
+        center2corner_y = lambda center, itr: int(center - frame_data[rc.HEIGHT][itr]*p.Y_IMAGE_SCALE/2)
         fix_sign = lambda x: x if driving_dir ==1 else -1*x
         
 
         '''3. Draw Lines'''
         # Draw lines
         image = self.draw_lines(image, self.image_width, 
-                                (self.metas[rc.LOWER_LANE_MARKINGS]*p.IMAGE_SCALE),
-                                (self.metas[rc.UPPER_LANE_MARKINGS]*p.IMAGE_SCALE))
+                                (self.metas[rc.LOWER_LANE_MARKINGS]*p.Y_IMAGE_SCALE),
+                                (self.metas[rc.UPPER_LANE_MARKINGS]*p.Y_IMAGE_SCALE))
         
         '''Draw vehicles'''
         if not p.HIDE_SVS:
@@ -271,21 +363,26 @@ class BEVPlotter:
         image = image.astype(np.uint8)
         if seq_fr == 0:
             tv_track.append((center_x(tv_itr), center_y(tv_itr)))
-        if not p.HIDE_TVS_TRAJ_HISTORY and seq_fr>0 and seq_fr<in_seq_len:
+        else:
             initial_x = tv_track[0][0]
             initial_y = tv_track[0][1]
             dx = 0
             dy = 0
             for i in range(seq_fr):
-                dx += fix_sign(traj_labels[seq_fr,1]*p.IMAGE_SCALE)
-                dy += fix_sign(traj_labels[seq_fr,0]*p.IMAGE_SCALE)
+                dx += fix_sign(traj_labels[i,1]*p.X_IMAGE_SCALE)
+                dy += fix_sign(traj_labels[i,0]*p.Y_IMAGE_SCALE)
             tv_track.append((int(initial_x+dx), int(initial_y+dy)))
-        for i in range(len(tv_track)):
+        
+        gt_track_history_len = min(len(tv_track), in_seq_len)
+        for i in range(gt_track_history_len):
             if i ==0:
                 continue
             image = cv2.line(image, tv_track[i], tv_track[i-1], p.COLOR_CODES['GT_TRAJ'], 2)
-            image = cv2.circle(image, tv_track[i-1], 4, p.COLOR_CODES['GT_TRAJ'], -1)
+            top_left = tv_track[i-1] + np.array([-2,-2])
+            bottom_right = tv_track[i-1] + np.array([2,2])
+            image = cv2.rectangle(image, tuple(top_left), tuple(bottom_right), color = p.COLOR_CODES['GT_TRAJ'], thickness = 1)
     
+        #print('Sequence: {}, dx: {}, dy: {}, x{}, y{} '.format(seq_fr, ))
         image = self.draw_vehicle(image, center2corner_x(tv_track[-1][0], tv_itr), center2corner_y(tv_track[-1][1], tv_itr), veh_width(tv_itr), veh_height(tv_itr), p.COLOR_CODES['TV'])
         image = image.astype(np.uint8)
 
@@ -294,25 +391,41 @@ class BEVPlotter:
             #tv_gt_future_track.append((center_x(tv_itr), center_y(tv_itr)))
             tv_gt_future_track.append((tv_track[-1][0], tv_track[-1][1]))
             tv_pr_future_track = []
+            wif_future_track = []
             #tv_pr_future_track.append((center_x(tv_itr), center_y(tv_itr)))
             tv_pr_future_track.append((tv_track[-1][0], tv_track[-1][1]))
+            wif_future_track.append((tv_track[-1][0], tv_track[-1][1]))
             tgt_seq_len = traj_preds.shape[0]
             initial_x = tv_gt_future_track[-1][0]
             initial_y = tv_gt_future_track[-1][1]
             dx_gt = 0
             dy_gt = 0
             for fut_fr in range(in_seq_len, tgt_seq_len+in_seq_len):
-                dx_gt += fix_sign(traj_labels[fut_fr,1]*p.IMAGE_SCALE)
-                dy_gt += fix_sign(traj_labels[fut_fr,0]*p.IMAGE_SCALE)
+                dx_gt += fix_sign(traj_labels[fut_fr,1]*p.X_IMAGE_SCALE)
+                dy_gt += fix_sign(traj_labels[fut_fr,0]*p.Y_IMAGE_SCALE)
                 tv_gt_future_track.append((int(initial_x+dx_gt), int(initial_y+dy_gt)))
 
             dx_pr = 0
             dy_pr = 0  
             for fut_fr in range(tgt_seq_len):
-                dx_pr += fix_sign(traj_preds[fut_fr,1]*p.IMAGE_SCALE)
-                dy_pr += fix_sign(traj_preds[fut_fr,0]*p.IMAGE_SCALE)
+                dx_pr += fix_sign(traj_preds[fut_fr,1]*p.X_IMAGE_SCALE)
+                dy_pr += fix_sign(traj_preds[fut_fr,0]*p.Y_IMAGE_SCALE)
                 tv_pr_future_track.append((int(initial_x+dx_pr), int(initial_y+dy_pr)))
+            
             tv_future_track = (tv_gt_future_track, tv_pr_future_track)
+            
+            if p.WHAT_IF_RENDERING:
+                dx_wif = 0
+                dy_wif = 0  
+                for fut_fr in range(tgt_seq_len):
+                    dx_wif += fix_sign(wif_traj[fut_fr,1]*p.X_IMAGE_SCALE)
+                    dy_wif += fix_sign(wif_traj[fut_fr,0]*p.Y_IMAGE_SCALE)
+                    wif_future_track.append((int(initial_x+dx_wif), int(initial_y+dy_wif)))
+            
+            if p.WHAT_IF_RENDERING:
+                tv_future_track = (tv_gt_future_track, tv_pr_future_track, wif_future_track)
+            else:
+                tv_future_track = (tv_gt_future_track, tv_pr_future_track)  
 
 
         tv_gt_future_track = tv_future_track[0]
@@ -321,14 +434,30 @@ class BEVPlotter:
             if i ==0:
                 continue
             image = cv2.line(image, tv_gt_future_track[i], tv_gt_future_track[i-1], p.COLOR_CODES['GT_TRAJ'], 2)
-            image = cv2.circle(image, tv_gt_future_track[i-1], 4, p.COLOR_CODES['GT_TRAJ'], -1)
+            top_left = tv_gt_future_track[i-1] + np.array([-3,-3])
+            bottom_right = tv_gt_future_track[i-1] + np.array([3,3])
+            image = cv2.rectangle(image, tuple(top_left), tuple(bottom_right), color = p.COLOR_CODES['GT_TRAJ'], thickness = -1)
 
         for i in range(len(tv_pr_future_track)):
             if i ==0:
                 continue
             image = cv2.line(image, tv_pr_future_track[i], tv_pr_future_track[i-1], p.COLOR_CODES['PR_TRAJ'], 2)
-            image = cv2.circle(image, tv_pr_future_track[i-1], 4, p.COLOR_CODES['PR_TRAJ'], -1)
-                
+            image = cv2.circle(image, tv_pr_future_track[i-1], 4, p.COLOR_CODES['PR_TRAJ'], thickness = -1)
+
+        if p.WHAT_IF_RENDERING:
+            wif_future_track = tv_future_track[2]
+            for i in range(len(wif_future_track)):
+                if i ==0:
+                    continue
+                image = cv2.line(image, wif_future_track[i], wif_future_track[i-1], p.COLOR_CODES['WIF_TRAJ'], 2)
+                top = wif_future_track[i-1] + np.array([0,-2])
+                left = wif_future_track[i-1] + np.array([-2,2])
+                right = wif_future_track[i-1] + np.array([2,2])
+                pts = np.array([top, left, right])
+                pts = pts.reshape((-1, 1, 2))
+                image = cv2.polylines(image, [pts], True, p.COLOR_CODES['WIF_TRAJ'], thickness = 2)
+
+
         if tv_lane_ind is None:
             tv_lane_ind = 0
             for ind, value in reversed(list(enumerate(tv_lane_markings))):
@@ -344,18 +473,22 @@ class BEVPlotter:
             fig = plt.figure(figsize=(15, 3))
             ax = fig.add_subplot(111)
             if seq_fr>= in_seq_len-1:
-                x = np.arange(in_seq_len,in_seq_len + tgt_seq_len)
+                x = np.arange(in_seq_len+1,in_seq_len + tgt_seq_len+1)
                 y = np.argmax(man_preds,axis = 1)
-                ax.plot(x,y, 'o-')
+                ax.plot(x,y, p.MARKERS['PR_TRAJ'], color = 'red', alpha = 1)#, fillstyle = 'none', markersize=10)
+                if p.WHAT_IF_RENDERING:
+                    wif_y = wif_man
+                    ax.plot(x,wif_y, p.MARKERS['WIF_TRAJ'], color = 'green', alpha = 1)#, fillstyle = 'none', markersize=10)
             gt_x = np.arange(1, in_seq_len + tgt_seq_len+1)
             gt_y = man_labels
-            ax.plot(gt_x, gt_y)
+            ax.plot(gt_x, gt_y,p.MARKERS['GT_TRAJ'], color = 'blue', alpha = 1)#, fillstyle = 'none', markersize=10)
             plt.xlabel('Frame')
+            plt.xticks(rotation=90)
             plt.ylabel('Manouvre Label')
             ax.grid(True)
             plt.yticks([-1,0,1,2,3], ['','LK', 'RLC', 'LLC', ''])
             plt.xticks(gt_x,gt_x)
-            fig.tight_layout(pad=3)
+            fig.tight_layout(pad=1)
             #plt.show()
             #plt.close()
             man_image = mplfig_to_npimage(fig)
@@ -363,6 +496,7 @@ class BEVPlotter:
             man_bar = np.ones((man_image.shape[0]+20, image.shape[1],3), dtype = np.int32)
             man_bar[:,:,:] = p.COLOR_CODES['BACKGROUND']
             man_bar[0:man_image.shape[0], 0:man_image.shape[1], :] = man_image
+            man_bar = man_bar[:,:,[2,1,0]]
             image = np.concatenate((image, man_bar), axis = 0)
                 
         if p.PLOT_TEXTS:
@@ -466,14 +600,31 @@ class BEVPlotter:
         if not summary_image:
             video_out.release()
 
+'''
+def wif_man_encoder(sequence_length, initial_man, man_change_series):
+    wif_man = np.zeros((sequence_length+1))
+    for i in range(sequence_length):
+        
+        wif_man[i] = 
+'''
 if __name__ =="__main__":
     bev_plotter = BEVPlotter( 
         fps = p.FPS,
         result_file = p.RESULT_FILE,
         dataset_name = p.DATASET,
         num_output = p.NUM_OUTPUT)
-    if p.WHATIF_RENDERING:
-        bev_plotter.whatif_render()
+    if p.WHAT_IF_RENDERING:
+        dl_params = params.ParametersHandler('ManouvreTransformerTraj.yaml', 'highD.yaml', '../config')
+        experiment_file = '../experiments/ManouvreTransformerTraj_highD_2022-06-14 15:14:02.050065'
+        dl_params.import_experiment(experiment_file)
+        #initial_man = 0
+        #wif_man = np.array([[0,0],[1,10]])
+        #wif_man = wif_man_encoder(35, initial_man, wif_man)
+        #wif_man = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] #35 + 1
+        #wif_man = np.array(wif_man)
+        wif_man = np.ones((31), dtype=int)*2
+
+        bev_plotter.whatif_render(dl_params, scenario_number= 14, wif_man = wif_man)
     elif p.ITERATIVE_RENDERING:
         bev_plotter.iterative_render()
     else:

@@ -33,9 +33,10 @@ class ManouvreTransformerTraj(nn.Module):
         self.man_based= parameters.MAN_BASED
         self.man_dec_in = parameters.MAN_DEC_IN
         self.in_seq_len = parameters.IN_SEQ_LEN
+        self.tgt_seq_len = parameters.TGT_SEQ_LEN
         self.decoder_in_dim = 2
-        if self.multi_modal == False or self.man_dec_in == False or parameters.MAN_DEC_OUT == False:
-            print('not supported')
+        if self.multi_modal == False  or parameters.MAN_DEC_OUT == False:
+            print('single modal or no man dec out not supported')
             exit()
         if parameters.TV_ONLY:
             self.input_dim = 2
@@ -79,8 +80,9 @@ class ManouvreTransformerTraj(nn.Module):
         self.man_fc = nn.Linear(self.model_dim, 3)
         
         self.enc_man_fc1 = nn.Linear(self.in_seq_len*self.model_dim, self.classifier_dim)
-        self.enc_man_fc2 = nn.Linear(self.classifier_dim, 3)
+        self.enc_man_fc2 = nn.Linear(self.classifier_dim, 3*(self.tgt_seq_len+1)) #TODO: change back to enc man pred only
 
+        
     def forward(self, x, y, y_mask):
         #encoder
         x = self.encoder_embedding(x)
@@ -88,8 +90,10 @@ class ManouvreTransformerTraj(nn.Module):
         encoder_out = self.transformer_encoder(x)
         
         encoder_out_flattened = encoder_out.reshape(self.batch_size, self.in_seq_len*self.model_dim)
-        enc_man_pred = self.enc_man_fc2(F.relu(self.enc_man_fc1(encoder_out_flattened)))
-        
+        all_man_preds = self.enc_man_fc2(F.relu(self.enc_man_fc1(encoder_out_flattened)))
+        enc_man_pred = all_man_preds[:,:3]
+        man_pred = all_man_preds[:,3:]
+        man_pred = man_pred.reshape(self.batch_size,self.tgt_seq_len, 3)
         #traj decoder
         lk_y = self.decoder_embedding(y[:,0,:,:self.decoder_in_dim])
         lk_y = self.positional_encoder(lk_y)
@@ -116,13 +120,13 @@ class ManouvreTransformerTraj(nn.Module):
         #print_shape('decoder_out', decoder_out)
         
         # man decoder
-        man_y = y[:,0,:,:2]
+        man_y = y[:,0,:,:2] # y[:,0] = y[:,1] = y[:,2]
         man_y = self.man_decoder_embedding(man_y)
         man_y = self.positional_encoder(man_y)
         man_decoder_out = self.man_transformer_decoder(man_y, encoder_out, tgt_mask = y_mask)
 
         # man decoder linear layer
-        man_pred = self.man_fc(man_decoder_out)
+        #man_pred = self.man_fc(man_decoder_out) #ToDO uncomment back
         
         
         

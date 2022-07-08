@@ -2,20 +2,21 @@ import cv2
 DATASET = 'HIGHD'
 FPS = 5
 OCCLUSION = False
-model_name =  'ManouvreTransformerTraj_highD_2022-06-14 15:14:02.050065'
-RESULT_FILE = "../TrajPred/results/vis_data/"+ model_name +".pickle"
-WHAT_IF_RENDERING = True
-ITERATIVE_RENDERING = True
-NUM_OUTPUT = 500
+model_name =  'ManouvreTransformerTraj_highD_2022-06-28 14:55:44.049101'#'ManouvreTransformerTraj_highD_2022-06-27 14:46:40.899317'#'ManouvreTransformerTraj_highD_2022-06-14 15:14:02.050065'
+RESULT_FILE = "../results/vis_data/"+ model_name +".pickle"
+WHAT_IF_RENDERING = False
+ITERATIVE_RENDERING = False
+NUM_OUTPUT = 20
 # Actual image
 
 # TAGS:
 HIDE_SVS = False
-HIDE_TVS_TRAJ_HISTORY = False
 PLOT_TEXTS = True
 PLOT_MAN = True
 
-IMAGE_SCALE = 4
+Y_IMAGE_SCALE = 16
+X_IMAGE_SCALE = 4
+
 BORDER_PIXELS = 30
 # Texts
 FONT = cv2.FONT_HERSHEY_SIMPLEX
@@ -43,7 +44,14 @@ COLOR_CODES = {'TV': (102,6,3), #blue
             'LANE':(128,128,128),
             'GT_TRAJ':(199,12,6),
             'PR_TRAJ':(25,25,217),
+            'WIF_TRAJ':(0,150,0),
             'BACKGROUND':(235,235,235)
+}
+
+MARKERS = {
+    'GT_TRAJ': 's-',
+    'PR_TRAJ': 'o-',
+    'WIF_TRAJ': '^-'
 }
 # 0: rpv(rav), 1. pv, 2. lpv(lav), 3. rfv, 4. fv,5. lfv
 tv_dict = {
@@ -56,12 +64,12 @@ tv_dict = {
 }
 
 if DATASET == 'HIGHD':
-    track_paths = generate_paths('../../Dataset/HighD/Tracks/', 60, '_tracks.csv')
-    frame_pickle_paths = generate_paths('../../Dataset/HighD/Pickles/', 60, '_frames.csv')
-    track_pickle_paths = generate_paths('../../Dataset/HighD/Pickles/', 60, '_tracks.csv')
-    meta_paths = generate_paths('../../Dataset/HighD/Metas/', 60, '_recordingMeta.csv')
-    static_paths = generate_paths('../../Dataset/HighD/Statics/', 60, '_tracksMeta.csv')
-    background_paths = generate_paths('./Backgrounds/',60, '_highway.jpg')
+    track_paths = generate_paths('../../../Dataset/HighD/Tracks/', 60, '_tracks.csv')
+    frame_pickle_paths = generate_paths('../../../Dataset/HighD/Pickles/', 60, '_frames.csv')
+    track_pickle_paths = generate_paths('../../../Dataset/HighD/Pickles/', 60, '_tracks.csv')
+    meta_paths = generate_paths('../../../Dataset/HighD/Metas/', 60, '_recordingMeta.csv')
+    static_paths = generate_paths('../../../Dataset/HighD/Statics/', 60, '_tracksMeta.csv')
+    #background_paths = generate_paths('./Backgrounds/',60, '_highway.jpg')
 elif DATASET == 'FNGSIM':
     track_paths = ['../../Dataset/FNGSIM/Traj_data/track_trajectories-0400-0415.csv',
                     '../../Dataset/FNGSIM/Traj_data/track_trajectories-0500-0515.csv',

@@ -356,8 +356,8 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_d
         if task == p.TRAJECTORYPRED and 'TRANSFORMER_TRAJ' in p.SELECTED_MODEL:
             label_dec_in = label_dec_in[:,:1] # initialise decoder with one timestep before prediction window.
             target_data_in = target_data[:,:1] #initalise target data input to transformer decoder with the first element of target data
-            if p.MAN_DEC_IN:
-                target_data_in = torch.cat((target_data_in, label_dec_in), dim =-1) # TODO this has to be replaced by predicted man label by encoder
+            
+            target_data_in = torch.cat((target_data_in, label_dec_in), dim =-1) # TODO this has to be replaced by predicted man label by encoder
             target_data_in = torch.stack([target_data_in,target_data_in,target_data_in], dim = 1) #multi-modal
             
             for out_seq_itr in range(p.TGT_SEQ_LEN):
@@ -369,23 +369,23 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_d
                 
                 man_pred = output_dict['man_pred']
                 #print_shape('man_pred', man_pred)
-                man_pred_current_ts = torch.argmax(man_pred[:,out_seq_itr], dim = -1)        
+                if out_seq_itr == 0:
+                    man_pred_current_ts = torch.argmax(enc_man_pred, dim= -1)
+                else:
+                    man_pred_current_ts = torch.argmax(man_pred[:,out_seq_itr-1], dim = -1)        
                 if p.MULTI_MODAL:
                     manouvre_index = man_pred_current_ts 
                 else:
                     manouvre_index = torch.zeros_like(man_pred_current_ts)
-                #print_shape('traj_pred', traj_pred)
-                #print_shape('manouvre_index', manouvre_index)
+                
                 traj_pred_dec_in = traj_pred[np.arange(traj_pred.shape[0]),manouvre_index,:,:2] #only the muX and muY [batch, modal, sequence, feature]
                 traj_pred_dec_in = torch.unsqueeze(traj_pred_dec_in, dim = 1)
-                if p.MAN_DEC_IN==True and p.MAN_DEC_OUT==True:
+                if p.MAN_DEC_OUT==True:
                     man_pred_dec_in = man_pred[:,out_seq_itr:(out_seq_itr+1)]
                     man_pred_dec_in = F.one_hot(torch.argmax(man_pred_dec_in, dim = -1), num_classes = 3) 
                     man_pred_dec_in = torch.unsqueeze(man_pred_dec_in, dim = 1)
-                    #print_shape('traj_pred_dec_in', traj_pred_dec_in)
-                    #print_shape('man_pred_dec_in', man_pred_dec_in)
                     traj_pred_dec_in = torch.cat((traj_pred_dec_in, man_pred_dec_in), dim = -1)
-                elif p.MAN_DEC_IN==True and p.MAN_DEC_OUT == False: #not realistic, only to see if feeding gt manouvres will help or not
+                elif p.MAN_DEC_OUT == False: #not realistic, only to see if feeding gt manouvres will help or not
                     man_pred_dec_in = label_onehot[:,(out_seq_itr+1):(out_seq_itr+2)]
                     man_pred_dec_in = torch.unsqueeze(man_pred_dec_in, dim = 1)
                     traj_pred_dec_in = torch.cat((traj_pred_dec_in, man_pred_dec_in,1), dim = -1)
@@ -400,7 +400,8 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_d
                     predicted_data_dist = torch.cat((predicted_data_dist, traj_pred[np.arange(traj_pred.shape[0]),manouvre_index]), dim=1)
             
             traj_pred = target_data_in[:,:,1:,:2]
-            man_pred = target_data_in[:,:,1:,2:]   
+            man_pred = torch.unsqueeze(man_pred, dim = 1)
+            #man_pred = target_data_in[:,:,1:,2:] #this is not correct since target_data_in has one_hot of man pred  
 
         elif task == p.TRAJECTORYPRED and p.SELECTED_MODEL== 'CONSTANT_PARAMETER':
             target_data_in = target_data
@@ -439,6 +440,8 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_d
             traj_pred = traj_pred[:,0]
             traj_loss = traj_loss_func(predicted_data_dist, target_data_out)/len(test_loader) 
             if p.MAN_DEC_OUT:
+                #print_shape('man_pred', man_pred)
+                #print_shape('target_labels', target_labels)
                 lc_loss = lc_loss_func(man_pred[:,0].reshape(-1,3), target_labels.reshape(-1))
                 enc_lc_loss = lc_loss_func(enc_man_pred.reshape(-1,3), enc_target_label.reshape(-1))
             else:
@@ -459,7 +462,7 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, task, test_loader, test_d
                 traj_max = test_dataset.output_states_max
                 x_y_dist_pred = traj_pred
                 x_y_pred = traj_pred[:,:,:2]
-                x_y_label = target_data
+                x_y_label = data_tuple[-1]
                 unnormalised_traj_pred = x_y_pred.cpu().data*(traj_max-traj_min) + traj_min
                 unnormalised_traj_label = x_y_label.cpu().data*(traj_max-traj_min) + traj_min
                 plot_dict['input_features'] = in_data_tuple
