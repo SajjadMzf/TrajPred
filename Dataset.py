@@ -111,18 +111,16 @@ class LCDataset(Dataset):
         sample_start_indx_file = data_file.replace('.h5', '_start_indx_{}_{}_{}.npy'.format(in_seq_len, out_seq_len, end_of_seq_skip_len))
         if force_recalc or (not os.path.exists(sample_start_indx_file)):
             samples_start_index = []
-            print('Saving file: {}'.format(sample_start_indx_file))
             with h5py.File(data_file, 'r') as f:
                 tv_ids = f['tv_data']
                 len_scenario = tv_ids.shape[0]
                 for itr, tv_id in enumerate(tv_ids):
                     if (itr+in_seq_len+out_seq_len+end_of_seq_skip_len) <= len_scenario:
                         if np.all(tv_ids[itr:(itr+in_seq_len+out_seq_len+end_of_seq_skip_len)] == tv_id):
-                            samples_start_index.append(itr)
-                        else:
-                            raise(ValueError('TV ID was not consistent'))           
+                            samples_start_index.append(itr)         
             samples_start_index = np.array(samples_start_index)
             np.save(sample_start_indx_file, samples_start_index)
+            print('Saving file: {}'.format(sample_start_indx_file))
         else:
             #print('loading {}'.format(sample_start_indx_file))
             samples_start_index = np.load(sample_start_indx_file)

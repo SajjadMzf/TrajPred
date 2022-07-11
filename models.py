@@ -29,7 +29,6 @@ class ManouvreTransformerTraj(nn.Module):
         self.multi_modal = parameters.MULTI_MODAL
         
         self.prob_output = hyperparams_dict['probabilistic output']
-        self.man_based= parameters.MAN_BASED
         self.man_dec_in = parameters.MAN_DEC_IN
         self.in_seq_len = parameters.IN_SEQ_LEN
         self.tgt_seq_len = parameters.TGT_SEQ_LEN
@@ -79,20 +78,31 @@ class ManouvreTransformerTraj(nn.Module):
         self.man_fc = nn.Linear(self.model_dim, 3)
         
         self.enc_man_fc1 = nn.Linear(self.in_seq_len*self.model_dim, self.classifier_dim)
-        self.enc_man_fc2 = nn.Linear(self.classifier_dim, 3*(self.tgt_seq_len+1)) #TODO: change back to enc man pred only
-
+        self.enc_man_fc2 = nn.Linear(self.classifier_dim, 3) 
+        
+        self.dec_man_fc1 = nn.Linear(self.in_seq_len*self.model_dim, self.classifier_dim)
+        self.dec_man_fc2 = nn.Linear(self.classifier_dim, 3*(self.tgt_seq_len))
         
     def forward(self, x, y, y_mask):
+        
+        encoder_out, enc_man_pred = self.encoder_forward(x)
+        traj_pred, man_pred = self.decoder_forward(y, y_mask, encoder_out)
+        
+        return {'traj_pred':traj_pred, 'man_pred': man_pred, 'enc_man_pred': enc_man_pred}
+    
+    def encoder_forward(self, x):
         #encoder
         x = self.encoder_embedding(x)
         x = self.positional_encoder(x)
         encoder_out = self.transformer_encoder(x)
-        
         encoder_out_flattened = encoder_out.reshape(self.batch_size, self.in_seq_len*self.model_dim)
-        all_man_preds = self.enc_man_fc2(F.relu(self.enc_man_fc1(encoder_out_flattened)))
-        enc_man_pred = all_man_preds[:,:3]
-        man_pred = all_man_preds[:,3:]
-        man_pred = man_pred.reshape(self.batch_size,self.tgt_seq_len, 3)
+        enc_man_pred = self.enc_man_fc2(F.relu(self.enc_man_fc1(encoder_out_flattened)))
+        
+        return encoder_out, enc_man_pred
+    
+    def decoder_forward(self, y, y_mask, encoder_out):
+        encoder_out_flattened = encoder_out.reshape(self.batch_size, self.in_seq_len*self.model_dim)
+        
         #traj decoder
         lk_y = self.decoder_embedding(y[:,0,:,:self.decoder_in_dim])
         lk_y = self.positional_encoder(lk_y)
@@ -119,18 +129,19 @@ class ManouvreTransformerTraj(nn.Module):
         #print_shape('decoder_out', decoder_out)
         
         # man decoder
+        man_pred = self.dec_man_fc2(F.relu(self.dec_man_fc1(encoder_out_flattened)))
+        man_pred = man_pred.reshape(self.batch_size,self.tgt_seq_len, 3)
+        '''
         man_y = y[:,0,:,:2] # y[:,0] = y[:,1] = y[:,2]
         man_y = self.man_decoder_embedding(man_y)
         man_y = self.positional_encoder(man_y)
         man_decoder_out = self.man_transformer_decoder(man_y, encoder_out, tgt_mask = y_mask)
 
         # man decoder linear layer
-        #man_pred = self.man_fc(man_decoder_out) #ToDO uncomment back
-        
-        
-        
-        return {'traj_pred':traj_pred, 'man_pred': man_pred, 'enc_man_pred': enc_man_pred}
-    
+        man_pred = self.man_fc(man_decoder_out) 
+        '''
+        return traj_pred, man_pred 
+
     def prob_activation_func(self,x):
        muY = x[:,:,0:1]
        muX = x[:,:,1:2]
@@ -183,7 +194,6 @@ class LSTM_EncDec(nn.Module):
         self.output_dim = 2
         self.dropout = nn.Dropout(drop_prob)
         self.tgt_seq_len = parameters.TGT_SEQ_LEN
-        self.man_based = parameters.MAN_BASED
         self.man_dec_in = parameters.MAN_DEC_IN
         self.decoder_in_dim = 2
         if parameters.TV_ONLY:
@@ -279,7 +289,6 @@ class NovelTransformerTraj(nn.Module):
         self.in_seq_len = parameters.IN_SEQ_LEN
         self.input_dim = 18
         self.decoder_in_dim = 2
-        self.man_based = parameters.MAN_BASED
         self.man_dec_in = parameters.MAN_DEC_IN
 
         if self.man_dec_in:
@@ -453,8 +462,9 @@ class ConstantX(nn.Module):
         self.batch_size = batch_size
         self.device = device
         self.multi_modal = parameters.MULTI_MODAL
-        if self.multi_modal:
-            print('multi modality not supported')
+        self.man_dec_out = parameters.MAN_DEC_OUT
+        if self.multi_modal or self.man_dec_out:
+            raise(ValueError('multi modality or manouvre based outputs are not supported in ConstantX model'))
             exit()
         self.constant_parameter = hyperparams_dict['parameter']# Dimension of transformer model ()
         
@@ -517,13 +527,9 @@ class ConstantX(nn.Module):
         traj_pred = (traj_pred-output_states_min)/(output_states_max-output_states_min)
         
         labels = torch.zeros_like(traj_pred)
-        #traj_pred = torch.cat((traj_pred, labels[:,:,0:1]), dim = -1)
-        #traj_pred *= traj_labels[:,0:1,:].to(self.device)
-        #print('traj label')
-        #print(traj_labels[0])
-        #print(self.traj_pred[0])
-        #exit()
-        return {'traj_pred':traj_pred.to(self.device),'man_pred':torch.zeros((traj_pred.shape[0],traj_pred.shape[1],3), device=self.device)}
+        return {'traj_pred':traj_pred.to(self.device),
+        'man_pred':torch.zeros((traj_pred.shape[0],traj_pred.shape[1],3), device=self.device),
+        'enc_man_pred': torch.zeros((traj_pred.shape[0],3), device = self.device)}
 
 class TransformerTraj(nn.Module): 
     def __init__(self, batch_size, device, hyperparams_dict, parameters, drop_prob = 0.1):
@@ -542,7 +548,6 @@ class TransformerTraj(nn.Module):
             print('multi modality not supported')
             exit()
         self.prob_output = hyperparams_dict['probabilistic output']
-        self.man_based= parameters.MAN_BASED
         self.man_dec_in = parameters.MAN_DEC_IN
         self.in_seq_len = parameters.IN_SEQ_LEN
         self.decoder_in_dim = 2
