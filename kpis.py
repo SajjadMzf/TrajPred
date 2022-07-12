@@ -66,8 +66,6 @@ def calc_traj_metrics(p,
     #denormalise
     traj_preds = traj_preds*(traj_max-traj_min) + traj_min
     traj_labels = traj_labels*(traj_max-traj_min) + traj_min
-    
-    
     #from diff to actual
     traj_preds = np.cumsum(traj_preds, axis = 1)
     traj_labels = np.cumsum(traj_labels, axis = 1)

@@ -215,9 +215,11 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, traj
             traj_pred = selected_traj_pred
             #print_shape('traj_pred', traj_pred)
         else:
-            traj_pred = torch.squeeze(traj_pred, dim =1)
+            traj_pred = traj_pred[:,0]
 
-        traj_loss = traj_loss_func(traj_pred, traj_gt)#/len(train_loader)  #TODO: seperate loss function for traj and label
+        #print_shape('traj_pred',traj_pred)
+        #print_shape('traj_gt',traj_gt)
+        traj_loss = traj_loss_func(traj_pred, traj_gt)
         
         if p.MAN_DEC_OUT:
             lc_loss = lc_loss_func(man_pred.reshape(-1,3), dec_man_gt.reshape(-1))
@@ -351,9 +353,14 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, test_loader, test_dataset
                 if p.MULTI_MODAL:
                     manouvre_index = current_man_pred[:,0] 
                 else:
-                    manouvre_index = torch.zeros_like(man_pred_current_ts)
+                    manouvre_index = torch.zeros_like(current_man_pred[:,0] )
+                #print_shape('current_traj_pred', current_traj_pred)
+                #print_shape('manouvre_index', manouvre_index)
                 current_traj_pred = current_traj_pred[np.arange(current_traj_pred.shape[0]),manouvre_index,:,:2] #only the muX and muY [batch, modal, sequence, feature]
                 current_man_pred = F.one_hot(current_man_pred, num_classes = 3) 
+                
+                #print_shape('current_traj_pred', current_traj_pred)
+                #print_shape('current_man_pred', current_man_pred)
                 
                 current_decoder_input = torch.cat((current_traj_pred, current_man_pred), dim = -1)
                 current_decoder_input = torch.unsqueeze(current_decoder_input, dim = 1)
@@ -413,15 +420,17 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, test_loader, test_dataset
         if eval_type == 'Test':
             traj_min = test_dataset.output_states_min
             traj_max = test_dataset.output_states_max
-            x_y_dist_pred = traj_pred
+            x_y_dist_pred = predicted_data_dist
+            #print_shape('predicted_data_dist', predicted_data_dist)
+            #exit()
             x_y_pred = traj_pred[:,:,:2]
             x_y_label = data_tuple[-1]
             unnormalised_traj_pred = x_y_pred.cpu().data*(traj_max-traj_min) + traj_min
             unnormalised_traj_label = x_y_label.cpu().data*(traj_max-traj_min) + traj_min
             plot_dict['input_features'] = encoder_input
             plot_dict['traj_labels'] = unnormalised_traj_label.numpy()
-            plot_dict['traj_preds']= unnormalised_traj_pred.numpy()
-            plot_dict['traj_dist_preds'] = x_y_dist_pred.cpu().data.numpy()
+            plot_dict['traj_preds']= unnormalised_traj_pred.numpy() #TODO: remove traj pred and use traj_dist_preds instead
+            plot_dict['traj_dist_preds'] = x_y_dist_pred.cpu().data.numpy()# TODO: export unnormalised dist
             plot_dict['man_labels'] = labels.cpu().data.numpy()
             plot_dict['man_preds'] = man_pred.cpu().data.numpy()
             plot_dict['enc_man_preds'] = enc_man_pred.cpu().data.numpy()

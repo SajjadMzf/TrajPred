@@ -10,6 +10,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import read_csv as rc
 import param as p
 import torch
+from scipy.stats import multivariate_normal
 
 from time import time
 import random
@@ -67,7 +68,7 @@ class BEVPlotter:
                     tv_id_file_list.append((data_file,tv_id))
                     sorted_scenarios_dict.append({'tv': tv_id,
                                                 'data_file':data_file,
-                                                'traj_min': scenario['traj_min'],
+                                                'traj_min': scenario['traj_min'],# Assuming traj min and max are the same for all scenarios
                                                 'traj_max':scenario['traj_max'],
                                                 'input_features': [],
                                                 'times':[], 
@@ -75,7 +76,8 @@ class BEVPlotter:
                                                 'man_preds':[], 
                                                 'enc_man_preds':[], 
                                                 'traj_labels':[], 
-                                                'traj_preds':[], 
+                                                'traj_preds':[],
+                                                'traj_dist_preds':[], 
                                                 'frames':[],
                                                 })
                 in_seq_len = scenario['man_labels'].shape[1]-scenario['man_preds'].shape[1]
@@ -87,6 +89,7 @@ class BEVPlotter:
                 sorted_scenarios_dict[sorted_index]['enc_man_preds'].append(scenario['enc_man_preds'][batch_itr])
                 sorted_scenarios_dict[sorted_index]['traj_labels'].append(scenario['traj_labels'][batch_itr])
                 sorted_scenarios_dict[sorted_index]['traj_preds'].append(scenario['traj_preds'][batch_itr])
+                sorted_scenarios_dict[sorted_index]['traj_dist_preds'].append(scenario['traj_dist_preds'][batch_itr])
                 sorted_scenarios_dict[sorted_index]['frames'].append(scenario['frames'][batch_itr])
                 sorted_scenarios_dict[sorted_index]['input_features'].append(scenario['input_features'][batch_itr])
                 
@@ -101,6 +104,7 @@ class BEVPlotter:
             sorted_scenarios_dict[i]['enc_man_preds'] = [sorted_scenarios_dict[i]['enc_man_preds'][indx] for indx in sorted_indxs]
             sorted_scenarios_dict[i]['traj_labels'] = [sorted_scenarios_dict[i]['traj_labels'][indx] for indx in sorted_indxs]
             sorted_scenarios_dict[i]['traj_preds'] = [sorted_scenarios_dict[i]['traj_preds'][indx] for indx in sorted_indxs]
+            sorted_scenarios_dict[i]['traj_dist_preds'] = [sorted_scenarios_dict[i]['traj_dist_preds'][indx] for indx in sorted_indxs]
             sorted_scenarios_dict[i]['frames'] = [sorted_scenarios_dict[i]['frames'][indx] for indx in sorted_indxs]
             sorted_scenarios_dict[i]['input_features'] = [sorted_scenarios_dict[i]['input_features'][indx] for indx in sorted_indxs]
             
@@ -141,7 +145,11 @@ class BEVPlotter:
             man_preds = sorted_dict[scenario_number]['man_preds'][j]
             enc_man_preds = sorted_dict[scenario_number]['enc_man_preds'][j]
             traj_labels = sorted_dict[scenario_number]['traj_labels'][j]
-            traj_preds = sorted_dict[scenario_number]['traj_preds'][j]
+            if p.PROBABILISTIC_PLOT:
+                traj_preds = sorted_dict[scenario_number]['traj_dist_preds'][j]
+                traj_preds[:,:2] = traj_preds[:,:2]*(traj_max-traj_min) + traj_min
+            else:
+                traj_preds = sorted_dict[scenario_number]['traj_preds'][j]
             frames = sorted_dict[scenario_number]['frames'][j]
             input_features = sorted_dict[scenario_number]['input_features'][j]
 
@@ -150,70 +158,32 @@ class BEVPlotter:
             wif_traj_pred = self.eval_model(dl_params, model, input_features, initial_traj, wif_man)
             wif_traj_pred = wif_traj_pred*(traj_max-traj_min) + traj_min
 
-            scenario_tuple = (man_labels, man_preds, enc_man_preds, traj_labels, traj_preds, frames, data_file)
+            scenario_tuple = (traj_min, traj_max, man_labels, man_preds, enc_man_preds, traj_labels, traj_preds, frames, data_file)
             self.render_single_scenario(scenario_number, tv_id, scenario_tuple, plotted_data_number, summary_image =True, wif_man = wif_man[1:], wif_traj = wif_traj_pred)
             plotted_data_number += 1
             print("Scene Number: {}".format(plotted_data_number))
             
-        
-    def eval_model(self,dl_params, model, input_features, initial_traj, wif_man):
-        wif_man = torch.from_numpy(wif_man)
-
-        wif_man = torch.unsqueeze(wif_man, dim =0)
-        x = input_features
-        x = torch.unsqueeze(x, dim = 0) #batch dim
-        y = torch.from_numpy(initial_traj) 
-        y = torch.unsqueeze(y, dim = 0) #batch dim
-        x = x.to(self.device)
-        y = y.to(self.device)
-        wif_man = wif_man.to(self.device)
-        wif_man_one_hot = F.one_hot(wif_man, num_classes =3)
-        y = torch.cat((y, wif_man_one_hot[:,0:1]), dim =-1) # TODO this has to be replaced by predicted man label by encoder
-            
-        y = torch.stack((y,y,y), dim = 1) #mm
-        
-
-        for seq_itr in range(self.tgt_seq_len):
-            output_dict = model(x = x, y = y, y_mask = model.get_y_mask(y.size(2)).to(self.device))
-            traj_dist_pred = output_dict['traj_pred']
-            traj_dist_pred = traj_dist_pred[:,:,seq_itr:seq_itr+1]
-            enc_man_pred = output_dict['enc_man_pred']
-            #if seq_itr == 0:
-            #    current_man_pred = torch.argmax(enc_man_pred, dim = -1)
-            #else:
-            #    current_man_pred = torch.argmax(man_pred[:,seq_itr-1], dim = -1)
-            selected_traj_pred = traj_dist_pred[:,wif_man[0,seq_itr+1],:,:2]
-            if dl_params.MAN_DEC_OUT==True:
-                #man_pred_dec_in = man_pred[:,seq_itr:(seq_itr+1)]
-                #man_pred_dec_in = F.one_hot(torch.argmax(man_pred_dec_in, dim = -1), num_classes = 3) 
-                #man_pred_dec_in = torch.unsqueeze(man_pred_dec_in, dim = 1)
-                #print_shape('traj_pred_dec_in', traj_pred_dec_in)
-                #print_shape('man_pred_dec_in', man_pred_dec_in)
-                selected_traj_pred = torch.cat((selected_traj_pred, wif_man_one_hot[:,(seq_itr+1):(seq_itr+2)]), dim = -1)
-                selected_traj_pred = torch.stack([selected_traj_pred, selected_traj_pred, selected_traj_pred], dim =1)
-            else:
-                print('Not supported')
-            y = torch.cat((y, selected_traj_pred), dim = 2)
-            #selected_traj_pred = torch.stack([selected_traj_pred,selected_traj_pred,selected_traj_pred], dim = )
-        y = y[0,0,1:,:2]
-        return y.cpu().detach().numpy()
-
-
     def iterative_render(self):
         sorted_dict = self.sort_scenarios()
         plotted_data_number = 0
         for i in range(len(sorted_dict)):
             tv_id = sorted_dict[i]['tv']
             data_file = sorted_dict[i]['data_file']
+            traj_min = sorted_dict[i]['traj_min']
+            traj_max = sorted_dict[i]['traj_max']
             print('TV ID: {}, List of Available Frames: {}'.format(tv_id, sorted_dict[i]['times']))
             for j,time in enumerate(sorted_dict[i]['times']):
                 man_labels = sorted_dict[i]['man_labels'][j]
                 man_preds = sorted_dict[i]['man_preds'][j]
                 enc_man_preds = sorted_dict[i]['enc_man_preds'][j]
                 traj_labels = sorted_dict[i]['traj_labels'][j]
-                traj_preds = sorted_dict[i]['traj_preds'][j]
+                if p.PROBABILISTIC_PLOT:
+                    traj_preds = sorted_dict[i]['traj_dist_preds'][j]
+                    traj_preds[:,:2] = traj_preds[:,:2]*(traj_max-traj_min) + traj_min
+                else:
+                    traj_preds = sorted_dict[i]['traj_preds'][j]
                 frames = sorted_dict[i]['frames'][j]
-                scenario_tuple = (man_labels, man_preds, enc_man_preds, traj_labels, traj_preds, frames, data_file)
+                scenario_tuple = (traj_min, traj_max, man_labels, man_preds, enc_man_preds, traj_labels, traj_preds, frames, data_file)
                 self.render_single_scenario(i, tv_id, scenario_tuple, plotted_data_number, summary_image =True)
                 plotted_data_number += 1
                 print("Scene Number: {}".format(plotted_data_number))
@@ -223,9 +193,37 @@ class BEVPlotter:
                 break 
         return plotted_data_number
 
+    def render_scenarios(self)-> "Number of rendered and saved scenarios":
+        plotted_data_number = 0
+        prev_data_file = -1
+        for i, scenario in enumerate(self.scenarios):
+            traj_min = scenario['traj_min']
+            traj_max = scenario['traj_max']
+            for batch_itr, tv_id in enumerate(scenario['tv']):
+                man_labels = scenario['man_labels'][batch_itr]
+                man_preds = scenario['man_preds'][batch_itr]
+                enc_man_preds = scenario['enc_man_preds'][batch_itr]
+                traj_labels = scenario['traj_labels'][batch_itr]
+                if p.PROBABILISTIC_PLOT:
+                    traj_preds = scenario['traj_dist_preds'][batch_itr]
+                    traj_preds[:,:2] = traj_preds[:,:2]*(traj_max-traj_min) + traj_min
+                else:
+                    traj_preds = scenario['traj_preds'][batch_itr]
+                
+                frames = scenario['frames'][batch_itr]
+                data_file = int(scenario['data_file'][batch_itr].split('.')[0])
+                scenario_tuple = (traj_min, traj_max, man_labels, man_preds, enc_man_preds, traj_labels, traj_preds, frames, data_file)
+                self.render_single_scenario(i, tv_id, scenario_tuple, plotted_data_number, summary_image = False)
+                plotted_data_number += 1
+                print("Scene Number: {}".format(plotted_data_number))
+                if plotted_data_number >= self.num_output:
+                    break
+            if plotted_data_number >= self.num_output:
+                break 
+        return plotted_data_number
 
     def render_single_scenario(self, scenario_number, tv_id, scenario_tuple, plot_number, summary_image, wif_man = [], wif_traj = []):
-        (man_labels, man_preds, enc_man_preds, traj_labels, traj_preds, frames, data_file) = scenario_tuple
+        (traj_min, traj_max, man_labels, man_preds, enc_man_preds, traj_labels, traj_preds, frames, data_file) = scenario_tuple
         enc_man_preds = self.softmax(enc_man_preds)
         for i in range(man_preds.shape[0]):
             man_preds[i] = self.softmax(man_preds[i])
@@ -264,6 +262,8 @@ class BEVPlotter:
                 enc_man_preds,
                 traj_labels,
                 traj_preds,
+                traj_min,
+                traj_max,
                 fr,
                 in_seq_len,
                 tv_track =  tv_track,
@@ -282,30 +282,6 @@ class BEVPlotter:
         scenario_id = 'File{}_TV{}_SN{}_PN{}'.format(data_file, tv_id, scenario_number, plot_number)
         self.save_image_sequence(p.model_name, traj_imgs, self.traj_vis_dir,scenario_id , summary_image)
         
-    
-    def render_scenarios(self)-> "Number of rendered and saved scenarios":
-        plotted_data_number = 0
-        prev_data_file = -1
-        for i, scenario in enumerate(self.scenarios):
-            for batch_itr, tv_id in enumerate(scenario['tv']):
-                man_labels = scenario['man_labels'][batch_itr]
-                man_preds = scenario['man_preds'][batch_itr]
-                enc_man_preds = scenario['enc_man_preds'][batch_itr]
-                traj_labels = scenario['traj_labels'][batch_itr]
-                traj_preds = scenario['traj_preds'][batch_itr]
-                frames = scenario['frames'][batch_itr]
-                data_file = int(scenario['data_file'][batch_itr].split('.')[0])
-                scenario_tuple = (man_labels, man_preds, enc_man_preds, traj_labels, traj_preds, frames, data_file)
-                self.render_single_scenario(i, tv_id, scenario_tuple, plotted_data_number, summary_image = False)
-                plotted_data_number += 1
-                print("Scene Number: {}".format(plotted_data_number))
-                if plotted_data_number >= self.num_output:
-                    break
-            if plotted_data_number >= self.num_output:
-                break 
-        return plotted_data_number
-
-
     def plot_frame(
         self, 
         file_num:'File Number',
@@ -318,6 +294,8 @@ class BEVPlotter:
         enc_man_preds,
         traj_labels,
         traj_preds,
+        traj_min,
+        traj_max,
         seq_fr:'frame sequence',
         in_seq_len,
         tv_lane_ind,
@@ -385,7 +363,7 @@ class BEVPlotter:
         #print('Sequence: {}, dx: {}, dy: {}, x{}, y{} '.format(seq_fr, ))
         image = self.draw_vehicle(image, center2corner_x(tv_track[-1][0], tv_itr), center2corner_y(tv_track[-1][1], tv_itr), veh_width(tv_itr), veh_height(tv_itr), p.COLOR_CODES['TV'])
         image = image.astype(np.uint8)
-
+        # calculate future trajectories
         if seq_fr == in_seq_len-1:
             tv_gt_future_track = []
             #tv_gt_future_track.append((center_x(tv_itr), center_y(tv_itr)))
@@ -438,11 +416,36 @@ class BEVPlotter:
             bottom_right = tv_gt_future_track[i-1] + np.array([3,3])
             image = cv2.rectangle(image, tuple(top_left), tuple(bottom_right), color = p.COLOR_CODES['GT_TRAJ'], thickness = -1)
 
-        for i in range(len(tv_pr_future_track)):
-            if i ==0:
-                continue
-            image = cv2.line(image, tv_pr_future_track[i], tv_pr_future_track[i-1], p.COLOR_CODES['PR_TRAJ'], 2)
-            image = cv2.circle(image, tv_pr_future_track[i-1], 4, p.COLOR_CODES['PR_TRAJ'], thickness = -1)
+        if p.PROBABILISTIC_PLOT:
+            height = image.shape[0]
+            width = image.shape[1]
+            #y_vector = np.arange(0,y_max,1)
+            #x_vector = np.arange(0,x_max,1)
+            #xx, yy = np.meshgrid(x_vector, y_vector)
+            #xxyy = np.c_[xx.ravel(), yy.ravel()]
+            z = np.zeros((height, width))
+
+            
+            y_min = traj_min[0]
+            x_min = traj_min[1]
+            y_max = traj_max[0]
+            x_max = traj_max[1]
+            for i in range(len(tv_pr_future_track)):
+                if i == 0:
+                    continue
+                muX = tv_pr_future_track[i][0]
+                muY = tv_pr_future_track[i][1]
+                sigY = traj_preds[i-1, 2]*(y_max-y_min) # sigY = standard deviation of y
+                sigX = traj_preds[i-1, 3]*(x_max-x_min) # sigX = standard deviation of x
+                rho = traj_preds[i-1, 4]
+                z += self.plot_single_heatmap(height, width, muY, muX, sigY, sigX, rho,p.CUT_OFF_SIGMA_RATIO)
+
+        else:
+            for i in range(len(tv_pr_future_track)):
+                if i ==0:
+                    continue
+                image = cv2.line(image, tv_pr_future_track[i], tv_pr_future_track[i-1], p.COLOR_CODES['PR_TRAJ'], 2)
+                image = cv2.circle(image, tv_pr_future_track[i-1], 4, p.COLOR_CODES['PR_TRAJ'], thickness = -1)
 
         if p.WHAT_IF_RENDERING:
             wif_future_track = tv_future_track[2]
@@ -538,7 +541,71 @@ class BEVPlotter:
         
  
 
+    def plot_single_heatmap(self,height, width, muY, muX, sigY, sigX, rho,cut_off_sig_ratio):
+        z = np.zeros((height, width))
+        m = (muY, muX)
+        s = np.array([[sigY^2, rho*sigX*sigY],[rho*sigX*sigY, sigX^2]])
+        k = multivariate_normal(mean = m, cov = s)
+        y_min = muY-cut_off_sig_ratio*sigY
+        x_min = muX-cut_off_sig_ratio*sigX
+        y_max = muY+cut_off_sig_ratio*sigY
+        x_max = muX+cut_off_sig_ratio*sigX
+        x_res = 100
+        y_res = 100
+        x = np.linspace(x_min, x_max, x_res)
+        y = np.linspace(y_min, y_max, y_res)
+        xx, yy = np.meshgrid(x,y)
+        xxyy = np.c_(xx.ravel(), yy.ravel())
+        heatmap = k.pdf(xxyy)
+        z = 10
 
+        
+
+
+        return z
+
+    def eval_model(self,dl_params, model, input_features, initial_traj, wif_man):
+        wif_man = torch.from_numpy(wif_man)
+
+        wif_man = torch.unsqueeze(wif_man, dim =0)
+        x = input_features
+        x = torch.unsqueeze(x, dim = 0) #batch dim
+        y = torch.from_numpy(initial_traj) 
+        y = torch.unsqueeze(y, dim = 0) #batch dim
+        x = x.to(self.device)
+        y = y.to(self.device)
+        wif_man = wif_man.to(self.device)
+        wif_man_one_hot = F.one_hot(wif_man, num_classes =3)
+        y = torch.cat((y, wif_man_one_hot[:,0:1]), dim =-1) # TODO this has to be replaced by predicted man label by encoder
+            
+        y = torch.stack((y,y,y), dim = 1) #mm
+        
+
+        for seq_itr in range(self.tgt_seq_len):
+            output_dict = model(x = x, y = y, y_mask = model.get_y_mask(y.size(2)).to(self.device))
+            traj_dist_pred = output_dict['traj_pred']
+            traj_dist_pred = traj_dist_pred[:,:,seq_itr:seq_itr+1]
+            enc_man_pred = output_dict['enc_man_pred']
+            #if seq_itr == 0:
+            #    current_man_pred = torch.argmax(enc_man_pred, dim = -1)
+            #else:
+            #    current_man_pred = torch.argmax(man_pred[:,seq_itr-1], dim = -1)
+            selected_traj_pred = traj_dist_pred[:,wif_man[0,seq_itr+1],:,:2]
+            if dl_params.MAN_DEC_OUT==True:
+                #man_pred_dec_in = man_pred[:,seq_itr:(seq_itr+1)]
+                #man_pred_dec_in = F.one_hot(torch.argmax(man_pred_dec_in, dim = -1), num_classes = 3) 
+                #man_pred_dec_in = torch.unsqueeze(man_pred_dec_in, dim = 1)
+                #print_shape('traj_pred_dec_in', traj_pred_dec_in)
+                #print_shape('man_pred_dec_in', man_pred_dec_in)
+                selected_traj_pred = torch.cat((selected_traj_pred, wif_man_one_hot[:,(seq_itr+1):(seq_itr+2)]), dim = -1)
+                selected_traj_pred = torch.stack([selected_traj_pred, selected_traj_pred, selected_traj_pred], dim =1)
+            else:
+                print('Not supported')
+            y = torch.cat((y, selected_traj_pred), dim = 2)
+            #selected_traj_pred = torch.stack([selected_traj_pred,selected_traj_pred,selected_traj_pred], dim = )
+        y = y[0,0,1:,:2]
+        return y.cpu().detach().numpy()
+    
     def softmax(self, x):
         """Compute softmax values for each sets of scores in x."""
         e_x = np.exp(x - np.max(x))

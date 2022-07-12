@@ -33,9 +33,7 @@ class ManouvreTransformerTraj(nn.Module):
         self.in_seq_len = parameters.IN_SEQ_LEN
         self.tgt_seq_len = parameters.TGT_SEQ_LEN
         self.decoder_in_dim = 2
-        if self.multi_modal == False  or parameters.MAN_DEC_OUT == False:
-            print('single modal or no man dec out not supported')
-            exit()
+        
         if parameters.TV_ONLY:
             self.input_dim = 2
         else:
@@ -67,7 +65,6 @@ class ManouvreTransformerTraj(nn.Module):
         self.lk_transformer_decoder = nn.TransformerDecoder(lk_decoder_layers, self.layers_num)
         self.rlc_transformer_decoder = nn.TransformerDecoder(rlc_decoder_layers, self.layers_num)
         self.llc_transformer_decoder = nn.TransformerDecoder(llc_decoder_layers, self.layers_num)
-        self.man_transformer_decoder = nn.TransformerDecoder(man_decoder_layers, self.layers_num)
         
 
         ''' 5. Trajectory Output '''
@@ -75,7 +72,6 @@ class ManouvreTransformerTraj(nn.Module):
         self.rlc_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
         self.llc_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
         ''' 6. Manouvre Output '''
-        self.man_fc = nn.Linear(self.model_dim, 3)
         
         self.enc_man_fc1 = nn.Linear(self.in_seq_len*self.model_dim, self.classifier_dim)
         self.enc_man_fc2 = nn.Linear(self.classifier_dim, 3) 
@@ -108,38 +104,36 @@ class ManouvreTransformerTraj(nn.Module):
         lk_y = self.positional_encoder(lk_y)
         lk_decoder_out = self.lk_transformer_decoder(lk_y, encoder_out, tgt_mask = y_mask)
         
-        rlc_y = self.decoder_embedding(y[:,1,:,:self.decoder_in_dim])
-        rlc_y = self.positional_encoder(rlc_y)
-        rlc_decoder_out = self.rlc_transformer_decoder(rlc_y, encoder_out, tgt_mask = y_mask)
-        
-        llc_y = self.decoder_embedding(y[:,2,:,:self.decoder_in_dim])
-        llc_y = self.positional_encoder(llc_y)
-        llc_decoder_out = self.llc_transformer_decoder(llc_y, encoder_out, tgt_mask = y_mask)
+        if self.multi_modal: #if single modal lk represents the single modal not the lane keeping man anymore
+            rlc_y = self.decoder_embedding(y[:,1,:,:self.decoder_in_dim])
+            rlc_y = self.positional_encoder(rlc_y)
+            rlc_decoder_out = self.rlc_transformer_decoder(rlc_y, encoder_out, tgt_mask = y_mask)
+            
+            llc_y = self.decoder_embedding(y[:,2,:,:self.decoder_in_dim])
+            llc_y = self.positional_encoder(llc_y)
+            llc_decoder_out = self.llc_transformer_decoder(llc_y, encoder_out, tgt_mask = y_mask)
 
         #traj decoder linear layer
         
         lk_traj_pred = self.lk_trajectory_fc(lk_decoder_out)
-        rlc_traj_pred = self.rlc_trajectory_fc(rlc_decoder_out)
-        llc_traj_pred = self.llc_trajectory_fc(llc_decoder_out)
+        if self.multi_modal:
+            rlc_traj_pred = self.rlc_trajectory_fc(rlc_decoder_out)
+            llc_traj_pred = self.llc_trajectory_fc(llc_decoder_out)
         if self.prob_output:
             lk_traj_pred = self.prob_activation_func(lk_traj_pred)
-            rlc_traj_pred = self.prob_activation_func(rlc_traj_pred)
-            llc_traj_pred = self.prob_activation_func(llc_traj_pred) 
-        traj_pred = torch.stack([lk_traj_pred, rlc_traj_pred, llc_traj_pred], dim=1) # lk =0, rlc=1, llc=2
+            if self.multi_modal:
+                rlc_traj_pred = self.prob_activation_func(rlc_traj_pred)
+                llc_traj_pred = self.prob_activation_func(llc_traj_pred) 
+        if self.multi_modal:
+            traj_pred = torch.stack([lk_traj_pred, rlc_traj_pred, llc_traj_pred], dim=1) # lk =0, rlc=1, llc=2
+        else:
+            traj_pred = torch.stack([lk_traj_pred, lk_traj_pred, lk_traj_pred], dim=1) 
         #print_shape('decoder_out', decoder_out)
         
         # man decoder
         man_pred = self.dec_man_fc2(F.relu(self.dec_man_fc1(encoder_out_flattened)))
         man_pred = man_pred.reshape(self.batch_size,self.tgt_seq_len, 3)
-        '''
-        man_y = y[:,0,:,:2] # y[:,0] = y[:,1] = y[:,2]
-        man_y = self.man_decoder_embedding(man_y)
-        man_y = self.positional_encoder(man_y)
-        man_decoder_out = self.man_transformer_decoder(man_y, encoder_out, tgt_mask = y_mask)
-
-        # man decoder linear layer
-        man_pred = self.man_fc(man_decoder_out) 
-        '''
+        
         return traj_pred, man_pred 
 
     def prob_activation_func(self,x):

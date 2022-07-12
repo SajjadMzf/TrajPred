@@ -5,8 +5,10 @@ OCCLUSION = False
 model_name =  'ManouvreTransformerTraj_highD_2022-06-28 14:55:44.049101'#'ManouvreTransformerTraj_highD_2022-06-27 14:46:40.899317'#'ManouvreTransformerTraj_highD_2022-06-14 15:14:02.050065'
 RESULT_FILE = "../results/vis_data/"+ model_name +".pickle"
 WHAT_IF_RENDERING = False
-ITERATIVE_RENDERING = False
+ITERATIVE_RENDERING = True
+PROBABILISTIC_PLOT = True
 NUM_OUTPUT = 20
+CUT_OFF_SIGMA_RATIO = 3
 # Actual image
 
 # TAGS:

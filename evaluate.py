@@ -82,10 +82,11 @@ if __name__ == '__main__':
 
    
     #torch.cuda.empty_cache()
-    p = params.ParametersHandler('Constant_Parameter.yaml', 'highD.yaml', './config')
-    #p = params.ParametersHandler('ManouvreTransformerTraj.yaml', 'highD.yaml', './config')
+    #p = params.ParametersHandler('Constant_Parameter.yaml', 'highD.yaml', './config')
+    p = params.ParametersHandler('ManouvreTransformerTraj.yaml', 'highD.yaml', './config')
     # Do Not import experiment file for constant parameter models
-    #experiment_file = 'experiments/ManouvreTransformerTraj_highD_2022-06-28 14:55:44.049101'
-    #p.import_experiment(experiment_file)
+    experiment_file = 'experiments/ManouvreTransformerTraj_highD_2022-07-12 11:12:12.898605'
+    p.import_experiment(experiment_file)
+    #p.DEBUG_MODE = True
     test_model_dict(p)
     
