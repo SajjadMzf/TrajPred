@@ -2,12 +2,12 @@ import cv2
 DATASET = 'HIGHD'
 FPS = 5
 OCCLUSION = False
-model_name =  'ManouvreTransformerTraj_highD_2022-06-28 14:55:44.049101'#'ManouvreTransformerTraj_highD_2022-06-27 14:46:40.899317'#'ManouvreTransformerTraj_highD_2022-06-14 15:14:02.050065'
+model_name =  'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-06-27 14:46:40.899317'#'ManouvreTransformerTraj_highD_2022-06-14 15:14:02.050065'
 RESULT_FILE = "../results/vis_data/"+ model_name +".pickle"
 WHAT_IF_RENDERING = False
 ITERATIVE_RENDERING = True
-PROBABILISTIC_PLOT = True
-NUM_OUTPUT = 20
+PROBABILISTIC_PLOT = False
+NUM_OUTPUT = 200
 CUT_OFF_SIGMA_RATIO = 3
 # Actual image
 
@@ -16,8 +16,8 @@ HIDE_SVS = False
 PLOT_TEXTS = True
 PLOT_MAN = True
 
-Y_IMAGE_SCALE = 16
-X_IMAGE_SCALE = 4
+Y_IMAGE_SCALE = 8*2
+X_IMAGE_SCALE = 2*2
 
 BORDER_PIXELS = 30
 # Texts

@@ -5,6 +5,7 @@ import numpy as np
 import pickle
 import h5py
 import matplotlib.pyplot as plt
+from matplotlib import gridspec
 from moviepy.video.io.bindings import mplfig_to_npimage
 from mpl_toolkits.mplot3d import Axes3D
 import read_csv as rc
@@ -12,7 +13,7 @@ import param as p
 import torch
 from scipy.stats import multivariate_normal
 
-from time import time
+import time as time_func
 import random
 
 import torch
@@ -59,57 +60,67 @@ class BEVPlotter:
             self.scenarios = pickle.load(handle)
 
     def sort_scenarios(self):
-        sorted_scenarios_dict = []
-        tv_id_file_list = []
-        for _, scenario in enumerate(self.scenarios):
-            for batch_itr, tv_id in enumerate(scenario['tv']):
-                data_file = int(scenario['data_file'][batch_itr].split('.')[0])
-                if (data_file,tv_id) not in tv_id_file_list:
-                    tv_id_file_list.append((data_file,tv_id))
-                    sorted_scenarios_dict.append({'tv': tv_id,
-                                                'data_file':data_file,
-                                                'traj_min': scenario['traj_min'],# Assuming traj min and max are the same for all scenarios
-                                                'traj_max':scenario['traj_max'],
-                                                'input_features': [],
-                                                'times':[], 
-                                                'man_labels':[], 
-                                                'man_preds':[], 
-                                                'enc_man_preds':[], 
-                                                'traj_labels':[], 
-                                                'traj_preds':[],
-                                                'traj_dist_preds':[], 
-                                                'frames':[],
-                                                })
-                in_seq_len = scenario['man_labels'].shape[1]-scenario['man_preds'].shape[1]
-                tgt_seq_len = scenario['man_preds'].shape[1]
-                sorted_index = tv_id_file_list.index(((data_file,tv_id)))
-                sorted_scenarios_dict[sorted_index]['times'].append(scenario['frames'][batch_itr,in_seq_len])
-                sorted_scenarios_dict[sorted_index]['man_labels'].append(scenario['man_labels'][batch_itr]) 
-                sorted_scenarios_dict[sorted_index]['man_preds'].append(scenario['man_preds'][batch_itr])
-                sorted_scenarios_dict[sorted_index]['enc_man_preds'].append(scenario['enc_man_preds'][batch_itr])
-                sorted_scenarios_dict[sorted_index]['traj_labels'].append(scenario['traj_labels'][batch_itr])
-                sorted_scenarios_dict[sorted_index]['traj_preds'].append(scenario['traj_preds'][batch_itr])
-                sorted_scenarios_dict[sorted_index]['traj_dist_preds'].append(scenario['traj_dist_preds'][batch_itr])
-                sorted_scenarios_dict[sorted_index]['frames'].append(scenario['frames'][batch_itr])
-                sorted_scenarios_dict[sorted_index]['input_features'].append(scenario['input_features'][batch_itr])
-                
-                
+        sorted_scenarios_path = self.result_file.split('.pickle')[0] + '_sorted' + '.pickle'
+        if os.path.exists(sorted_scenarios_path):
+            print('loading: {}'.format(sorted_scenarios_path))
+            with open(sorted_scenarios_path, 'rb') as handle:
+                sorted_scenarios_dict = pickle.load(handle)
         
-        for i in range(len(sorted_scenarios_dict)):
-            times_array = np.array(sorted_scenarios_dict[i]['times'])
-            sorted_indxs = np.argsort(times_array).astype(int)
-            sorted_scenarios_dict[i]['times'] = [sorted_scenarios_dict[i]['times'][indx] for indx in sorted_indxs]
-            sorted_scenarios_dict[i]['man_labels'] = [sorted_scenarios_dict[i]['man_labels'][indx] for indx in sorted_indxs]
-            sorted_scenarios_dict[i]['man_preds'] = [sorted_scenarios_dict[i]['man_preds'][indx] for indx in sorted_indxs]
-            sorted_scenarios_dict[i]['enc_man_preds'] = [sorted_scenarios_dict[i]['enc_man_preds'][indx] for indx in sorted_indxs]
-            sorted_scenarios_dict[i]['traj_labels'] = [sorted_scenarios_dict[i]['traj_labels'][indx] for indx in sorted_indxs]
-            sorted_scenarios_dict[i]['traj_preds'] = [sorted_scenarios_dict[i]['traj_preds'][indx] for indx in sorted_indxs]
-            sorted_scenarios_dict[i]['traj_dist_preds'] = [sorted_scenarios_dict[i]['traj_dist_preds'][indx] for indx in sorted_indxs]
-            sorted_scenarios_dict[i]['frames'] = [sorted_scenarios_dict[i]['frames'][indx] for indx in sorted_indxs]
-            sorted_scenarios_dict[i]['input_features'] = [sorted_scenarios_dict[i]['input_features'][indx] for indx in sorted_indxs]
+        else:
+            sorted_scenarios_dict = []
+            tv_id_file_list = []
+            for _, scenario in enumerate(self.scenarios):
+                for batch_itr, tv_id in enumerate(scenario['tv']):
+                    data_file = int(scenario['data_file'][batch_itr].split('.')[0])
+                    if (data_file,tv_id) not in tv_id_file_list:
+                        tv_id_file_list.append((data_file,tv_id))
+                        sorted_scenarios_dict.append({'tv': tv_id,
+                                                    'data_file':data_file,
+                                                    'traj_min': scenario['traj_min'],# Assuming traj min and max are the same for all scenarios
+                                                    'traj_max':scenario['traj_max'],
+                                                    'input_features': [],
+                                                    'times':[], 
+                                                    'man_labels':[], 
+                                                    'man_preds':[], 
+                                                    'enc_man_preds':[], 
+                                                    'traj_labels':[], 
+                                                    'traj_preds':[],
+                                                    'traj_dist_preds':[], 
+                                                    'frames':[],
+                                                    })
+                    in_seq_len = scenario['man_labels'].shape[1]-scenario['man_preds'].shape[1]
+                    tgt_seq_len = scenario['man_preds'].shape[1]
+                    sorted_index = tv_id_file_list.index(((data_file,tv_id)))
+                    sorted_scenarios_dict[sorted_index]['times'].append(scenario['frames'][batch_itr,in_seq_len])
+                    sorted_scenarios_dict[sorted_index]['man_labels'].append(scenario['man_labels'][batch_itr]) 
+                    sorted_scenarios_dict[sorted_index]['man_preds'].append(scenario['man_preds'][batch_itr])
+                    sorted_scenarios_dict[sorted_index]['enc_man_preds'].append(scenario['enc_man_preds'][batch_itr])
+                    sorted_scenarios_dict[sorted_index]['traj_labels'].append(scenario['traj_labels'][batch_itr])
+                    sorted_scenarios_dict[sorted_index]['traj_preds'].append(scenario['traj_preds'][batch_itr])
+                    sorted_scenarios_dict[sorted_index]['traj_dist_preds'].append(scenario['traj_dist_preds'][batch_itr])
+                    sorted_scenarios_dict[sorted_index]['frames'].append(scenario['frames'][batch_itr])
+                    sorted_scenarios_dict[sorted_index]['input_features'].append(scenario['input_features'][batch_itr])
+                    
+                    
             
-        self.in_seq_len = in_seq_len
-        self.tgt_seq_len = tgt_seq_len
+            for i in range(len(sorted_scenarios_dict)):
+                times_array = np.array(sorted_scenarios_dict[i]['times'])
+                sorted_indxs = np.argsort(times_array).astype(int)
+                sorted_scenarios_dict[i]['times'] = [sorted_scenarios_dict[i]['times'][indx] for indx in sorted_indxs]
+                sorted_scenarios_dict[i]['man_labels'] = [sorted_scenarios_dict[i]['man_labels'][indx] for indx in sorted_indxs]
+                sorted_scenarios_dict[i]['man_preds'] = [sorted_scenarios_dict[i]['man_preds'][indx] for indx in sorted_indxs]
+                sorted_scenarios_dict[i]['enc_man_preds'] = [sorted_scenarios_dict[i]['enc_man_preds'][indx] for indx in sorted_indxs]
+                sorted_scenarios_dict[i]['traj_labels'] = [sorted_scenarios_dict[i]['traj_labels'][indx] for indx in sorted_indxs]
+                sorted_scenarios_dict[i]['traj_preds'] = [sorted_scenarios_dict[i]['traj_preds'][indx] for indx in sorted_indxs]
+                sorted_scenarios_dict[i]['traj_dist_preds'] = [sorted_scenarios_dict[i]['traj_dist_preds'][indx] for indx in sorted_indxs]
+                sorted_scenarios_dict[i]['frames'] = [sorted_scenarios_dict[i]['frames'][indx] for indx in sorted_indxs]
+                sorted_scenarios_dict[i]['input_features'] = [sorted_scenarios_dict[i]['input_features'][indx] for indx in sorted_indxs]
+                
+            self.in_seq_len = in_seq_len
+            self.tgt_seq_len = tgt_seq_len
+            with open(sorted_scenarios_path, 'wb') as handle:
+                print('saving: {}'.format(sorted_scenarios_path))
+                pickle.dump(sorted_scenarios_dict, handle, protocol = pickle.HIGHEST_PROTOCOL)
         return sorted_scenarios_dict
     
     def whatif_render(self, dl_params,  scenario_number, wif_man):
@@ -164,7 +175,10 @@ class BEVPlotter:
             print("Scene Number: {}".format(plotted_data_number))
             
     def iterative_render(self):
+        start = time_func.time()
         sorted_dict = self.sort_scenarios()
+        end = time_func.time()
+        print('sorting ends in {}s.'.format(end-start))
         plotted_data_number = 0
         for i in range(len(sorted_dict)):
             tv_id = sorted_dict[i]['tv']
@@ -435,10 +449,14 @@ class BEVPlotter:
                     continue
                 muX = tv_pr_future_track[i][0]
                 muY = tv_pr_future_track[i][1]
-                sigY = traj_preds[i-1, 2]*(y_max-y_min) # sigY = standard deviation of y
-                sigX = traj_preds[i-1, 3]*(x_max-x_min) # sigX = standard deviation of x
+                sigY = traj_preds[i-1, 2]*(y_max-y_min)*p.Y_IMAGE_SCALE # sigY = standard deviation of y
+                sigX = traj_preds[i-1, 3]*(x_max-x_min)*p.X_IMAGE_SCALE # sigX = standard deviation of x
                 rho = traj_preds[i-1, 4]
-                z += self.plot_single_heatmap(height, width, muY, muX, sigY, sigX, rho,p.CUT_OFF_SIGMA_RATIO)
+                z = self.plot_single_heatmap(z, height, width, muY, muX, sigY, sigX, rho,p.CUT_OFF_SIGMA_RATIO)
+                
+            #print(len(tv_pr_future_track))
+            if len(tv_pr_future_track)>4:
+                plt.imshow(z); plt.show()
 
         else:
             for i in range(len(tv_pr_future_track)):
@@ -473,27 +491,55 @@ class BEVPlotter:
         #exit()
         if p.PLOT_MAN and seq_fr == in_seq_len -1:
             
-            fig = plt.figure(figsize=(15, 3))
-            ax = fig.add_subplot(111)
+            fig = plt.figure(figsize=(16, 8))
+            gs = gridspec.GridSpec(2, 1, height_ratios=[1, 2]) 
+            ax1 = fig.add_subplot(gs[0])
+                
             if seq_fr>= in_seq_len-1:
                 x = np.arange(in_seq_len+1,in_seq_len + tgt_seq_len+1)
                 y = np.argmax(man_preds,axis = 1)
-                ax.plot(x,y, p.MARKERS['PR_TRAJ'], color = 'red', alpha = 1)#, fillstyle = 'none', markersize=10)
+                ax1.plot(x,y, p.MARKERS['PR_TRAJ'], color = 'red', alpha = 1)#, fillstyle = 'none', markersize=10)
                 if p.WHAT_IF_RENDERING:
                     wif_y = wif_man
-                    ax.plot(x,wif_y, p.MARKERS['WIF_TRAJ'], color = 'green', alpha = 1)#, fillstyle = 'none', markersize=10)
+                    ax1.plot(x,wif_y, p.MARKERS['WIF_TRAJ'], color = 'green', alpha = 1)#, fillstyle = 'none', markersize=10)
+
+                ax2 = fig.add_subplot(gs[1])
+                pr_x = np.arange(in_seq_len+1, in_seq_len + tgt_seq_len + 1)
+                #print(man_preds)
+                for i in range(man_preds.shape[0]):
+                    man_preds[i] = self.softmax(man_preds[i])  
+                man_preds_prob = man_preds.transpose()
+                #print(man_preds_prob)
+                im = ax2.pcolor(man_preds_prob)#, edgecolors='k', linewidths=4)#, vmin = 0, vmax = 1)
+                # Create colorbar
+                cbar = ax2.figure.colorbar(im, ax=ax2, orientation="horizontal")
+                #cbar.ax.set_ylabel('Manouvre Probability', rotation=0, va="bottom")
+
+                # Show all ticks and label them with the respective list entries.
+                #ax2.set_xlabel('Frame')
+                #ax2.set_ylabel('Manouvre Label')
+                ax2.set_xticks(np.arange(tgt_seq_len))
+                ax2.set_xticklabels(pr_x)
+                ax2.set_yticks([0,1,2])
+                ax2.set_yticklabels(['LK', 'RLC', 'LLC'], rotation=90)
+                
+                
+            
             gt_x = np.arange(1, in_seq_len + tgt_seq_len+1)
             gt_y = man_labels
-            ax.plot(gt_x, gt_y,p.MARKERS['GT_TRAJ'], color = 'blue', alpha = 1)#, fillstyle = 'none', markersize=10)
-            plt.xlabel('Frame')
-            plt.xticks(rotation=90)
-            plt.ylabel('Manouvre Label')
-            ax.grid(True)
-            plt.yticks([-1,0,1,2,3], ['','LK', 'RLC', 'LLC', ''])
-            plt.xticks(gt_x,gt_x)
+            ax1.plot(gt_x, gt_y,p.MARKERS['GT_TRAJ'], color = 'blue', alpha = 1)#, fillstyle = 'none', markersize=10)
+            
+            ax1.set_xlabel('Frame')
+            ax1.set_xticks(gt_x)
+            ax1.set_xticklabels(gt_x, rotation=90)
+            ax1.set_ylabel('Manouvre Label')
+            ax1.grid(True)
+            ax1.set_yticks([0,1,2,3])
+            ax1.set_yticklabels(['LK', 'RLC', 'LLC', ''])
             fig.tight_layout(pad=1)
             #plt.show()
             #plt.close()
+            #exit()
             man_image = mplfig_to_npimage(fig)
             plt.close('all')
             man_bar = np.ones((man_image.shape[0]+20, image.shape[1],3), dtype = np.int32)
@@ -541,27 +587,24 @@ class BEVPlotter:
         
  
 
-    def plot_single_heatmap(self,height, width, muY, muX, sigY, sigX, rho,cut_off_sig_ratio):
-        z = np.zeros((height, width))
-        m = (muY, muX)
-        s = np.array([[sigY^2, rho*sigX*sigY],[rho*sigX*sigY, sigX^2]])
-        k = multivariate_normal(mean = m, cov = s)
-        y_min = muY-cut_off_sig_ratio*sigY
-        x_min = muX-cut_off_sig_ratio*sigX
-        y_max = muY+cut_off_sig_ratio*sigY
-        x_max = muX+cut_off_sig_ratio*sigX
-        x_res = 100
-        y_res = 100
-        x = np.linspace(x_min, x_max, x_res)
-        y = np.linspace(y_min, y_max, y_res)
-        xx, yy = np.meshgrid(x,y)
-        xxyy = np.c_(xx.ravel(), yy.ravel())
-        heatmap = k.pdf(xxyy)
-        z = 10
-
+    def plot_single_heatmap(self,z, height, width, muY, muX, sigY, sigX, rho,cut_off_sig_ratio):
         
-
-
+        m = (muY, muX)
+        s = np.array([[sigY**2, rho*sigX*sigY],[rho*sigX*sigY, sigX**2]])
+        k = multivariate_normal(mean = m, cov = s)
+        y_min = int(muY-cut_off_sig_ratio*sigY)
+        x_min = int(muX-cut_off_sig_ratio*sigX)
+        y_max = int(muY+cut_off_sig_ratio*sigY)
+        x_max = int(muX+cut_off_sig_ratio*sigX)
+        x = np.arange(x_min, x_max)
+        y = np.arange(y_min, y_max)
+        xx, yy = np.meshgrid(x,y)
+        xxyy = np.c_[yy.ravel(), xx.ravel()]
+        heatmap = k.pdf(xxyy)
+        heatmap = heatmap.reshape(y_max-y_min, x_max-x_min)
+        #plt.imshow(heatmap)
+        #plt.show()
+        z[y_min:y_max, x_min:x_max] += heatmap
         return z
 
     def eval_model(self,dl_params, model, input_features, initial_traj, wif_man):

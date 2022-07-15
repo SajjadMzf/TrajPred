@@ -85,8 +85,8 @@ if __name__ == '__main__':
     #p = params.ParametersHandler('Constant_Parameter.yaml', 'highD.yaml', './config')
     p = params.ParametersHandler('ManouvreTransformerTraj.yaml', 'highD.yaml', './config')
     # Do Not import experiment file for constant parameter models
-    experiment_file = 'experiments/ManouvreTransformerTraj_highD_2022-07-12 11:12:12.898605'
+    experiment_file = 'experiments/ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'
     p.import_experiment(experiment_file)
-    #p.DEBUG_MODE = True
+    p.UNBALANCED = True
     test_model_dict(p)
     
