@@ -228,7 +228,7 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, traj
             lc_loss = 0
             enc_lc_loss = 0
         
-        loss = lc_loss + enc_lc_loss + p.TRAJ2CLASS_LOSS_RATIO*traj_loss 
+        loss = lc_loss + 0*enc_lc_loss + p.TRAJ2CLASS_LOSS_RATIO*traj_loss 
         # 4. Calculating new grdients given the loss value
         loss.backward()
         # 5. Updating the weights
@@ -395,7 +395,7 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, test_loader, test_dataset
             traj_pred = predicted_data_dist[:,:,:,:2] 
             predicted_data_dist = predicted_data_dist[:,0]
             man_pred = output_dict['man_pred']
-            #TODO add enc_man_pred
+            
             man_pred = torch.unsqueeze(man_pred, dim = 1)
             
         else:
@@ -483,5 +483,26 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, test_loader, test_dataset
             pickle.dump(plot_dicts, fp)
         
     return accuracy, avg_loss, avg_lc_loss, avg_traj_loss, auc, max_j, precision, recall, f1, rmse, fde, traj_df
+
+def multi_modal_inference(p, model, test_loader, test_dataset, epoch, device, eval_type = 'Validation', vis_data_path = None, figure_name = None):
+    return 0
+
+def extract_modes(p, man_prob, prob_thr = 0.33, derivative_thr =0.5):
+    # man_prob dim = [batch size, tgt_seq_len, 3]
+    batch_size = man_prob.shape[0]
+    man_prob_deriv = np.zeros_like(man_prob) 
+    
+    xat = lambda t: man_prob[:,2+t:p.TGT_SEQ_LEN+t-2]
+    man_prob_deriv[:,2:tgt_seq_len-2] = (p.FPS/10)*(-2*xat(-2) 
+                                                -1*xat(-1)
+                                                +1*xat(1)
+                                                +2*xat(2))
+    
+    high_prob_mans = np.zeros((batch_size,3))
+    high_prob_mans = np.any(man_prob>= prob_thr, axis = 1)
+    for man_itr in range(3):
+        high_prob_mans[:,man_itr] = np.any(man_prob>= prob_thr, axis = 1)
+    
+
 
 

@@ -138,6 +138,7 @@ class ExtractScenarios:
         indexes = np.arange(total_track_len)
         y_gradients = [np.polynomial.polynomial.polyfit(indexes[i:i+p.LINFIT_WINDOW], tv_y[i:i+p.LINFIT_WINDOW], deg=1 )[1] for i in range(0, total_track_len-p.LINFIT_WINDOW)]#tv_y - tv_y[last_idxs[0]]#[tv_y[i+p.LINFIT_WINDOW]-tv_y[i] for i in range(0, total_track_len-p.LINFIT_WINDOW)]
         
+        # assuming same grad for final linfit_window timestep
         for i in range(p.LINFIT_WINDOW):
             y_gradients.append(y_gradients[-1])
         
@@ -150,7 +151,7 @@ class ExtractScenarios:
             else: 
                 end_point = total_track_len
                 
-            
+            #end_point = last_idx
             non_lc_points_before_crossing_y = non_lc_y_gradient(y_gradients[:last_idx], labels[idx], driving_dir)
             if np.any(non_lc_points_before_crossing_y):
                 start_point = np.nonzero(non_lc_points_before_crossing_y)[0][-1]

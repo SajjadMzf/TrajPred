@@ -12,6 +12,7 @@ import read_csv as rc
 import param as p
 import torch
 from scipy.stats import multivariate_normal
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 import time as time_func
 import random
@@ -28,7 +29,7 @@ import Dataset
 import models 
 import params 
 import training_functions 
-
+import kpis
 
 
 class BEVPlotter:
@@ -65,7 +66,8 @@ class BEVPlotter:
             print('loading: {}'.format(sorted_scenarios_path))
             with open(sorted_scenarios_path, 'rb') as handle:
                 sorted_scenarios_dict = pickle.load(handle)
-        
+            self.in_seq_len = sorted_scenarios_dict[0]['man_labels'][0].shape[0]-sorted_scenarios_dict[0]['man_preds'][0].shape[0]
+            self.tgt_seq_len = sorted_scenarios_dict[0]['man_preds'][0].shape[0]
         else:
             sorted_scenarios_dict = []
             tv_id_file_list = []
@@ -121,6 +123,7 @@ class BEVPlotter:
             with open(sorted_scenarios_path, 'wb') as handle:
                 print('saving: {}'.format(sorted_scenarios_path))
                 pickle.dump(sorted_scenarios_dict, handle, protocol = pickle.HIGHEST_PROTOCOL)
+                
         return sorted_scenarios_dict
     
     def whatif_render(self, dl_params,  scenario_number, wif_man):
@@ -170,7 +173,7 @@ class BEVPlotter:
             wif_traj_pred = wif_traj_pred*(traj_max-traj_min) + traj_min
 
             scenario_tuple = (traj_min, traj_max, man_labels, man_preds, enc_man_preds, traj_labels, traj_preds, frames, data_file)
-            self.render_single_scenario(scenario_number, tv_id, scenario_tuple, plotted_data_number, summary_image =True, wif_man = wif_man[1:], wif_traj = wif_traj_pred)
+            self.render_single_frame(scenario_number, tv_id, scenario_tuple, plotted_data_number, wif_man = wif_man[1:], wif_traj = wif_traj_pred)
             plotted_data_number += 1
             print("Scene Number: {}".format(plotted_data_number))
             
@@ -180,12 +183,27 @@ class BEVPlotter:
         end = time_func.time()
         print('sorting ends in {}s.'.format(end-start))
         plotted_data_number = 0
+        # for each scenario
         for i in range(len(sorted_dict)):
             tv_id = sorted_dict[i]['tv']
             data_file = sorted_dict[i]['data_file']
             traj_min = sorted_dict[i]['traj_min']
             traj_max = sorted_dict[i]['traj_max']
-            print('TV ID: {}, List of Available Frames: {}'.format(tv_id, sorted_dict[i]['times']))
+            static_path = p.static_paths[data_file-1]
+            self.statics = rc.read_static_info(static_path)
+            driving_dir = self.statics[tv_id][rc.DRIVING_DIRECTION]
+            print('TV ID: {}, List of Available Frames: {}, dd:{}'.format(tv_id, sorted_dict[i]['times'], driving_dir ))
+            if driving_dir !=2: #TODO: rotate driving_dir=1 data
+                continue
+            
+            
+            np.set_printoptions(precision=2, suppress=True)
+            for j,time in enumerate(sorted_dict[i]['times']):
+                man_preds = sorted_dict[i]['man_preds'][j]
+                for itr in range(man_preds.shape[0]):
+                    man_preds[itr] = self.softmax(man_preds[itr])
+            
+            # for each time-step
             for j,time in enumerate(sorted_dict[i]['times']):
                 man_labels = sorted_dict[i]['man_labels'][j]
                 man_preds = sorted_dict[i]['man_preds'][j]
@@ -197,8 +215,11 @@ class BEVPlotter:
                 else:
                     traj_preds = sorted_dict[i]['traj_preds'][j]
                 frames = sorted_dict[i]['frames'][j]
+                
+                #print("j: {}, min: {}, max: {}".format(j,np.amin(man_preds), np.amax(man_preds)))
+                #print(man_preds)
                 scenario_tuple = (traj_min, traj_max, man_labels, man_preds, enc_man_preds, traj_labels, traj_preds, frames, data_file)
-                self.render_single_scenario(i, tv_id, scenario_tuple, plotted_data_number, summary_image =True)
+                self.render_single_frame(i, tv_id, scenario_tuple, plotted_data_number )
                 plotted_data_number += 1
                 print("Scene Number: {}".format(plotted_data_number))
                 if plotted_data_number >= self.num_output:
@@ -226,8 +247,10 @@ class BEVPlotter:
                 
                 frames = scenario['frames'][batch_itr]
                 data_file = int(scenario['data_file'][batch_itr].split('.')[0])
+                for itr in range(man_preds.shape[0]):
+                    man_preds[itr] = self.softmax(man_preds[itr])
                 scenario_tuple = (traj_min, traj_max, man_labels, man_preds, enc_man_preds, traj_labels, traj_preds, frames, data_file)
-                self.render_single_scenario(i, tv_id, scenario_tuple, plotted_data_number, summary_image = False)
+                self.render_single_scenario(i, tv_id, scenario_tuple, plotted_data_number)
                 plotted_data_number += 1
                 print("Scene Number: {}".format(plotted_data_number))
                 if plotted_data_number >= self.num_output:
@@ -236,11 +259,12 @@ class BEVPlotter:
                 break 
         return plotted_data_number
 
-    def render_single_scenario(self, scenario_number, tv_id, scenario_tuple, plot_number, summary_image, wif_man = [], wif_traj = []):
+    def render_single_frame(self, scenario_number, tv_id, scenario_tuple, plot_number, wif_man = [], wif_traj = [], man_preds_range = (0,1)):
+        
+        summary_image = True
         (traj_min, traj_max, man_labels, man_preds, enc_man_preds, traj_labels, traj_preds, frames, data_file) = scenario_tuple
         enc_man_preds = self.softmax(enc_man_preds)
-        for i in range(man_preds.shape[0]):
-            man_preds[i] = self.softmax(man_preds[i])
+        
         in_seq_len = man_labels.shape[0]-man_preds.shape[0]
         tgt_seq_len = man_preds.shape[0]
         
@@ -284,16 +308,78 @@ class BEVPlotter:
                 tv_lane_ind = tv_lane_ind,
                 tv_future_track = tv_future_track,
                 wif_man = wif_man,
-                wif_traj = wif_traj
+                wif_traj = wif_traj,
+                man_preds_range = man_preds_range
                 )
-            if not summary_image:
+            if fr == in_seq_len-1:
                 traj_imgs.append(traj_img)
-            elif summary_image and fr == in_seq_len-1:
-                traj_imgs.append(traj_img)
-                break
+     
+        traj_imgs = np.array(traj_imgs)
+        if p.WHAT_IF_RENDERING:
+            scenario_id = 'WIF_{}_File{}_TV{}_SN{}_PN{}'.format(time_func.time(),data_file, tv_id, scenario_number, plot_number)
+        else:
+            scenario_id = 'File{}_TV{}_SN{}_PN{}'.format(data_file, tv_id, scenario_number, plot_number)
+        self.save_image_sequence(p.model_name, traj_imgs, self.traj_vis_dir,scenario_id , summary_image)
+
+    def render_single_scenario(self, scenario_number, tv_id, scenario_tuple, plot_number, wif_man = [], wif_traj = [], man_preds_range = (0,1)):
+        summary_image = False
+        (traj_min, traj_max, man_labels, man_preds, enc_man_preds, traj_labels, traj_preds, frames, data_file) = scenario_tuple
+        enc_man_preds = self.softmax(enc_man_preds)
+        
+        in_seq_len = man_labels.shape[0]-man_preds.shape[0]
+        tgt_seq_len = man_preds.shape[0]
+        
+        track_path = p.track_paths[data_file-1]
+        static_path = p.static_paths[data_file-1]
+        pickle_path = p.frame_pickle_paths[data_file-1]
+        meta_path = p.meta_paths[data_file-1]
+        self.metas = rc.read_meta_info(meta_path)
+        self.fr_div = self.metas[rc.FRAME_RATE]/self.fps
+        self.frames_data, image_width = rc.read_track_csv(track_path, pickle_path, group_by = 'frames', reload = False, fr_div = self.fr_div)
+        self.statics = rc.read_static_info(static_path)
+        prev_data_file = data_file
+        self.image_width = int(image_width*p.X_IMAGE_SCALE )
+        self.image_height = int(self.metas[rc.LOWER_LANE_MARKINGS][-1]*p.Y_IMAGE_SCALE + p.BORDER_PIXELS)
+
+        driving_dir = self.statics[tv_id][rc.DRIVING_DIRECTION]
+                        
+        #self.plot_overview(man_labels, man_preds, traj_labels,traj_preds, plotted_data_number)
+        traj_imgs = []
+        tv_track = []
+        tv_future_track = ([],[], [])
+        tv_lane_ind = None
+        for fr in range(in_seq_len+tgt_seq_len):
+            frame = frames[fr]
+            
+            traj_img, tv_track, tv_future_track, tv_lane_ind = self.plot_frame(
+                data_file,
+                self.frames_data[int(frame/self.fr_div -1)],
+                tv_id, 
+                driving_dir,
+                frame,
+                man_labels,
+                man_preds,
+                enc_man_preds,
+                traj_labels,
+                traj_preds,
+                traj_min,
+                traj_max,
+                fr,
+                in_seq_len,
+                tv_track =  tv_track,
+                tv_lane_ind = tv_lane_ind,
+                tv_future_track = tv_future_track,
+                wif_man = wif_man,
+                wif_traj = wif_traj,
+                man_preds_range = man_preds_range
+                )
+            traj_imgs.append(traj_img)
         
         traj_imgs = np.array(traj_imgs)
-        scenario_id = 'File{}_TV{}_SN{}_PN{}'.format(data_file, tv_id, scenario_number, plot_number)
+        if p.WHAT_IF_RENDERING:
+            scenario_id = 'WIF_{}_File{}_TV{}_SN{}_PN{}'.format(time_func.time(),data_file, tv_id, scenario_number, plot_number)
+        else:
+            scenario_id = 'File{}_TV{}_SN{}_PN{}'.format(data_file, tv_id, scenario_number, plot_number)
         self.save_image_sequence(p.model_name, traj_imgs, self.traj_vis_dir,scenario_id , summary_image)
         
     def plot_frame(
@@ -316,7 +402,8 @@ class BEVPlotter:
         tv_track = [],
         tv_future_track = [],
         wif_man = [],
-        wif_traj = []
+        wif_traj = [],
+        man_preds_range = (0,1)
         ):
         
         assert(frame_data[rc.FRAME]==frame) 
@@ -491,51 +578,109 @@ class BEVPlotter:
         #exit()
         if p.PLOT_MAN and seq_fr == in_seq_len -1:
             
-            fig = plt.figure(figsize=(16, 8))
-            gs = gridspec.GridSpec(2, 1, height_ratios=[1, 2]) 
+            fig = plt.figure(figsize=(16, 12))
+            gs = gridspec.GridSpec(3, 1, height_ratios=[1, 2, 2]) 
             ax1 = fig.add_subplot(gs[0])
-                
+            #ax1.set_facecolor((235/255,235/255,235/255))
             if seq_fr>= in_seq_len-1:
                 x = np.arange(in_seq_len+1,in_seq_len + tgt_seq_len+1)
                 y = np.argmax(man_preds,axis = 1)
-                ax1.plot(x,y, p.MARKERS['PR_TRAJ'], color = 'red', alpha = 1)#, fillstyle = 'none', markersize=10)
+                y_onehot = np.eye(3)[y]
+                #print(y_onehot.shape)
+                y_onehot = y_onehot[:,[1,0,2]]
+                y = np.argmax(y_onehot, axis =1)
+                ax1.plot(x,y, p.MARKERS['PR_TRAJ'], color = 'red', alpha = 1, label='PR#1')#, fillstyle = 'none', markersize=10)
                 if p.WHAT_IF_RENDERING:
-                    wif_y = wif_man
-                    ax1.plot(x,wif_y, p.MARKERS['WIF_TRAJ'], color = 'green', alpha = 1)#, fillstyle = 'none', markersize=10)
+                    wif_y = np.eye(3)[wif_man]
+                    #print(y_onehot.shape)
+                    wif_y = wif_y[:,[1,0,2]]
+                    wif_y = np.argmax(wif_y, axis =1)
+                    ax1.plot(x, wif_y, p.MARKERS['WIF_TRAJ'], color = 'green', alpha = 1)#, fillstyle = 'none', markersize=10)
 
                 ax2 = fig.add_subplot(gs[1])
+                #ax2.set_facecolor((235/255,235/255,235/255))
                 pr_x = np.arange(in_seq_len+1, in_seq_len + tgt_seq_len + 1)
                 #print(man_preds)
-                for i in range(man_preds.shape[0]):
-                    man_preds[i] = self.softmax(man_preds[i])  
+                 
                 man_preds_prob = man_preds.transpose()
+                
+                #print('plot')
                 #print(man_preds_prob)
-                im = ax2.pcolor(man_preds_prob)#, edgecolors='k', linewidths=4)#, vmin = 0, vmax = 1)
+
+                #man_preds_prob -= man_preds_prob%0.01
+                man_preds_prob = np.rint(100*man_preds_prob)/100
+                man_preds_prob = man_preds_prob[[2,0,1]]
+                for i in range(3):
+                    ax2.plot(x, man_preds_prob[i], label = p.PLOT_MAN_NAMES[i])
+                ax2.legend()
+                #print(man_preds_prob)
+                #print(man_preds_prob)
+                '''
+                im = ax2.imshow(man_preds_prob, vmin = 0, vmax = 1)#, edgecolors='k', linewidths=4)#, vmin = 0, vmax = 1)
+                '''
+                #im = ax2.matshow(man_preds_prob)#, vmin = man_preds_range[0], vmax = man_preds_range[1])#, edgecolors='k', linewidths=4)#, vmin = 0, vmax = 1)
+                #for i in range(man_preds_prob.shape[0]):
+                #    for j in range(man_preds_prob.shape[1]):
+                #        ax2.text(x=j, y=i,s=man_preds_prob[i, j], va='center', ha='center', size='xx-small')
                 # Create colorbar
-                cbar = ax2.figure.colorbar(im, ax=ax2, orientation="horizontal")
+                '''
+                divider = make_axes_locatable(ax2)
+                cax = divider.new_vertical(size='10%', pad=1, pack_start = True)
+                fig.add_axes(cax)
+                fig.colorbar(im, cax = cax, orientation = 'horizontal')
+                '''
+                #cbar = ax2.figure.colorbar(im, ax=ax2, orientation="horizontal")
                 #cbar.ax.set_ylabel('Manouvre Probability', rotation=0, va="bottom")
 
                 # Show all ticks and label them with the respective list entries.
-                #ax2.set_xlabel('Frame')
-                #ax2.set_ylabel('Manouvre Label')
-                ax2.set_xticks(np.arange(tgt_seq_len))
-                ax2.set_xticklabels(pr_x)
-                ax2.set_yticks([0,1,2])
-                ax2.set_yticklabels(['LK', 'RLC', 'LLC'], rotation=90)
+                ax2.set_xlabel('Prediction Frame')
                 
+                #ax2.set_ylabel('Manoeuvre')
+                ax2.set_xticks(pr_x)
+                ax2.grid(True)
+                ax2.set_ylim([0,1])
+                ax2.set_xticklabels(pr_x)
+                #ax2.set_yticks([0,1,2])
+                #ax2.set_yticklabels(['LLC', 'LK', 'RLC'])
+                ax2.set_title('Manoeuvre Probabilities')
+
+                ax3 = fig.add_subplot(gs[2])
+                pr_x = np.arange(in_seq_len+1, in_seq_len + tgt_seq_len + 1)
+                man_preds_diff = np.zeros_like(man_preds_prob) 
+                xat = lambda t: man_preds_prob[:,2+t:tgt_seq_len+t-2]
+                man_preds_diff[:,2:tgt_seq_len-2] = (p.FPS/10)*(-2*xat(-2) 
+                                                            -1*xat(-1)
+                                                            +1*xat(1)
+                                                            +2*xat(2))
+                #man_preds_diff[:,tgt_seq_len-5:] = man_preds_diff[:,tgt_seq_len-2]
+                for i in range(3):
+                    ax3.plot(x, man_preds_diff[i], label = p.PLOT_MAN_NAMES[i])
+                ax3.legend()
+                ax3.set_xlabel('Prediction Frame')
+                
+                ax3.set_xticks(pr_x)
+                ax3.grid(True)
+                ax3.set_xticklabels(pr_x)
+                ax3.set_title('Diff Manoeuvre')
                 
             
             gt_x = np.arange(1, in_seq_len + tgt_seq_len+1)
             gt_y = man_labels
-            ax1.plot(gt_x, gt_y,p.MARKERS['GT_TRAJ'], color = 'blue', alpha = 1)#, fillstyle = 'none', markersize=10)
+            gt_y_onehot = np.eye(3)[gt_y]
+            #print(gt_y_onehot.shape)
+            gt_y_onehot = gt_y_onehot[:,[1,0,2]]
+            gt_y = np.argmax(gt_y_onehot, axis =1)
+            ax1.plot(gt_x, gt_y,p.MARKERS['GT_TRAJ'], color = 'blue', alpha = 1, label='GT')#, fillstyle = 'none', markersize=10)
             
             ax1.set_xlabel('Frame')
             ax1.set_xticks(gt_x)
             ax1.set_xticklabels(gt_x, rotation=90)
-            ax1.set_ylabel('Manouvre Label')
+            ax1.set_ylabel('Manoeuvre ')
             ax1.grid(True)
-            ax1.set_yticks([0,1,2,3])
-            ax1.set_yticklabels(['LK', 'RLC', 'LLC', ''])
+            ax1.legend(loc = 'upper left')
+            ax1.set_yticks([0,1,2])
+            ax1.set_yticklabels(['RLC', 'LK', 'LLC'])
+            ax1.set_title('Manoeuvre Vector')
             fig.tight_layout(pad=1)
             #plt.show()
             #plt.close()
@@ -725,14 +870,15 @@ if __name__ =="__main__":
         num_output = p.NUM_OUTPUT)
     if p.WHAT_IF_RENDERING:
         dl_params = params.ParametersHandler('ManouvreTransformerTraj.yaml', 'highD.yaml', '../config')
-        experiment_file = '../experiments/ManouvreTransformerTraj_highD_2022-06-14 15:14:02.050065'
+        experiment_file = '../experiments/ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'
         dl_params.import_experiment(experiment_file)
         #initial_man = 0
         #wif_man = np.array([[0,0],[1,10]])
         #wif_man = wif_man_encoder(35, initial_man, wif_man)
         #wif_man = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] #35 + 1
         #wif_man = np.array(wif_man)
-        wif_man = np.ones((31), dtype=int)*2
+        wif_man = np.ones((36), dtype=int)*2
+        wif_man[0:15] = 0
 
         bev_plotter.whatif_render(dl_params, scenario_number= 14, wif_man = wif_man)
     elif p.ITERATIVE_RENDERING:

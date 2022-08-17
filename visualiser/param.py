@@ -2,12 +2,13 @@ import cv2
 DATASET = 'HIGHD'
 FPS = 5
 OCCLUSION = False
-model_name =  'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-06-27 14:46:40.899317'#'ManouvreTransformerTraj_highD_2022-06-14 15:14:02.050065'
+model_name =  'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-06-27 14:46:40.899317'#'ManouvreTransformerTraj_highD_2022-06-14 15:14:02.050065'
 RESULT_FILE = "../results/vis_data/"+ model_name +".pickle"
-WHAT_IF_RENDERING = False
-ITERATIVE_RENDERING = True
+WHAT_IF_RENDERING = True
+ITERATIVE_RENDERING = False
+
 PROBABILISTIC_PLOT = False
-NUM_OUTPUT = 200
+NUM_OUTPUT = 1000
 CUT_OFF_SIGMA_RATIO = 3
 # Actual image
 
@@ -47,9 +48,15 @@ COLOR_CODES = {'TV': (102,6,3), #blue
             'GT_TRAJ':(199,12,6),
             'PR_TRAJ':(25,25,217),
             'WIF_TRAJ':(0,150,0),
-            'BACKGROUND':(235,235,235)
+            'BACKGROUND':(255,255,255)
 }
 
+
+PLOT_MAN_NAMES = [
+    'LLC',
+    'LK',
+    'RLC',
+]
 MARKERS = {
     'GT_TRAJ': 's-',
     'PR_TRAJ': 'o-',
