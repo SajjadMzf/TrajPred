@@ -134,7 +134,6 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, traj
     model_time = 0
     avg_loss = 0
     avg_lc_loss = 0
-    avg_enc_lc_loss = 0
     avg_traj_loss = 0
     all_start = time()
     
@@ -152,11 +151,9 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, traj
         data_tuple = [data.to(device) for data in data_tuple]
         labels = labels.to(device)
         dec_man_gt = labels[:, p.IN_SEQ_LEN:]
-        enc_man_gt = labels[:,p.IN_SEQ_LEN-1:p.IN_SEQ_LEN]
            
         
         man_gt_onehot = F.one_hot(labels, num_classes= 3)
-        label_enc_in = man_gt_onehot[:,:p.IN_SEQ_LEN]
         label_dec_in = man_gt_onehot[:,(p.IN_SEQ_LEN-1):(p.IN_SEQ_LEN-1+p.TGT_SEQ_LEN)]
         target_data = data_tuple[-1] # selecting target data from data tuple
         tv_only_data = target_data[:,:p.IN_SEQ_LEN] # if tv's only, we use same output states for input data
@@ -181,7 +178,6 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, traj
             output_dict = model(x = encoder_input, y = target_data_in, y_mask = model.get_y_mask(p.TGT_SEQ_LEN).to(device))
             traj_pred = output_dict['traj_pred']
             man_pred = output_dict['man_pred']
-            enc_man_pred = output_dict['enc_man_pred']
 
         elif 'LSTM_ED' in p.SELECTED_MODEL:
             target_data_in = torch.stack([target_data_in,target_data_in,target_data_in], dim = 1)
@@ -223,12 +219,10 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, traj
         
         if p.MAN_DEC_OUT:
             lc_loss = lc_loss_func(man_pred.reshape(-1,3), dec_man_gt.reshape(-1))
-            enc_lc_loss = lc_loss_func(enc_man_pred.reshape(-1,3), enc_man_gt.reshape(-1))
         else:
             lc_loss = 0
-            enc_lc_loss = 0
         
-        loss = lc_loss + 0*enc_lc_loss + p.TRAJ2CLASS_LOSS_RATIO*traj_loss 
+        loss = lc_loss +  + p.TRAJ2CLASS_LOSS_RATIO*traj_loss 
         # 4. Calculating new grdients given the loss value
         loss.backward()
         # 5. Updating the weights
@@ -244,10 +238,8 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, traj
         avg_traj_loss += traj_loss.data/(len(train_loader))
         if p.MAN_DEC_OUT:
             avg_lc_loss += lc_loss.data/(len(train_loader))
-            avg_enc_lc_loss += enc_lc_loss.data/(len(train_loader))
         else:
             avg_lc_loss = 0
-            avg_enc_lc_loss = 0
         avg_loss += loss.data/(len(train_loader))
         if (batch_idx+1) % 500 == 0:
             print('Epoch: ',epoch, ' Batch: ', batch_idx+1, ' Training Loss: ', avg_loss.cpu().numpy())
@@ -258,7 +250,7 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, traj
         
     all_end = time()
     all_time = all_end - all_start
-    print('Total Training loss: {}, Training ENC LC Loss: {}, LC Loss: {}, Training Traj Loss: {}'.format(avg_loss, avg_enc_lc_loss, avg_lc_loss, avg_traj_loss))
+    print('Total Training loss: {}, Training Man Loss: {}, Training Traj Loss: {}'.format(avg_loss, avg_lc_loss, avg_traj_loss))
     scheduler.step()
     
     # Validation Phase on train dataset
@@ -273,7 +265,6 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, test_loader, test_dataset
     # Initialise Variables
     avg_loss = 0
     avg_lc_loss = 0
-    avg_enc_lc_loss = 0
     avg_traj_loss = 0
     time_counter = 0
     average_time = 0
@@ -310,8 +301,7 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, test_loader, test_dataset
                 'traj_preds': np.zeros((batch_size, p.TGT_SEQ_LEN, 2)),
                 'traj_dist_preds': np.zeros((batch_size, p.TGT_SEQ_LEN, 5)),
                 'man_labels':np.zeros((batch_size, p.TGT_SEQ_LEN+p.IN_SEQ_LEN)),
-                'man_preds':np.zeros((batch_size, p.TGT_SEQ_LEN,3)),
-                'enc_man_pred': np.zeros((batch_size, 3)),     
+                'man_preds':np.zeros((batch_size, p.TGT_SEQ_LEN,3)),     
             }
         data_tuple = [data.to(device) for data in data_tuple]
         
@@ -326,24 +316,20 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, test_loader, test_dataset
         
         labels = labels.to(device) # [0:IN_SEQ_LEN+p.TGT_SEQ_LEN]
         dec_man_gt = labels[:, p.IN_SEQ_LEN:]
-        enc_man_gt = labels[:,p.IN_SEQ_LEN-1:p.IN_SEQ_LEN]
         man_gt_onehot = F.one_hot(labels, num_classes= 3)
 
         st_time = time()
         
         if 'TRANSFORMER_TRAJ' in p.SELECTED_MODEL:
-            encoder_out, enc_man_pred = model.encoder_forward(x = encoder_input)
-            initial_man = F.one_hot(torch.argmax(enc_man_pred, dim = -1), num_classes = 3)
-            initial_man = torch.unsqueeze(initial_man, dim = 1)
-            #print_shape('enc_man_pred', enc_man_pred)
-            #print_shape('initial_man', initial_man)
-            #print_shape('initial_traj', initial_traj)
-            decoder_input = torch.cat((initial_traj, initial_man), dim =-1) 
+            encoder_out = model.encoder_forward(x = encoder_input)
+            man_pred = model.man_decoder_forward(encoder_out)
+            
+            decoder_input = initial_traj
             decoder_input = torch.stack([decoder_input,decoder_input,decoder_input], dim = 1) #multi-modal
             
             for out_seq_itr in range(p.TGT_SEQ_LEN):
                 #output_dict = model(x = encoder_input, y =decoder_input, y_mask = model.get_y_mask(decoder_input.size(2)).to(device))
-                traj_pred, man_pred = model.decoder_forward(y = decoder_input, 
+                traj_pred = model.traj_decoder_forward(y = decoder_input, 
                                                             y_mask = model.get_y_mask(decoder_input.size(2)).to(device), 
                                                             encoder_out = encoder_out)
                 
@@ -362,7 +348,7 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, test_loader, test_dataset
                 #print_shape('current_traj_pred', current_traj_pred)
                 #print_shape('current_man_pred', current_man_pred)
                 
-                current_decoder_input = torch.cat((current_traj_pred, current_man_pred), dim = -1)
+                current_decoder_input = current_traj_pred 
                 current_decoder_input = torch.unsqueeze(current_decoder_input, dim = 1)
                 current_decoder_input = torch.cat([current_decoder_input, current_decoder_input, current_decoder_input], dim = 1)
                 
@@ -380,7 +366,6 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, test_loader, test_dataset
             output_dict = model(encoder_input, test_dataset.states_min, test_dataset.states_max, test_dataset.output_states_min, test_dataset.output_states_max, traj_labels = None)
             traj_pred = output_dict['traj_pred']
             man_pred = output_dict['man_pred'] # All zero vector for this model
-            enc_man_pred = output_dict['enc_man_pred'] # All zero vector for this model
             man_pred = torch.unsqueeze(man_pred, dim = 1)
             #print(traj_pred.size())
             traj_pred = traj_pred.unsqueeze(1)
@@ -409,12 +394,10 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, test_loader, test_dataset
         #print_shape('predicted_data_dist', predicted_data_dist)
         traj_loss = traj_loss_func(predicted_data_dist, traj_gt)/len(test_loader) 
         if p.MAN_DEC_OUT:
-            lc_loss = lc_loss_func(man_pred.reshape(-1,3), dec_man_gt.reshape(-1))
-            enc_lc_loss = lc_loss_func(enc_man_pred.reshape(-1,3), enc_man_gt.reshape(-1)) 
+            lc_loss = lc_loss_func(man_pred.reshape(-1,3), dec_man_gt.reshape(-1)) 
         else:
             lc_loss = 0
-            enc_lc_loss = 0
-        loss = enc_lc_loss + lc_loss + p.TRAJ2CLASS_LOSS_RATIO*traj_loss 
+        loss =  lc_loss + p.TRAJ2CLASS_LOSS_RATIO*traj_loss 
 
 
         if eval_type == 'Test':
@@ -433,7 +416,6 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, test_loader, test_dataset
             plot_dict['traj_dist_preds'] = x_y_dist_pred.cpu().data.numpy()# TODO: export unnormalised dist
             plot_dict['man_labels'] = labels.cpu().data.numpy()
             plot_dict['man_preds'] = man_pred.cpu().data.numpy()
-            plot_dict['enc_man_preds'] = enc_man_pred.cpu().data.numpy()
                 
         all_traj_preds[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size)] = traj_pred.cpu().data
         all_traj_labels[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size)] = data_tuple[-1].cpu().data
@@ -445,10 +427,8 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, test_loader, test_dataset
         
         if p.MAN_DEC_OUT:
             avg_lc_loss += lc_loss.data/(len(test_loader))
-            avg_enc_lc_loss += enc_lc_loss.data/(len(test_loader))
         else:
             avg_lc_loss = 0
-            avg_enc_lc_loss = 0
         
         
 
@@ -470,8 +450,8 @@ def eval_model(p, model, lc_loss_func, traj_loss_func, test_loader, test_dataset
     rmse = traj_metrics[0:3]
     fde = traj_metrics [3]
     print('                                   ')
-    print("{}: Epoch: {}, Accuracy: {:.2f}%, Total LOSS: {},ENC_LC_LOSS: {}, LC LOSS: {},TRAJ LOSS: {}, PRECISION:{}, RECALL:{}, F1:{}, FPR:{}, AUC:{}, Max J:{}, RMSE:{}, FDE:{}".format(
-        eval_type, epoch, 100. * accuracy, avg_loss, avg_enc_lc_loss, avg_lc_loss, avg_traj_loss, precision, recall, f1, FPR, auc, max_j, rmse, fde))
+    print("{}: Epoch: {}, Accuracy: {:.2f}%, Total LOSS: {}, LC LOSS: {},TRAJ LOSS: {}, PRECISION:{}, RECALL:{}, F1:{}, FPR:{}, AUC:{}, Max J:{}, RMSE:{}, FDE:{}".format(
+        eval_type, epoch, 100. * accuracy, avg_loss, avg_lc_loss, avg_traj_loss, precision, recall, f1, FPR, auc, max_j, rmse, fde))
     print('                                   ')
     print('-----------------------------------')
     print('                                   ')
