@@ -6,6 +6,7 @@ import models
 from datetime import datetime
 import yaml
 import copy
+import kpis
 class ParametersHandler:
     def __init__(self, model, dataset, parameters_dir, experiments_dir = 'experiments/', models_dir = 'models/', datasets_dir = 'datasets/', constants_file = 'constants.yaml', hyperparams_file = 'hyperparams.yaml'):
         self.parameter_tuning_experiment = False 
@@ -67,7 +68,6 @@ class ParametersHandler:
         self.UNBALANCED = not self.hyperparams['dataset']['balanced']
         self.ABLATION = self.hyperparams['dataset']['ablation']
         self.DEBUG_MODE = self.hyperparams['experiment']['debug_mode']
-        self.TV_ONLY = self.hyperparams['model']['tv_only']
         self.MAN_DEC_IN = self.hyperparams['model']['man_dec_in']
         self.MAN_DEC_OUT = self.hyperparams['model']['man_dec_out']
         self.MULTI_MODAL = self.hyperparams['model']['multi_modal']
@@ -127,7 +127,7 @@ class ParametersHandler:
         self.model_dictionary = copy.deepcopy(self.model)# we dont modify self.model as we might export/import it to/from YALM files
         self.model_dictionary['ref'] = eval(self.model_dictionary['ref'])
         self.model_dictionary['optimizer'] = eval(self.model_dictionary['optimizer'])
-        self.model_dictionary['lc loss function'] = eval(self.model_dictionary['lc loss function'])
+        self.model_dictionary['man loss function'] = eval(self.model_dictionary['man loss function'])
         self.model_dictionary['traj loss function'] = eval(self.model_dictionary['traj loss function'])
         
         self.CLASSIFICATION = self.constants['TASKS']['CLASSIFICATION']

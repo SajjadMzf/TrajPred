@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import Dataset 
 import models 
 import params
-
+import kpis
 import training_functions
 
 
@@ -49,9 +49,9 @@ def train_model_dict(p):
     #print('x')
     model = p.model_dictionary['ref'](p.BATCH_SIZE, device, p.model_dictionary['hyperparams'], p)
     optimizer = p.model_dictionary['optimizer'](params = model.parameters(), lr = p.LR)
-    lc_loss_func = p.model_dictionary['lc loss function'](ignore_index=-1)
+    man_loss_func = p.model_dictionary['man loss function']
     if p.model_dictionary['hyperparams']['probabilistic output']:
-        traj_loss_func = training_functions.NLL_loss
+        traj_loss_func = kpis.NLL_loss
     else:
         traj_loss_func = p.model_dictionary['traj loss function']()
     #print('x')
@@ -104,8 +104,8 @@ def train_model_dict(p):
     #exit()
     # Train/Evaluate:
     tb = SummaryWriter()
-    val_result_dic = training_functions.train_top_func(p, model, optimizer, lc_loss_func, traj_loss_func, tr_dataset, val_dataset,device, tensorboard = tb)    
-    te_result_dic, traj_df = training_functions.eval_top_func(p, model, lc_loss_func, traj_loss_func, te_dataset, device,  tensorboard = tb)
+    val_result_dic = training_functions.train_top_func(p, model, optimizer, man_loss_func, traj_loss_func, tr_dataset, val_dataset,device, tensorboard = tb)    
+    te_result_dic, traj_df = training_functions.eval_top_func(p, model, man_loss_func, traj_loss_func, te_dataset, device,  tensorboard = tb)
     #print('x')
     p.export_experiment()
     # Save results:
@@ -125,65 +125,10 @@ def train_model_dict(p):
 
 if __name__ == '__main__':
     
-    #        'layer number': 3,
-    #        'model dim':512,
-    #        'feedforward dim': 128,
-    #        'classifier dim': 128,
-    #        'head number': 8,
-    #torch.cuda.empty_cache()
-    '''
-    tuning_experiment_name = 'different model parameters for transformer traj non man_based'
-    selected_params = ['experiment_tag', 'DEBUG_MODE', 
-                        'MAN_DEC_IN', 
-                        'MAN_DEC_OUT', 
-                        'model[\'hyperparams\'][\'layer number\']',
-                        'model[\'hyperparams\'][\'model dim\']',
-                        'model[\'hyperparams\'][\'head number\']',
-                         ]
-    selected_metrics = ['FDE_table', 'RMSE_table']
-    '''
-    p = params.ParametersHandler('ManouvreTransformerTraj.yaml', 'highD.yaml', './config')
+    
+    p = params.ParametersHandler('MTPMTT.yaml', 'highD.yaml', './config')
     #1
     train_model_dict(p)
-    
-    '''
-    #2
-    p.model['hyperparams']['layer number'] = 1
-    p.model['hyperparams']['model dim'] = 128
-    p.model['hyperparams']['head number'] = 2
-    p.new_experiment()
-    p.tune_params(tuning_experiment_name, selected_params, selected_metrics)
-    train_model_dict(p)
-    #3
-    p.model['hyperparams']['layer number'] = 2
-    p.model['hyperparams']['model dim'] = 128
-    p.model['hyperparams']['head number'] = 4
-    p.new_experiment()
-    p.tune_params(tuning_experiment_name, selected_params, selected_metrics)
-    train_model_dict(p)
-    
-    #4
-    p.model['hyperparams']['layer number'] = 3
-    p.model['hyperparams']['model dim'] = 128
-    p.model['hyperparams']['head number'] = 8
-    p.new_experiment()
-    p.tune_params(tuning_experiment_name, selected_params, selected_metrics)
-    train_model_dict(p)
-    #5
-    p.model['hyperparams']['layer number'] = 1
-    p.model['hyperparams']['model dim'] = 512
-    p.model['hyperparams']['head number'] = 2
-    p.new_experiment()
-    p.tune_params(tuning_experiment_name, selected_params, selected_metrics)
-    train_model_dict(p)
-    #6
-    p.model['hyperparams']['layer number'] = 1
-    p.model['hyperparams']['model dim'] = 512
-    p.model['hyperparams']['head number'] = 8
-    p.new_experiment()
-    p.tune_params(tuning_experiment_name, selected_params, selected_metrics)
-    train_model_dict(p)
-    '''
     
     
     
