@@ -185,17 +185,11 @@ def train_model(p, model, optimizer, scheduler, train_loader, lc_loss_func, traj
             traj_pred = output_dict['traj_pred']
             man_pred = output_dict['man_pred'] #TODO: update enc man pred for lstm
 
-        else:
-            output_dict = model(encoder_input)
-        
-        #print(lc_pred)
-        #print(traj_pred)
-        #exit()
-
-        # 3. Calculating the loss value
-        
-        #lc_loss = 0
-        
+        elif p.SELECTED_MODEL =='MTPMTT':
+            target_data_in = torch.stack([target_data_in,target_data_in,target_data_in], dim = 1)
+            output_dict = model(x = encoder_input, y = target_data_in, y_mask = model.get_y_mask(p.TGT_SEQ_LEN).to(device))
+            traj_pred = output_dict['traj_pred']
+            man_pred = output_dict['man_pred']
         
         if p.MULTI_MODAL == True:
             #print_shape('traj_pred', traj_pred)

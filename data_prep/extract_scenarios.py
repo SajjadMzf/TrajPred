@@ -319,4 +319,15 @@ class ExtractScenarios:
                 assert(grid_ind>=0)
                 grid_data[grid_ind] = frame_data[rc.TRACK_ID][rl_itr]
         return grid_data
+
+def divide_prediction_window(seq_len, man_per_mode):
+    num_window = man_per_mode-1
+    window_length = int(seq_len/num_window)
+    w_ind = np.zeros((num_window, 2))
+    for i in range(num_window-1):
+        w_indx[i,0] = i*window_length
+        w_indx[i,1] = (i+1)*window_length
+    w_ind[num_window-1,0] = (num_window-1)*window_length
+    w_ind[num_window-1,1] = seq_len
+    return w_ind
     

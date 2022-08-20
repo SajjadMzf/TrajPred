@@ -49,7 +49,7 @@ def train_model_dict(p):
     #print('x')
     model = p.model_dictionary['ref'](p.BATCH_SIZE, device, p.model_dictionary['hyperparams'], p)
     optimizer = p.model_dictionary['optimizer'](params = model.parameters(), lr = p.LR)
-    lc_loss_func = p.model_dictionary['lc loss function']()
+    lc_loss_func = p.model_dictionary['lc loss function'](ignore_index=-1)
     if p.model_dictionary['hyperparams']['probabilistic output']:
         traj_loss_func = training_functions.NLL_loss
     else:

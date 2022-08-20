@@ -16,7 +16,6 @@ PRED_LEN = 20
 POST_LC_LEN = 20
 PRE_LC_LEN = OBS_LEN + PRED_LEN
 FPS = 5
-
 # Rendering params
 save_whole_imgs = False
 save_cropped_imgs = False

@@ -410,3 +410,80 @@ def NLL_loss(y_pred, y_gt):
         #print_value('lossval',lossVal)
         #exit()
         return lossVal
+    
+def MTPM_loss(man_pred, man_gt, n_modes, man_per_mode, alpha, beta):
+    # man pred: [batch_size, (1+3*man_per_mode + tgt_seq_len)*modes]
+    # man_gt: [batch_size, tgt_seq_len]
+    w_ind = divide_prediction_window(tgt_seq_len, man_per_mode)
+
+    tgt_seq_len = man_gt.shape[1]
+    man_gt, time_gt = man_vector2man_n_timing(man_gt, man_per_mode, w_ind)
+    
+    batch_size = man_pred.shape[0]
+    #mode probabilities
+    mode_pr = man_pred[:, 0:n_modes]
+    man_pr = man_pred[:,n_modes:n_modes+ n_modes*3*man_per_mode]
+    time_pr = man_pred[:,n_modes+ n_modes*3*man_per_mode:]
+    
+    
+
+    man_pr = man_pr.reshape(batch_size, n_modes, man_per_mode, 3)
+    time_pr = time_pr.reshape(batch_size, n_modes, tgt_seq_len)
+    
+    time_pr_list = []
+    for i in range(len(w_ind)):
+        time_pr_list.append(time_pr[:,:,w_ind[i,0]:w_ind[i,1]])
+    
+    loss_func = torch.nn.CrossEntropyLoss(ignore_index = -1)
+    loss_func_no_r = torch.nn.CrossEntropyLoss(ignore_index = -1, reduction = 'none')
+
+    man_loss_list = []
+    time_loss_list = []
+    for mode_itr in range(n_modes):
+        man_loss_list.append(torch.sum(loss_func_no_r(man_pr[:,mode_itr], man_gt), dim = 1)) 
+        mode_time_loss = 0
+        for i, mode_time_pr in enumerate(time_pr_list):
+            mode_time_loss += loss_func_no_r(mode_time_pr[:,mode_itr], time_gt[:,i])
+        time_loss_list.append(mode_time_loss)
+    man_losses = torch.stack(man_loss_list)
+    time_losses = torch.stack(time_loss_list)
+    
+    winning_mode = find_winning_mode(man_losses, time_losses)
+    mode_loss = loss_func(mode_pr, winning_mode)
+    man_loss = torch.mean(man_losses[winning_mode, np.arange(batch_size)])
+    time_loss = torch.mean(man_losses[winning_mode, np.arange(batch_size)])
+    lossVal = mode_loss + alpha*man_loss + beta*time_loss 
+    return lossVal
+
+def find_winning_mode(man_losses, time_losses, thr=0):
+    # [n_modes, batch_size, ]
+    ml_values, ml_index = torch.sort(man_losses+time_losses, dim=0)
+    #ml_values-ml_values[0]<thr
+    #tl_values, tl_index = torch.sort(time_losses, dim=0)
+    return ml_index[0,:]
+
+def divide_prediction_window(seq_len, man_per_mode):
+    num_window = man_per_mode-1
+    window_length = int(seq_len/num_window)
+    w_ind = np.zeros((num_window, 2))
+    for i in range(num_window-1):
+        w_indx[i,0] = i*window_length
+        w_indx[i,1] = (i+1)*window_length
+    w_ind[num_window-1,0] = (num_window-1)*window_length
+    w_ind[num_window-1,1] = seq_len
+    return w_ind
+
+def man_vector2man_n_timing(man_vector, man_per_mode, w_ind):
+    batch_size = man_vector.shape[0]
+    man_v_list = []
+    for i in range(len(w_ind)):
+        man_v_list.append(man_vector[:, w_ind[i,0]:w_ind[i,1]])
+    mans = torch.zeros((batch_size, man_per_mode))
+    times = torch.zeros((batch_size, man_per_mode-1))
+    for i, man_v in enumerate(man_v_list):
+        mans[:,i] = man_v[:,0]
+        _,times[:,i] = torch.max(man_v!=man_v[:,0])
+    times[times=0] = -1 #no manouvre change
+    mans[:,-1] = man_v_list[-1][:,-1]
+
+    return mans, times
