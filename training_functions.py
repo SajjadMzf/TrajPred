@@ -38,7 +38,8 @@ def eval_top_func(p, model, man_loss_func, traj_loss_func, te_dataset, device, t
     
     start = time()
     
-    test_acc, test_loss, test_man_loss, test_traj_loss, auc, max_j, precision, recall, f1, rmse, fde, traj_df = eval_model(p,model, man_loss_func, traj_loss_func, te_loader, te_dataset, ' N/A', device, eval_type = 'Test', vis_data_path = vis_data_path, figure_name = figure_name)
+    test_acc,test_losses, auc, max_j, precision, recall, f1, rmse, fde, traj_df = eval_model(p, tensorboard, model, man_loss_func, traj_loss_func, te_loader, te_dataset, ' N/A', device, eval_type = 'Test', vis_data_path = vis_data_path, figure_name = figure_name)
+    (test_loss, test_man_loss, test_traj_loss, test_mode_ploss, test_man_ploss, test_time_ploss) = test_losses
     end = time()
     total_time = end-start
     #print("Test finished in:", total_time, "sec.")
@@ -78,10 +79,12 @@ def train_top_func(p, model, optimizer, man_loss_func, traj_loss_func, tr_datase
     for epoch in range(p.NUM_EPOCHS):
         #print("Epoch: {} Started!".format(epoch+1))
         start = time()
-        tr_loss, tr_man_loss, tr_traj_loss = train_model(p, model, optimizer, scheduler, tr_loader, man_loss_func, traj_loss_func,  epoch+1, device, calc_train_acc= False)
+        tr_loss, tr_man_loss, tr_traj_loss, tr_mode_ploss, tr_man_ploss, tr_time_ploss = train_model(p, tensorboard, model, optimizer, scheduler, tr_loader, man_loss_func, traj_loss_func,  epoch+1, device, calc_train_acc= False)
         val_start = time()
 
-        val_acc,val_loss, val_man_loss, val_traj_loss, auc, max_j, precision, recall, f1, rmse, fde, traj_df = eval_model(p, model, man_loss_func, traj_loss_func, val_loader, val_dataset, epoch+1, device, eval_type = 'Validation')
+        val_acc, val_losses, auc, max_j, precision, recall, f1, rmse, fde, traj_df = eval_model(p, tensorboard, model, man_loss_func, traj_loss_func, val_loader, val_dataset, epoch+1, device, eval_type = 'Validation')
+        
+        (val_loss, val_man_loss, val_traj_loss, val_mode_ploss, val_man_ploss, val_time_ploss) = val_losses
         val_end = time()
         print('val_time:', val_end-val_start)
         #print("Validation Accuracy:",val_acc,' Avg Pred Time: ', val_avg_pred_time, " Avg Loss: ", val_loss," at Epoch", epoch+1)
@@ -90,14 +93,20 @@ def train_top_func(p, model, optimizer, man_loss_func, traj_loss_func, tr_datase
             tensorboard.add_scalar('tr_total_loss', tr_loss, epoch+1)
             tensorboard.add_scalar('tr_man_loss', tr_man_loss, epoch+1)
             tensorboard.add_scalar('tr_traj_loss', tr_traj_loss, epoch+1)
+            tensorboard.add_scalar('tr_mode_ploss', tr_mode_ploss, epoch+1)
+            tensorboard.add_scalar('tr_man_ploss', tr_man_ploss, epoch+1)
+            tensorboard.add_scalar('tr_time_ploss', tr_time_ploss, epoch+1)
 
             tensorboard.add_scalar('val_total_loss', val_loss, epoch+1)
             tensorboard.add_scalar('val_man_loss', val_man_loss, epoch+1)
             tensorboard.add_scalar('val_traj_loss', val_traj_loss, epoch+1)
+            tensorboard.add_scalar('val_mode_ploss', val_mode_ploss, epoch+1)
+            tensorboard.add_scalar('val_man_ploss', val_man_ploss, epoch+1)
+            tensorboard.add_scalar('val_time_ploss', val_time_ploss, epoch+1)
             tensorboard.add_scalar('val_rmse', rmse[0], epoch+1)
             tensorboard.add_scalar('val_fde', fde, epoch+1)
-        if val_loss<best_val_loss:
-            best_val_loss = val_loss
+        if rmse[0]<best_val_loss:
+            best_val_loss = rmse[0]
             best_val_acc = val_acc
             best_epoch = epoch
             torch.save(model.state_dict(), best_model_path)
@@ -126,7 +135,7 @@ def train_top_func(p, model, optimizer, man_loss_func, traj_loss_func, tr_datase
     return result_dic
 
 
-def train_model(p, model, optimizer, scheduler, train_loader, man_loss_func, traj_loss_func, epoch, device, vis_step = 20, calc_train_acc = True):
+def train_model(p, tb, model, optimizer, scheduler, train_loader, man_loss_func, traj_loss_func, epoch, device, vis_step = 20, calc_train_acc = True):
     # Number of samples with correct classification
     # total size of train data
     total = len(train_loader.dataset)
@@ -135,8 +144,18 @@ def train_model(p, model, optimizer, scheduler, train_loader, man_loss_func, tra
     model_time = 0
     avg_loss = 0
     avg_man_loss = 0
+    avg_mode_ploss = 0
+    avg_man_ploss = 0
+    avg_time_ploss = 0
     avg_traj_loss = 0
     
+    batch_loss = 0
+    batch_man_loss = 0
+    batch_mode_ploss = 0
+    batch_man_ploss = 0
+    batch_time_ploss = 0
+    batch_traj_loss = 0
+
     all_start = time()
     
     
@@ -195,7 +214,7 @@ def train_model(p, model, optimizer, scheduler, train_loader, man_loss_func, tra
         traj_loss = traj_loss_func(traj_pred, traj_gt)
         
         if p.MAN_DEC_OUT:
-            man_loss = man_loss_func(man_pred, dec_man_gt, n_mode = model.n_mode, man_per_mode = model.man_per_mode, device = device)
+            man_loss, mode_ploss, man_ploss, time_ploss = man_loss_func(man_pred, dec_man_gt, n_mode = model.n_mode, man_per_mode = model.man_per_mode, device = device)
         else:
             man_loss = 0
         
@@ -212,36 +231,56 @@ def train_model(p, model, optimizer, scheduler, train_loader, man_loss_func, tra
         optimizer.step()
     
 
-        avg_traj_loss += traj_loss.data/(len(train_loader))
+        batch_traj_loss += traj_loss.data/(len(train_loader))
         if p.MAN_DEC_OUT:
+            batch_man_loss += man_loss.data/(len(train_loader))
+            batch_mode_ploss += mode_ploss.data/(len(train_loader))
+            batch_man_ploss += man_ploss.data/(len(train_loader))
+            batch_time_ploss += time_ploss.data/(len(train_loader))
+
             avg_man_loss += man_loss.data/(len(train_loader))
-        else:
-            avg_man_loss = 0
+            avg_mode_ploss += mode_ploss.data/(len(train_loader))
+            avg_man_ploss += man_ploss.data/(len(train_loader))
+            avg_time_ploss += time_ploss.data/(len(train_loader))
+
+
+        batch_loss += loss.data/(len(train_loader))
         avg_loss += loss.data/(len(train_loader))
+        
         if (batch_idx+1) % 500 == 0:
-            print('Epoch: ',epoch, ' Batch: ', batch_idx+1, ' Training Loss: ', avg_loss.cpu().numpy())
-            avg_loss = 0
+            print('Training Epoch: {}, Batch: {}, Avg Loss: {}, Man Loss:{}, Traj Loss: {}'.format(epoch, batch_idx+1, batch_loss, batch_man_loss , batch_traj_loss) )
+            print('Mode Partial loss: {}, Man Partial loss: {}, Time Partial Loss: {}'.format(batch_mode_ploss, batch_man_ploss, batch_time_ploss))
+            
+            batch_mode_ploss = 0
+            batch_man_ploss = 0
+            batch_time_ploss = 0
+            batch_loss = 0
+            batch_man_loss = 0
+            batch_traj_loss = 0
         end = time()
         model_time += end-start
         
         
     all_end = time()
     all_time = all_end - all_start
-    print('Total Training loss: {}, Training Man Loss: {}, Training Traj Loss: {}'.format(avg_loss, avg_man_loss, avg_traj_loss))
+    
     scheduler.step()
     
     # Validation Phase on train dataset
     if calc_train_acc == True:
         raise('Depricated')
-    return avg_loss, avg_man_loss, avg_traj_loss
+    return avg_loss, avg_man_loss, avg_traj_loss, avg_mode_ploss, avg_man_ploss, avg_time_ploss
         
 
-def eval_model(p, model, man_loss_func, traj_loss_func, test_loader, test_dataset, epoch, device, eval_type = 'Validation', vis_data_path = None, figure_name = None):
+def eval_model(p, tb, model, man_loss_func, traj_loss_func, test_loader, test_dataset, epoch, device, eval_type = 'Validation', vis_data_path = None, figure_name = None):
     total = len(test_loader.dataset)
     num_batch = int(np.floor(total/model.batch_size))
     # Initialise Variables
     avg_loss = 0
     avg_man_loss = 0
+    avg_mode_ploss = 0
+    avg_man_ploss = 0
+    avg_time_ploss = 0
     avg_traj_loss = 0
     time_counter = 0
     average_time = 0
@@ -272,10 +311,11 @@ def eval_model(p, model, man_loss_func, traj_loss_func, test_loader, test_datase
                 'traj_max': test_dataset.output_states_max,
                 'input_features': np.zeros((batch_size, p.IN_SEQ_LEN, 18)),
                 'traj_labels': np.zeros((batch_size, p.TGT_SEQ_LEN+p.IN_SEQ_LEN, 2)),
-                'traj_preds': np.zeros((batch_size, p.TGT_SEQ_LEN, 2)),
-                'traj_dist_preds': np.zeros((batch_size, p.TGT_SEQ_LEN, 5)),
+                'traj_preds': np.zeros((batch_size, model.n_mode, p.TGT_SEQ_LEN, 2)),
+                'traj_dist_preds': np.zeros((batch_size, model.n_mode, p.TGT_SEQ_LEN, 5)),
                 'man_labels':np.zeros((batch_size, p.TGT_SEQ_LEN+p.IN_SEQ_LEN)),
-                'man_preds':np.zeros((batch_size, p.TGT_SEQ_LEN)),     
+                'man_preds':np.zeros((batch_size, model.n_mode, p.TGT_SEQ_LEN)),
+                'mode_prob': np.zeros((batch_size, model.n_mode))     
             }
         data_tuple = [data.to(device) for data in data_tuple]
         
@@ -307,76 +347,61 @@ def eval_model(p, model, man_loss_func, traj_loss_func, test_loader, test_datase
         else:
             encoder_out = model.encoder_forward(x = encoder_input)
             man_pred = model.man_decoder_forward(encoder_out)
-            man_pred_vector = kpis.sel_high_prob_man(man_pred, model.n_mode, model.man_per_mode, p.TGT_SEQ_LEN, device)
+            mode_prob, man_vectors = kpis.calc_man_vectors(man_pred, model.n_mode, model.man_per_mode, p.TGT_SEQ_LEN, device)
+            '''
+            traj_preds = []
+            data_dist_preds = []
+            for mode_itr in range(model.n_mode):
+                man_pred_vector = man_vectors[:,mode_itr]
+                decoder_input = initial_traj
+                decoder_input = torch.stack([decoder_input,decoder_input,decoder_input], dim = 1) #multi-modal
+                predicted_data_dist, traj_pred = trajectory_inference(p, model, device, decoder_input, encoder_out, man_pred_vector)
+                traj_preds.append(traj_pred)
+                data_dist_preds.append(predicted_data_dist)
+            traj_preds = torch.stack(traj_preds, dim = 1)
+            data_dist_preds = torch.stack(data_dist_preds, dim =1)
+            '''
+            BM_man_vector = kpis.sel_high_prob_man( man_pred, model.n_mode, model.man_per_mode, p.TGT_SEQ_LEN, device)
             decoder_input = initial_traj
             decoder_input = torch.stack([decoder_input,decoder_input,decoder_input], dim = 1) #multi-modal
-            
-            for out_seq_itr in range(p.TGT_SEQ_LEN):
-                #output_dict = model(x = encoder_input, y =decoder_input, y_mask = model.get_y_mask(decoder_input.size(2)).to(device))
-                traj_pred = model.traj_decoder_forward(y = decoder_input, 
-                                                            y_mask = model.get_y_mask(decoder_input.size(2)).to(device), 
-                                                            encoder_out = encoder_out)
+            BM_predicted_data_dist, BM_traj_pred = trajectory_inference(p, model, device, decoder_input, encoder_out, BM_man_vector)
                 
-                current_traj_pred = traj_pred[:,:,out_seq_itr:(out_seq_itr+1)] #traj output at current timestep
-                current_man_pred = man_pred_vector[:,out_seq_itr:(out_seq_itr+1)]      
                 
-                if p.MULTI_MODAL:
-                    manouvre_index = current_man_pred[:,0] 
-                else:
-                    manouvre_index = torch.zeros_like(current_man_pred[:,0] )
-                #print_shape('current_traj_pred', current_traj_pred)
-                #print_shape('manouvre_index', manouvre_index)
-                current_traj_pred = current_traj_pred[np.arange(current_traj_pred.shape[0]),manouvre_index,:,:2] #only the muX and muY [batch, modal, sequence, feature]
-                current_man_pred = F.one_hot(current_man_pred, num_classes = 3) 
-                
-                #print_shape('current_traj_pred', current_traj_pred)
-                #print_shape('current_man_pred', current_man_pred)
-                
-                current_decoder_input = current_traj_pred 
-                current_decoder_input = torch.unsqueeze(current_decoder_input, dim = 1)
-                current_decoder_input = torch.cat([current_decoder_input, current_decoder_input, current_decoder_input], dim = 1)
-                
-                decoder_input = torch.cat((decoder_input, current_decoder_input), dim = 2)
-                
-                if out_seq_itr ==0:
-                    predicted_data_dist = traj_pred[np.arange(traj_pred.shape[0]),manouvre_index, out_seq_itr:(out_seq_itr+1)]
-                else:
-                    predicted_data_dist = torch.cat((predicted_data_dist, traj_pred[np.arange(traj_pred.shape[0]),manouvre_index, out_seq_itr:(out_seq_itr+1)]), dim=1)
-                #print_shape('predicted_data_dist', predicted_data_dist)
-            traj_pred = decoder_input[:,:,1:,:2]
         
         end_time = time()-st_time
-       
-       
-        traj_pred = traj_pred[:,0]
         #print_shape('traj_gt', traj_gt)
         #print_shape('predicted_data_dist', predicted_data_dist)
-        traj_loss = traj_loss_func(predicted_data_dist, traj_gt)/len(test_loader) 
+        traj_loss = traj_loss_func(BM_predicted_data_dist, traj_gt)/len(test_loader) 
         if p.MAN_DEC_OUT:
-            man_loss = man_loss_func(man_pred, dec_man_gt, n_mode = model.n_mode, man_per_mode = model.man_per_mode, device = device, test_phase = True)
+            man_loss, mode_ploss, man_ploss,time_ploss = man_loss_func(man_pred, dec_man_gt, n_mode = model.n_mode, man_per_mode = model.man_per_mode, device = device, test_phase = True)
         else:
             man_loss = 0
+            mode_ploss = 0
+            man_ploss = 0
+            time_ploss = 0
         loss =  man_loss + p.TRAJ2CLASS_LOSS_RATIO*traj_loss 
 
 
         if eval_type == 'Test':
             traj_min = test_dataset.output_states_min
             traj_max = test_dataset.output_states_max
-            x_y_dist_pred = predicted_data_dist
+            x_y_dist_pred = BM_predicted_data_dist
             #print_shape('predicted_data_dist', predicted_data_dist)
             #exit()
-            x_y_pred = traj_pred[:,:,:2]
+            #x_y_pred = traj_preds[:,:,:,:2]
             x_y_label = data_tuple[-1]
-            unnormalised_traj_pred = x_y_pred.cpu().data*(traj_max-traj_min) + traj_min
+            #unnormalised_traj_pred = x_y_pred.cpu().data*(traj_max-traj_min) + traj_min
             unnormalised_traj_label = x_y_label.cpu().data*(traj_max-traj_min) + traj_min
             plot_dict['input_features'] = encoder_input
             plot_dict['traj_labels'] = unnormalised_traj_label.numpy()
-            plot_dict['traj_preds']= unnormalised_traj_pred.numpy() #TODO: remove traj pred and use traj_dist_preds instead
+            #plot_dict['traj_preds']= unnormalised_traj_pred.numpy() #TODO: remove traj pred and use traj_dist_preds instead
             plot_dict['traj_dist_preds'] = x_y_dist_pred.cpu().data.numpy()# TODO: export unnormalised dist
             plot_dict['man_labels'] = labels.cpu().data.numpy()
+            plot_dict['man_preds'] = man_vectors.cpu().numpy()
+            plot_dict['mode_prob'] = mode_prob.detach().cpu().numpy()
             
                 
-        all_traj_preds[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size)] = traj_pred.cpu().data
+        all_traj_preds[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size)] = BM_traj_pred.cpu().data
         all_traj_labels[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size)] = data_tuple[-1].cpu().data
         
         all_man_labels[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size)] = man_gt_onehot.cpu().data
@@ -386,18 +411,26 @@ def eval_model(p, model, man_loss_func, traj_loss_func, test_loader, test_datase
         
         if p.MAN_DEC_OUT:
             avg_man_loss += man_loss.data/(len(test_loader))
+            avg_mode_ploss += mode_ploss.data/((len(test_loader)))
+            avg_man_ploss += man_ploss.data/((len(test_loader)))
+            avg_time_ploss += time_ploss.data/((len(test_loader)))
         else:
             avg_man_loss = 0
+            avg_mode_ploss = 0
+            avg_man_ploss = 0
+            avg_time_ploss = 0
         
         
 
         time_counter += 1
         average_time +=end_time
+        if eval_type == 'Test':
+            plot_dicts.append(plot_dict)
         if (batch_idx+1) % 500 == 0:
             print('Epoch: ',epoch, ' Batch: ', batch_idx+1)
             
-        if eval_type == 'Test':
-            plot_dicts.append(plot_dict)
+            
+        
     
   
     traj_metrics, man_metrics, traj_df = kpis.calc_metric(p, all_traj_preds, all_traj_labels, all_man_preds, all_man_labels, test_dataset.output_states_min, test_dataset.output_states_max, epoch, eval_type = eval_type, figure_name = figure_name)
@@ -409,8 +442,8 @@ def eval_model(p, model, man_loss_func, traj_loss_func, test_loader, test_datase
     rmse = traj_metrics[0:3]
     fde = traj_metrics [3]
     print('                                   ')
-    print("{}: Epoch: {}, Accuracy: {:.2f}%, Total LOSS: {}, LC LOSS: {},TRAJ LOSS: {}, PRECISION:{}, RECALL:{}, F1:{}, FPR:{}, AUC:{}, Max J:{}, RMSE:{}, FDE:{}".format(
-        eval_type, epoch, 100. * accuracy, avg_loss, avg_man_loss, avg_traj_loss, precision, recall, f1, FPR, auc, max_j, rmse, fde))
+    print("{}: Epoch: {}, Accuracy: {:.2f}%, Total LOSS: {}, MAN LOSS: {},MODE PLOSS: {},MAN PLOSS: {},TIME LOSS: {},TRAJ LOSS: {}, PRECISION:{}, RECALL:{}, F1:{}, FPR:{}, AUC:{}, Max J:{}, RMSE:{}, FDE:{}".format(
+        eval_type, epoch, 100. * accuracy, avg_loss, avg_man_loss, avg_mode_ploss, avg_man_ploss, avg_time_ploss, avg_traj_loss, precision, recall, f1, FPR, auc, max_j, rmse, fde))
     print('                                   ')
     print('-----------------------------------')
     print('                                   ')
@@ -420,8 +453,48 @@ def eval_model(p, model, man_loss_func, traj_loss_func, test_loader, test_datase
         
         with open(vis_data_path, "wb") as fp:
             pickle.dump(plot_dicts, fp)
+    avg_losses = avg_loss, avg_man_loss, avg_traj_loss, avg_mode_ploss, avg_man_ploss, avg_time_ploss
+    return accuracy, avg_losses, auc, max_j, precision, recall, f1, rmse, fde, traj_df
+
+def trajectory_inference(p, model, device, decoder_input, encoder_out, man_pred_vector):
+    for out_seq_itr in range(p.TGT_SEQ_LEN):
+        #output_dict = model(x = encoder_input, y =decoder_input, y_mask = model.get_y_mask(decoder_input.size(2)).to(device))
+        traj_pred = model.traj_decoder_forward(y = decoder_input, 
+                                                    y_mask = model.get_y_mask(decoder_input.size(2)).to(device), 
+                                                    encoder_out = encoder_out)
         
-    return accuracy, avg_loss, avg_man_loss, avg_traj_loss, auc, max_j, precision, recall, f1, rmse, fde, traj_df
+        current_traj_pred = traj_pred[:,:,out_seq_itr:(out_seq_itr+1)] #traj output at current timestep
+        current_man_pred = man_pred_vector[:,out_seq_itr:(out_seq_itr+1)]      
+        
+        if p.MULTI_MODAL:
+            manouvre_index = current_man_pred[:,0] 
+        else:
+            manouvre_index = torch.zeros_like(current_man_pred[:,0] )
+        #print_shape('current_traj_pred', current_traj_pred)
+        #print_shape('manouvre_index', manouvre_index)
+        current_traj_pred = current_traj_pred[np.arange(current_traj_pred.shape[0]),manouvre_index,:,:2] #only the muX and muY [batch, modal, sequence, feature]
+        current_man_pred = F.one_hot(current_man_pred, num_classes = 3) 
+        
+        #print_shape('current_traj_pred', current_traj_pred)
+        #print_shape('current_man_pred', current_man_pred)
+        
+        current_decoder_input = current_traj_pred 
+        current_decoder_input = torch.unsqueeze(current_decoder_input, dim = 1)
+        current_decoder_input = torch.cat([current_decoder_input, current_decoder_input, current_decoder_input], dim = 1)
+        
+        decoder_input = torch.cat((decoder_input, current_decoder_input), dim = 2)
+        
+        if out_seq_itr ==0:
+            predicted_data_dist = traj_pred[np.arange(traj_pred.shape[0]),manouvre_index, out_seq_itr:(out_seq_itr+1)]
+        else:
+            predicted_data_dist = torch.cat((predicted_data_dist, traj_pred[np.arange(traj_pred.shape[0]),manouvre_index, out_seq_itr:(out_seq_itr+1)]), dim=1)
+        #print_shape('predicted_data_dist', predicted_data_dist)
+    traj_pred = decoder_input[:,:,1:,:2]
+    #print(traj_pred)
+    #print(predicted_data_dist[:,:,:,:2])
+    #exit()
+    traj_pred = traj_pred[:,0]
+    return predicted_data_dist, traj_pred
 
 def multi_modal_inference(p, model, test_loader, test_dataset, epoch, device, eval_type = 'Validation', vis_data_path = None, figure_name = None):
     return 0

@@ -60,9 +60,9 @@ class BEVPlotter:
         with open(self.result_file, 'rb') as handle:
             self.scenarios = pickle.load(handle)
 
-    def sort_scenarios(self):
+    def sort_scenarios(self, force_sort = True):
         sorted_scenarios_path = self.result_file.split('.pickle')[0] + '_sorted' + '.pickle'
-        if os.path.exists(sorted_scenarios_path):
+        if os.path.exists(sorted_scenarios_path) and force_sort == False:
             print('loading: {}'.format(sorted_scenarios_path))
             with open(sorted_scenarios_path, 'rb') as handle:
                 sorted_scenarios_dict = pickle.load(handle)
@@ -83,20 +83,20 @@ class BEVPlotter:
                                                     'input_features': [],
                                                     'times':[], 
                                                     'man_labels':[], 
-                                                    'man_preds':[], 
-                                                    'enc_man_preds':[], 
+                                                    'man_preds':[],
+                                                    'mode_prob':[],  
                                                     'traj_labels':[], 
                                                     'traj_preds':[],
                                                     'traj_dist_preds':[], 
                                                     'frames':[],
                                                     })
-                    in_seq_len = scenario['man_labels'].shape[1]-scenario['man_preds'].shape[1]
-                    tgt_seq_len = scenario['man_preds'].shape[1]
+                    in_seq_len = scenario['man_labels'].shape[1]-scenario['man_preds'].shape[-1]
+                    tgt_seq_len = scenario['man_preds'].shape[-1]
                     sorted_index = tv_id_file_list.index(((data_file,tv_id)))
                     sorted_scenarios_dict[sorted_index]['times'].append(scenario['frames'][batch_itr,in_seq_len])
                     sorted_scenarios_dict[sorted_index]['man_labels'].append(scenario['man_labels'][batch_itr]) 
                     sorted_scenarios_dict[sorted_index]['man_preds'].append(scenario['man_preds'][batch_itr])
-                    sorted_scenarios_dict[sorted_index]['enc_man_preds'].append(scenario['enc_man_preds'][batch_itr])
+                    sorted_scenarios_dict[sorted_index]['mode_prob'].append(scenario['mode_prob'][batch_itr])
                     sorted_scenarios_dict[sorted_index]['traj_labels'].append(scenario['traj_labels'][batch_itr])
                     sorted_scenarios_dict[sorted_index]['traj_preds'].append(scenario['traj_preds'][batch_itr])
                     sorted_scenarios_dict[sorted_index]['traj_dist_preds'].append(scenario['traj_dist_preds'][batch_itr])
@@ -111,7 +111,7 @@ class BEVPlotter:
                 sorted_scenarios_dict[i]['times'] = [sorted_scenarios_dict[i]['times'][indx] for indx in sorted_indxs]
                 sorted_scenarios_dict[i]['man_labels'] = [sorted_scenarios_dict[i]['man_labels'][indx] for indx in sorted_indxs]
                 sorted_scenarios_dict[i]['man_preds'] = [sorted_scenarios_dict[i]['man_preds'][indx] for indx in sorted_indxs]
-                sorted_scenarios_dict[i]['enc_man_preds'] = [sorted_scenarios_dict[i]['enc_man_preds'][indx] for indx in sorted_indxs]
+                sorted_scenarios_dict[i]['mode_prob'] = [sorted_scenarios_dict[i]['mode_prob'][indx] for indx in sorted_indxs]
                 sorted_scenarios_dict[i]['traj_labels'] = [sorted_scenarios_dict[i]['traj_labels'][indx] for indx in sorted_indxs]
                 sorted_scenarios_dict[i]['traj_preds'] = [sorted_scenarios_dict[i]['traj_preds'][indx] for indx in sorted_indxs]
                 sorted_scenarios_dict[i]['traj_dist_preds'] = [sorted_scenarios_dict[i]['traj_dist_preds'][indx] for indx in sorted_indxs]
@@ -157,13 +157,10 @@ class BEVPlotter:
         for j,time in enumerate(sorted_dict[scenario_number]['times']):
             man_labels = sorted_dict[scenario_number]['man_labels'][j]
             man_preds = sorted_dict[scenario_number]['man_preds'][j]
-            enc_man_preds = sorted_dict[scenario_number]['enc_man_preds'][j]
+            mode_prob = sorted_dict[scenario_number]['mode_prob'][j]
             traj_labels = sorted_dict[scenario_number]['traj_labels'][j]
-            if p.PROBABILISTIC_PLOT:
-                traj_preds = sorted_dict[scenario_number]['traj_dist_preds'][j]
-                traj_preds[:,:2] = traj_preds[:,:2]*(traj_max-traj_min) + traj_min
-            else:
-                traj_preds = sorted_dict[scenario_number]['traj_preds'][j]
+            
+            traj_preds = sorted_dict[scenario_number]['traj_preds'][j]
             frames = sorted_dict[scenario_number]['frames'][j]
             input_features = sorted_dict[scenario_number]['input_features'][j]
 
@@ -172,7 +169,7 @@ class BEVPlotter:
             wif_traj_pred = self.eval_model(dl_params, model, input_features, initial_traj, wif_man)
             wif_traj_pred = wif_traj_pred*(traj_max-traj_min) + traj_min
 
-            scenario_tuple = (traj_min, traj_max, man_labels, man_preds, enc_man_preds, traj_labels, traj_preds, frames, data_file)
+            scenario_tuple = (traj_min, traj_max, man_labels, man_preds, mode_prob, traj_labels, traj_preds, frames, data_file)
             self.render_single_frame(scenario_number, tv_id, scenario_tuple, plotted_data_number, wif_man = wif_man[1:], wif_traj = wif_traj_pred)
             plotted_data_number += 1
             print("Scene Number: {}".format(plotted_data_number))
@@ -198,27 +195,21 @@ class BEVPlotter:
             
             
             np.set_printoptions(precision=2, suppress=True)
-            for j,time in enumerate(sorted_dict[i]['times']):
-                man_preds = sorted_dict[i]['man_preds'][j]
-                for itr in range(man_preds.shape[0]):
-                    man_preds[itr] = self.softmax(man_preds[itr])
+            
             
             # for each time-step
             for j,time in enumerate(sorted_dict[i]['times']):
                 man_labels = sorted_dict[i]['man_labels'][j]
                 man_preds = sorted_dict[i]['man_preds'][j]
-                enc_man_preds = sorted_dict[i]['enc_man_preds'][j]
+                mode_prob = sorted_dict[i]['mode_prob'][j]
                 traj_labels = sorted_dict[i]['traj_labels'][j]
-                if p.PROBABILISTIC_PLOT:
-                    traj_preds = sorted_dict[i]['traj_dist_preds'][j]
-                    traj_preds[:,:2] = traj_preds[:,:2]*(traj_max-traj_min) + traj_min
-                else:
-                    traj_preds = sorted_dict[i]['traj_preds'][j]
+                
+                traj_preds = sorted_dict[i]['traj_preds'][j]
                 frames = sorted_dict[i]['frames'][j]
                 
                 #print("j: {}, min: {}, max: {}".format(j,np.amin(man_preds), np.amax(man_preds)))
                 #print(man_preds)
-                scenario_tuple = (traj_min, traj_max, man_labels, man_preds, enc_man_preds, traj_labels, traj_preds, frames, data_file)
+                scenario_tuple = (traj_min, traj_max, man_labels, man_preds, mode_prob, traj_labels, traj_preds, frames, data_file)
                 self.render_single_frame(i, tv_id, scenario_tuple, plotted_data_number )
                 plotted_data_number += 1
                 print("Scene Number: {}".format(plotted_data_number))
@@ -237,19 +228,15 @@ class BEVPlotter:
             for batch_itr, tv_id in enumerate(scenario['tv']):
                 man_labels = scenario['man_labels'][batch_itr]
                 man_preds = scenario['man_preds'][batch_itr]
-                enc_man_preds = scenario['enc_man_preds'][batch_itr]
+                mode_prob = scenario['mode_prob'][batch_itr]
                 traj_labels = scenario['traj_labels'][batch_itr]
-                if p.PROBABILISTIC_PLOT:
-                    traj_preds = scenario['traj_dist_preds'][batch_itr]
-                    traj_preds[:,:2] = traj_preds[:,:2]*(traj_max-traj_min) + traj_min
-                else:
-                    traj_preds = scenario['traj_preds'][batch_itr]
+                
+                traj_preds = scenario['traj_preds'][batch_itr]
                 
                 frames = scenario['frames'][batch_itr]
                 data_file = int(scenario['data_file'][batch_itr].split('.')[0])
-                for itr in range(man_preds.shape[0]):
-                    man_preds[itr] = self.softmax(man_preds[itr])
-                scenario_tuple = (traj_min, traj_max, man_labels, man_preds, enc_man_preds, traj_labels, traj_preds, frames, data_file)
+                
+                scenario_tuple = (traj_min, traj_max, man_labels, man_preds, mode_prob, traj_labels, traj_preds, frames, data_file)
                 self.render_single_scenario(i, tv_id, scenario_tuple, plotted_data_number)
                 plotted_data_number += 1
                 print("Scene Number: {}".format(plotted_data_number))
@@ -262,11 +249,10 @@ class BEVPlotter:
     def render_single_frame(self, scenario_number, tv_id, scenario_tuple, plot_number, wif_man = [], wif_traj = [], man_preds_range = (0,1)):
         
         summary_image = True
-        (traj_min, traj_max, man_labels, man_preds, enc_man_preds, traj_labels, traj_preds, frames, data_file) = scenario_tuple
-        enc_man_preds = self.softmax(enc_man_preds)
+        (traj_min, traj_max, man_labels, man_preds, mode_prob, traj_labels, traj_preds, frames, data_file) = scenario_tuple
         
-        in_seq_len = man_labels.shape[0]-man_preds.shape[0]
-        tgt_seq_len = man_preds.shape[0]
+        in_seq_len = man_labels.shape[0]-man_preds.shape[-1]
+        tgt_seq_len = man_preds.shape[-1]
         
         track_path = p.track_paths[data_file-1]
         static_path = p.static_paths[data_file-1]
@@ -281,8 +267,7 @@ class BEVPlotter:
         self.image_height = int(self.metas[rc.LOWER_LANE_MARKINGS][-1]*p.Y_IMAGE_SCALE + p.BORDER_PIXELS)
 
         driving_dir = self.statics[tv_id][rc.DRIVING_DIRECTION]
-                        
-        #self.plot_overview(man_labels, man_preds, traj_labels,traj_preds, plotted_data_number)
+            
         traj_imgs = []
         tv_track = []
         tv_future_track = ([],[], [])
@@ -297,7 +282,7 @@ class BEVPlotter:
                 frame,
                 man_labels,
                 man_preds,
-                enc_man_preds,
+                mode_prob,
                 traj_labels,
                 traj_preds,
                 traj_min,
@@ -323,11 +308,10 @@ class BEVPlotter:
 
     def render_single_scenario(self, scenario_number, tv_id, scenario_tuple, plot_number, wif_man = [], wif_traj = [], man_preds_range = (0,1)):
         summary_image = False
-        (traj_min, traj_max, man_labels, man_preds, enc_man_preds, traj_labels, traj_preds, frames, data_file) = scenario_tuple
-        enc_man_preds = self.softmax(enc_man_preds)
+        (traj_min, traj_max, man_labels, man_preds, mode_prob, traj_labels, traj_preds, frames, data_file) = scenario_tuple
         
-        in_seq_len = man_labels.shape[0]-man_preds.shape[0]
-        tgt_seq_len = man_preds.shape[0]
+        in_seq_len = man_labels.shape[0]-man_preds.shape[-1]
+        tgt_seq_len = man_preds.shape[-1]
         
         track_path = p.track_paths[data_file-1]
         static_path = p.static_paths[data_file-1]
@@ -343,7 +327,7 @@ class BEVPlotter:
 
         driving_dir = self.statics[tv_id][rc.DRIVING_DIRECTION]
                         
-        #self.plot_overview(man_labels, man_preds, traj_labels,traj_preds, plotted_data_number)
+        
         traj_imgs = []
         tv_track = []
         tv_future_track = ([],[], [])
@@ -359,7 +343,7 @@ class BEVPlotter:
                 frame,
                 man_labels,
                 man_preds,
-                enc_man_preds,
+                mode_prob,
                 traj_labels,
                 traj_preds,
                 traj_min,
@@ -391,7 +375,7 @@ class BEVPlotter:
         frame:'frame',
         man_labels, 
         man_preds,
-        enc_man_preds,
+        mode_prob,
         traj_labels,
         traj_preds,
         traj_min,
@@ -405,8 +389,9 @@ class BEVPlotter:
         wif_traj = [],
         man_preds_range = (0,1)
         ):
-        
         assert(frame_data[rc.FRAME]==frame) 
+        
+        sorted_modes = np.argsort(mode_prob)[::-1]
         image = np.ones((self.image_height, self.image_width,3), dtype=np.int32)*p.COLOR_CODES['BACKGROUND']
 
         tv_itr = np.nonzero(frame_data[rc.TRACK_ID] == tv_id)[0][0]
@@ -466,15 +451,19 @@ class BEVPlotter:
         image = image.astype(np.uint8)
         # calculate future trajectories
         if seq_fr == in_seq_len-1:
+            tgt_seq_len = traj_preds.shape[1]
+            n_mode = traj_preds.shape[0]
             tv_gt_future_track = []
             #tv_gt_future_track.append((center_x(tv_itr), center_y(tv_itr)))
+            
             tv_gt_future_track.append((tv_track[-1][0], tv_track[-1][1]))
             tv_pr_future_track = []
             wif_future_track = []
             #tv_pr_future_track.append((center_x(tv_itr), center_y(tv_itr)))
-            tv_pr_future_track.append((tv_track[-1][0], tv_track[-1][1]))
+            for mode_itr in range(n_mode):
+                tv_pr_future_track.append([])
+                tv_pr_future_track[mode_itr].append((tv_track[-1][0], tv_track[-1][1]))
             wif_future_track.append((tv_track[-1][0], tv_track[-1][1]))
-            tgt_seq_len = traj_preds.shape[0]
             initial_x = tv_gt_future_track[-1][0]
             initial_y = tv_gt_future_track[-1][1]
             dx_gt = 0
@@ -484,13 +473,14 @@ class BEVPlotter:
                 dy_gt += fix_sign(traj_labels[fut_fr,0]*p.Y_IMAGE_SCALE)
                 tv_gt_future_track.append((int(initial_x+dx_gt), int(initial_y+dy_gt)))
 
-            dx_pr = 0
-            dy_pr = 0  
-            for fut_fr in range(tgt_seq_len):
-                dx_pr += fix_sign(traj_preds[fut_fr,1]*p.X_IMAGE_SCALE)
-                dy_pr += fix_sign(traj_preds[fut_fr,0]*p.Y_IMAGE_SCALE)
-                tv_pr_future_track.append((int(initial_x+dx_pr), int(initial_y+dy_pr)))
-            
+            for mode_itr in range(n_mode):
+                dx_pr = 0
+                dy_pr = 0  
+                for fut_fr in range(tgt_seq_len):
+                    dx_pr += fix_sign(traj_preds[mode_itr,fut_fr,1]*p.X_IMAGE_SCALE)
+                    dy_pr += fix_sign(traj_preds[mode_itr,fut_fr,0]*p.Y_IMAGE_SCALE)
+                    tv_pr_future_track[mode_itr].append((int(initial_x+dx_pr), int(initial_y+dy_pr)))
+                
             tv_future_track = (tv_gt_future_track, tv_pr_future_track)
             
             if p.WHAT_IF_RENDERING:
@@ -517,40 +507,21 @@ class BEVPlotter:
             bottom_right = tv_gt_future_track[i-1] + np.array([3,3])
             image = cv2.rectangle(image, tuple(top_left), tuple(bottom_right), color = p.COLOR_CODES['GT_TRAJ'], thickness = -1)
 
-        if p.PROBABILISTIC_PLOT:
-            height = image.shape[0]
-            width = image.shape[1]
-            #y_vector = np.arange(0,y_max,1)
-            #x_vector = np.arange(0,x_max,1)
-            #xx, yy = np.meshgrid(x_vector, y_vector)
-            #xxyy = np.c_[xx.ravel(), yy.ravel()]
-            z = np.zeros((height, width))
-
-            
-            y_min = traj_min[0]
-            x_min = traj_min[1]
-            y_max = traj_max[0]
-            x_max = traj_max[1]
-            for i in range(len(tv_pr_future_track)):
-                if i == 0:
-                    continue
-                muX = tv_pr_future_track[i][0]
-                muY = tv_pr_future_track[i][1]
-                sigY = traj_preds[i-1, 2]*(y_max-y_min)*p.Y_IMAGE_SCALE # sigY = standard deviation of y
-                sigX = traj_preds[i-1, 3]*(x_max-x_min)*p.X_IMAGE_SCALE # sigX = standard deviation of x
-                rho = traj_preds[i-1, 4]
-                z = self.plot_single_heatmap(z, height, width, muY, muX, sigY, sigX, rho,p.CUT_OFF_SIGMA_RATIO)
+        
+        if seq_fr>=in_seq_len-1:
+            for mode_itr in range(p.N_PLOTTED_MODES-2):
                 
-            #print(len(tv_pr_future_track))
-            if len(tv_pr_future_track)>4:
-                plt.imshow(z); plt.show()
-
-        else:
-            for i in range(len(tv_pr_future_track)):
-                if i ==0:
-                    continue
-                image = cv2.line(image, tv_pr_future_track[i], tv_pr_future_track[i-1], p.COLOR_CODES['PR_TRAJ'], 2)
-                image = cv2.circle(image, tv_pr_future_track[i-1], 4, p.COLOR_CODES['PR_TRAJ'], thickness = -1)
+                bm = sorted_modes[mode_itr]
+                #if mode_prob[bm]<p.MODE_PROB_THR:
+                 #   continue
+                #print(sorted_modes)
+                #print(bm)
+                #print(mode_itr)
+                for i in range(len(tv_pr_future_track[bm])):
+                    if i ==0:
+                        continue
+                    image = cv2.line(image, tv_pr_future_track[bm][i], tv_pr_future_track[bm][i-1], p.COLOR_CODES['PR_TRAJ'][mode_itr], 2)
+                    image = cv2.circle(image, tv_pr_future_track[bm][i-1], 4, p.COLOR_CODES['PR_TRAJ'][mode_itr], thickness = -1)
 
         if p.WHAT_IF_RENDERING:
             wif_future_track = tv_future_track[2]
@@ -573,114 +544,56 @@ class BEVPlotter:
                     tv_lane_ind = ind
                     break
         
-        #print(man_labels)
-        #print(man_preds)
-        #exit()
+       
         if p.PLOT_MAN and seq_fr == in_seq_len -1:
             
             fig = plt.figure(figsize=(16, 12))
-            gs = gridspec.GridSpec(3, 1, height_ratios=[1, 2, 2]) 
-            ax1 = fig.add_subplot(gs[0])
+            gs = gridspec.GridSpec(p.N_PLOTTED_MODES+1, 1) 
+            axes = []
+            for i in range(p.N_PLOTTED_MODES+1):
+                axes.append(fig.add_subplot(gs[i]))
             #ax1.set_facecolor((235/255,235/255,235/255))
             if seq_fr>= in_seq_len-1:
                 x = np.arange(in_seq_len+1,in_seq_len + tgt_seq_len+1)
-                y = np.argmax(man_preds,axis = 1)
-                y_onehot = np.eye(3)[y]
-                #print(y_onehot.shape)
-                y_onehot = y_onehot[:,[1,0,2]]
-                y = np.argmax(y_onehot, axis =1)
-                ax1.plot(x,y, p.MARKERS['PR_TRAJ'], color = 'red', alpha = 1, label='PR#1')#, fillstyle = 'none', markersize=10)
+                
+                mode_prob = self.softmax(mode_prob)
+                for i in range(p.N_PLOTTED_MODES):
+                    prob = mode_prob[sorted_modes[i]]
+                    y = man_preds[sorted_modes[i]]
+                    y_onehot = np.eye(3)[y]
+                    y_onehot = y_onehot[:,[1,0,2]]
+                    y = np.argmax(y_onehot, axis =1)
+                    axes[i+1].plot(x,y, p.MARKERS['PR_TRAJ'], color = p.COLOR_NAMES[i], alpha = 1)
+                    axes[i+1].set_xlabel('Frame')
+                    axes[i+1].set_xticks(x)
+                    axes[i+1].set_xticklabels(x, rotation=90)
+                    #axes[i+1].set_ylabel('Manoeuvre ')
+                    axes[i+1].grid(True)
+                    axes[i+1].set_yticks([0,1,2])
+                    axes[i+1].set_yticklabels(['RLC', 'LK', 'LLC'])
+                    axes[i+1].set_title('PR#{:d} (p={:.2f})'.format(i+1, prob))
                 if p.WHAT_IF_RENDERING:
                     wif_y = np.eye(3)[wif_man]
-                    #print(y_onehot.shape)
                     wif_y = wif_y[:,[1,0,2]]
                     wif_y = np.argmax(wif_y, axis =1)
-                    ax1.plot(x, wif_y, p.MARKERS['WIF_TRAJ'], color = 'green', alpha = 1)#, fillstyle = 'none', markersize=10)
-
-                ax2 = fig.add_subplot(gs[1])
-                #ax2.set_facecolor((235/255,235/255,235/255))
-                pr_x = np.arange(in_seq_len+1, in_seq_len + tgt_seq_len + 1)
-                #print(man_preds)
-                 
-                man_preds_prob = man_preds.transpose()
-                
-                #print('plot')
-                #print(man_preds_prob)
-
-                #man_preds_prob -= man_preds_prob%0.01
-                man_preds_prob = np.rint(100*man_preds_prob)/100
-                man_preds_prob = man_preds_prob[[2,0,1]]
-                for i in range(3):
-                    ax2.plot(x, man_preds_prob[i], label = p.PLOT_MAN_NAMES[i])
-                ax2.legend()
-                #print(man_preds_prob)
-                #print(man_preds_prob)
-                '''
-                im = ax2.imshow(man_preds_prob, vmin = 0, vmax = 1)#, edgecolors='k', linewidths=4)#, vmin = 0, vmax = 1)
-                '''
-                #im = ax2.matshow(man_preds_prob)#, vmin = man_preds_range[0], vmax = man_preds_range[1])#, edgecolors='k', linewidths=4)#, vmin = 0, vmax = 1)
-                #for i in range(man_preds_prob.shape[0]):
-                #    for j in range(man_preds_prob.shape[1]):
-                #        ax2.text(x=j, y=i,s=man_preds_prob[i, j], va='center', ha='center', size='xx-small')
-                # Create colorbar
-                '''
-                divider = make_axes_locatable(ax2)
-                cax = divider.new_vertical(size='10%', pad=1, pack_start = True)
-                fig.add_axes(cax)
-                fig.colorbar(im, cax = cax, orientation = 'horizontal')
-                '''
-                #cbar = ax2.figure.colorbar(im, ax=ax2, orientation="horizontal")
-                #cbar.ax.set_ylabel('Manouvre Probability', rotation=0, va="bottom")
-
-                # Show all ticks and label them with the respective list entries.
-                ax2.set_xlabel('Prediction Frame')
-                
-                #ax2.set_ylabel('Manoeuvre')
-                ax2.set_xticks(pr_x)
-                ax2.grid(True)
-                ax2.set_ylim([0,1])
-                ax2.set_xticklabels(pr_x)
-                #ax2.set_yticks([0,1,2])
-                #ax2.set_yticklabels(['LLC', 'LK', 'RLC'])
-                ax2.set_title('Manoeuvre Probabilities')
-
-                ax3 = fig.add_subplot(gs[2])
-                pr_x = np.arange(in_seq_len+1, in_seq_len + tgt_seq_len + 1)
-                man_preds_diff = np.zeros_like(man_preds_prob) 
-                xat = lambda t: man_preds_prob[:,2+t:tgt_seq_len+t-2]
-                man_preds_diff[:,2:tgt_seq_len-2] = (p.FPS/10)*(-2*xat(-2) 
-                                                            -1*xat(-1)
-                                                            +1*xat(1)
-                                                            +2*xat(2))
-                #man_preds_diff[:,tgt_seq_len-5:] = man_preds_diff[:,tgt_seq_len-2]
-                for i in range(3):
-                    ax3.plot(x, man_preds_diff[i], label = p.PLOT_MAN_NAMES[i])
-                ax3.legend()
-                ax3.set_xlabel('Prediction Frame')
-                
-                ax3.set_xticks(pr_x)
-                ax3.grid(True)
-                ax3.set_xticklabels(pr_x)
-                ax3.set_title('Diff Manoeuvre')
-                
+                    axes[0].plot(x, wif_y, p.MARKERS['WIF_TRAJ'], color = 'green', alpha = 1)
+     
             
             gt_x = np.arange(1, in_seq_len + tgt_seq_len+1)
             gt_y = man_labels
             gt_y_onehot = np.eye(3)[gt_y]
-            #print(gt_y_onehot.shape)
             gt_y_onehot = gt_y_onehot[:,[1,0,2]]
             gt_y = np.argmax(gt_y_onehot, axis =1)
-            ax1.plot(gt_x, gt_y,p.MARKERS['GT_TRAJ'], color = 'blue', alpha = 1, label='GT')#, fillstyle = 'none', markersize=10)
+            axes[0].plot(gt_x, gt_y,p.MARKERS['GT_TRAJ'], color = 'black', alpha = 1, label='GT')#, fillstyle = 'none', markersize=10)
             
-            ax1.set_xlabel('Frame')
-            ax1.set_xticks(gt_x)
-            ax1.set_xticklabels(gt_x, rotation=90)
-            ax1.set_ylabel('Manoeuvre ')
-            ax1.grid(True)
-            ax1.legend(loc = 'upper left')
-            ax1.set_yticks([0,1,2])
-            ax1.set_yticklabels(['RLC', 'LK', 'LLC'])
-            ax1.set_title('Manoeuvre Vector')
+            axes[0].set_xlabel('Frame')
+            axes[0].set_xticks(gt_x)
+            axes[0].set_xticklabels(gt_x, rotation=90)
+            #axes[0].set_ylabel('Manoeuvre ')
+            axes[0].grid(True)
+            axes[0].set_yticks([0,1,2])
+            axes[0].set_yticklabels(['RLC', 'LK', 'LLC'])
+            axes[0].set_title('GT')
             fig.tight_layout(pad=1)
             #plt.show()
             #plt.close()
@@ -692,37 +605,8 @@ class BEVPlotter:
             man_bar[0:man_image.shape[0], 0:man_image.shape[1], :] = man_image
             man_bar = man_bar[:,:,[2,1,0]]
             image = np.concatenate((image, man_bar), axis = 0)
-                
-        if p.PLOT_TEXTS:
-            text_bar = np.ones((40+3*p.LINE_BREAK, image.shape[1],3), dtype = np.int32)
-            text_bar[:,:,:]= p.COLOR_CODES['BACKGROUND']
-            gt_man_text = 'GT:{}'.format(p.CLASS[man_labels[seq_fr]])
-            cv2.putText(text_bar,gt_man_text,
-                                (20,25), 
-                                p.FONT, 
-                                p.FSCALE,
-                                p.FCOLOR,
-                                p.LINETYPE)
-
-            if seq_fr>=in_seq_len-1:
-                #print(seq_fr)
-                
-                enc_man_text = 'ENC PR: LK:{:.2f}, RLC:{:.2f}, LLC:{:.2f}'.format(enc_man_preds[0], enc_man_preds[1], enc_man_preds[2])
-                cv2.putText(text_bar,enc_man_text,
-                                    (20,50), 
-                                    p.FONT, 
-                                    p.FSCALE,
-                                    p.FCOLOR,
-                                    p.LINETYPE)
-                
-                pr_man_text = 'PR: LK:{:.2f}, RLC:{:.2f}, LLC:{:.2f}'.format(man_preds[seq_fr-(in_seq_len),0], man_preds[seq_fr-(in_seq_len),1], man_preds[seq_fr-(in_seq_len),2])
-                cv2.putText(text_bar,pr_man_text,
-                                    (200,25), 
-                                    p.FONT, 
-                                    p.FSCALE,
-                                    p.FCOLOR,
-                                    p.LINETYPE)
-            image = np.concatenate((text_bar, image), axis = 0)
+                              
+            
 
 
         
@@ -773,11 +657,7 @@ class BEVPlotter:
             output_dict = model(x = x, y = y, y_mask = model.get_y_mask(y.size(2)).to(self.device))
             traj_dist_pred = output_dict['traj_pred']
             traj_dist_pred = traj_dist_pred[:,:,seq_itr:seq_itr+1]
-            enc_man_pred = output_dict['enc_man_pred']
-            #if seq_itr == 0:
-            #    current_man_pred = torch.argmax(enc_man_pred, dim = -1)
-            #else:
-            #    current_man_pred = torch.argmax(man_pred[:,seq_itr-1], dim = -1)
+            
             selected_traj_pred = traj_dist_pred[:,wif_man[0,seq_itr+1],:,:2]
             if dl_params.MAN_DEC_OUT==True:
                 #man_pred_dec_in = man_pred[:,seq_itr:(seq_itr+1)]
@@ -869,8 +749,8 @@ if __name__ =="__main__":
         dataset_name = p.DATASET,
         num_output = p.NUM_OUTPUT)
     if p.WHAT_IF_RENDERING:
-        dl_params = params.ParametersHandler('ManouvreTransformerTraj.yaml', 'highD.yaml', '../config')
-        experiment_file = '../experiments/ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'
+        dl_params = params.ParametersHandler('MTPMTT.yaml', 'highD.yaml', '../config')
+        experiment_file = '../experiments/'+ p.model_name
         dl_params.import_experiment(experiment_file)
         #initial_man = 0
         #wif_man = np.array([[0,0],[1,10]])

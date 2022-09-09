@@ -2,14 +2,15 @@ import cv2
 DATASET = 'HIGHD'
 FPS = 5
 OCCLUSION = False
-model_name =  'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-06-27 14:46:40.899317'#'ManouvreTransformerTraj_highD_2022-06-14 15:14:02.050065'
+model_name =  'MTPMTT_highD_2022-08-24 21:34:37.789667'#'MTPMTT_highD_2022-08-22 15:47:03.709155'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-06-27 14:46:40.899317'#'ManouvreTransformerTraj_highD_2022-06-14 15:14:02.050065'
 RESULT_FILE = "../results/vis_data/"+ model_name +".pickle"
-WHAT_IF_RENDERING = True
-ITERATIVE_RENDERING = False
+WHAT_IF_RENDERING = False
+ITERATIVE_RENDERING = True
 
-PROBABILISTIC_PLOT = False
 NUM_OUTPUT = 1000
 CUT_OFF_SIGMA_RATIO = 3
+N_PLOTTED_MODES = 5
+MODE_PROB_THR = 0.2
 # Actual image
 
 # TAGS:
@@ -45,12 +46,29 @@ def generate_paths(first_leg, total_num, second_leg):
 COLOR_CODES = {'TV': (102,6,3), #blue
             'SV': (128,128,128),
             'LANE':(128,128,128),
-            'GT_TRAJ':(199,12,6),
-            'PR_TRAJ':(25,25,217),
+            'GT_TRAJ':(0,0,0),
+            'PR_TRAJ':[
+                (180,119,31),#blue
+                (14,127,255),#orange
+                (44,160,44),#green
+                (40,39,214),#red
+                (189,103,148),#purple
+                ],
             'WIF_TRAJ':(0,150,0),
             'BACKGROUND':(255,255,255)
 }
 
+
+COLOR_NAMES= ['tab:blue', 
+                'tab:orange',
+                'tab:green',
+                'tab:red',
+                'tab:purple',
+                'tab:brown',
+                'tab:pink',
+                'tab:gray',
+                'tab:olive',
+                'tab:cyan' ]
 
 PLOT_MAN_NAMES = [
     'LLC',

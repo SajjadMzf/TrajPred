@@ -67,9 +67,17 @@ class LCDataset(Dataset):
                 self.states_max = states_max
             else:
                 self.states_min, self.states_max = self.get_features_range(self.state_data_name)
+
+            for i in range(len(self.states_min)):
+                if self.states_min[i] == self.states_max[i]:
+                    self.states_max[i] += np.finfo('float').eps
+            
+
+
         else:
             self.states_min = 0
             self.states_max = 1
+        
         
         
         if import_states == True:
@@ -77,6 +85,10 @@ class LCDataset(Dataset):
             self.output_states_max = output_states_max
         else:
             self.output_states_min, self.output_states_max = self.get_features_range('output_states_data')
+        
+        for i in range(len(self.output_states_min)):
+            if self.output_states_min[i] == self.output_states_max[i]:
+                self.output_states_max[i] += np.finfo('float').eps
 
     def __len__(self):
         return self.dataset_size

@@ -21,7 +21,7 @@ import training_functions
 import torch.multiprocessing
 torch.multiprocessing.set_sharing_strategy('file_system')
 
-
+import kpis
 import matplotlib.colors as mcolors
 
 def test_model_dict(p):
@@ -42,9 +42,9 @@ def test_model_dict(p):
     
     model = p.model_dictionary['ref'](p.BATCH_SIZE, device, p.model_dictionary['hyperparams'], p)
     optimizer = p.model_dictionary['optimizer'](params = model.parameters(), lr = p.LR)
-    lc_loss_func = p.model_dictionary['lc loss function']()
+    man_loss_func = p.model_dictionary['man loss function']
     if p.model_dictionary['hyperparams']['probabilistic output']:
-        traj_loss_func = training_functions.NLL_loss
+        traj_loss_func = kpis.NLL_loss
     else:
         traj_loss_func = p.model_dictionary['traj loss function']()
     # Instantiate Dataset: 
@@ -75,7 +75,7 @@ def test_model_dict(p):
         output_states_max = tr_dataset.output_states_max)
     
     # Evaluate:
-    te_result_dic, traj_df = training_functions.eval_top_func(p, model, lc_loss_func, traj_loss_func, te_dataset, device)
+    te_result_dic, traj_df = training_functions.eval_top_func(p, model, man_loss_func, traj_loss_func, te_dataset, device)
     
 
 if __name__ == '__main__':
@@ -83,10 +83,11 @@ if __name__ == '__main__':
    
     #torch.cuda.empty_cache()
     #p = params.ParametersHandler('Constant_Parameter.yaml', 'highD.yaml', './config')
-    p = params.ParametersHandler('ManouvreTransformerTraj.yaml', 'highD.yaml', './config')
+    p = params.ParametersHandler('MTPMTT.yaml', 'highD.yaml', './config')
     # Do Not import experiment file for constant parameter models
-    experiment_file = 'experiments/ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'
+    experiment_file = 'experiments/MTPMTT_highD_2022-08-22 15:47:03.709155'
     p.import_experiment(experiment_file)
-    p.UNBALANCED = True
+    p.UNBALANCED = False
+    p.BATCH_SIZE = 2
     test_model_dict(p)
     
