@@ -36,8 +36,8 @@ def generate_paths(first_leg, start_ind, end_ind, second_leg):
 
 if DATASET == "Processed_highD":
     track_paths = generate_paths('../../Dataset/HighD/Tracks/', 0, 61, '_tracks.csv')
-    frame_pickle_paths = generate_paths('../../Dataset/HighD/Pickles/', 0,  61, '_frames.csv')
-    track_pickle_paths = generate_paths('../../Dataset/HighD/Pickles/', 0,  61, '_tracks.csv')
+    frame_pickle_paths = generate_paths('../../Dataset/HighD/Pickles/', 0,  61, '_frames.pickle')
+    track_pickle_paths = generate_paths('../../Dataset/HighD/Pickles/', 0,  61, '_tracks.pickle')
     meta_paths = generate_paths('../../Dataset/HighD/Metas/', 0,  61, '_recordingMeta.csv')
     static_paths = generate_paths('../../Dataset/HighD/Statics/', 0,  61, '_tracksMeta.csv')
     cropped_height = int(20 * image_scaleH)
