@@ -6,7 +6,7 @@ import pickle
 BBOX = "bbox"
 FRAME = "frame"
 TRACK_ID = "id"
-X = "x"
+X = "d"
 Y = "y"
 WIDTH = "width"
 HEIGHT = "height"
