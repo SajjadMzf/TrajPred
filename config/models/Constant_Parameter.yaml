@@ -1,0 +1,10 @@
+name: CONSTANT_PARAMETER
+ref: models.ConstantX
+hyperparams:
+  parameter: Last Velocity
+  probabilistic output: False
+optimizer: torch.optim.Adam
+lc loss function: torch.nn.CrossEntropyLoss
+traj loss function: torch.nn.MSELoss
+data type: 'state'
+state type: 'ours' #do not change, hardcoded!(ours states has x velo and y velo in position 0,1)

@@ -1,0 +1,14 @@
+name: TRANSFORMER_TRAJ
+ref: models.TransformerTraj
+hyperparams:
+  layer number: 3
+  model dim: 512
+  feedforward dim: 128
+  classifier dim: 128
+  head number: 8
+  probabilistic output: True
+optimizer: torch.optim.Adam
+lc loss function: torch.nn.CrossEntropyLoss
+traj loss function: torch.nn.MSELoss
+data type: 'state'
+state type: 'wirth'

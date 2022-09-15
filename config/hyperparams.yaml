@@ -1,0 +1,32 @@
+dataset:
+  balanced: True
+  ablation: False
+
+experiment:
+  cuda: True
+  debug_mode: True
+
+training:
+  batch_size: 16
+  lr: 0.0001
+  lr_wu: False
+  lr_wu_batches: 400
+  lr_wu_current_batch: 0
+  traj2class_loss_ratio: 1
+  lr_decay: 1
+  lr_decay_epoch: 10
+  num_epochs: 50
+  patience: 10
+  tr_jump_step: 1 
+
+
+model:
+  man_dec_in: False # If True Manouvre will be inputted to Trajectory decoders
+  man_dec_out: True # True means the model can predict manouvre, and manouvre prediction will be considered in loss function calculation
+  multi_modal: True
+
+problem:
+  FPS: 5
+  IN_SEQ_LEN: 15
+  TGT_SEQ_LEN: 35
+  SKIP_SEQ_LEN: 5

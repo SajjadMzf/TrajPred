@@ -1,0 +1,15 @@
+TASKS:
+  CLASSIFICATION: 0
+  REGRESSION: 1
+  DUAL: 2 
+  TRAJECTORYPRED: 3
+
+DIRS:
+  TRAIN_DATASET_DIR: '../../Dataset/Processed_highD/RenderedDataset/'
+  TEST_DATASET_DIR: '../../Dataset/Processed_highD/RenderedDataset/'
+  MODELS_DIR: 'models/'
+  RESULTS_DIR: 'results/'
+  TABLES_DIR: 'results/tables/'
+  FIGS_DIR: 'results/figures/'
+  VIS_DIR: 'results/vis_data/'        
+  UNBALANCED_EXT: 'U' 

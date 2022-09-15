@@ -83,7 +83,7 @@ if __name__ == '__main__':
    
     #torch.cuda.empty_cache()
     #p = params.ParametersHandler('Constant_Parameter.yaml', 'highD.yaml', './config')
-    p = params.ParametersHandler('MTPMTT.yaml', 'highD.yaml', './config')
+    p = params.ParametersHandler('MMnTP.yaml', 'highD.yaml', './config')
     # Do Not import experiment file for constant parameter models
     experiment_file = 'experiments/MTPMTT_highD_2022-08-22 15:47:03.709155'
     p.import_experiment(experiment_file)

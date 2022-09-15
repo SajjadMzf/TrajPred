@@ -11,10 +11,11 @@ import logging
 from time import time
 import math
 from debugging_utils import *
+import models_functions as mf
 
-class MTPMTT(nn.Module): 
+class MMnTP(nn.Module): 
     def __init__(self, batch_size, device, hyperparams_dict, parameters, drop_prob = 0.1):
-        super(MTPMTT, self).__init__()
+        super(MMnTP, self).__init__()
 
         self.batch_size = batch_size
         self.device = device
@@ -118,10 +119,10 @@ class MTPMTT(nn.Module):
             rlc_traj_pred = self.rlc_trajectory_fc(rlc_decoder_out)
             llc_traj_pred = self.llc_trajectory_fc(llc_decoder_out)
         if self.prob_output:
-            lk_traj_pred = self.prob_activation_func(lk_traj_pred)
+            lk_traj_pred = mf.prob_activation_func(lk_traj_pred)
             if self.multi_modal:
-                rlc_traj_pred = self.prob_activation_func(rlc_traj_pred)
-                llc_traj_pred = self.prob_activation_func(llc_traj_pred) 
+                rlc_traj_pred = mf.prob_activation_func(rlc_traj_pred)
+                llc_traj_pred = mf.prob_activation_func(llc_traj_pred) 
         if self.multi_modal:
             traj_pred = torch.stack([lk_traj_pred, rlc_traj_pred, llc_traj_pred], dim=1) # lk =0, rlc=1, llc=2
         else:
@@ -130,35 +131,8 @@ class MTPMTT(nn.Module):
         
         return traj_pred 
 
-    def prob_activation_func(self,x):
-       muY = x[:,:,0:1]
-       muX = x[:,:,1:2]
-       sigY = x[:,:,2:3]
-       sigX = x[:,:,3:4]
-       rho = x[:,:,4:5]
-       sigX = torch.exp(sigX)
-       sigY = torch.exp(sigY)
-       rho = torch.tanh(rho)
-       x = torch.cat([muX, muY, sigX, sigY, rho],dim=2)
-       return x
 
     
-
-    def get_y_mask(self, size) -> torch.tensor:
-        # Generates a squeare matrix where the each row allows one word more to be seen
-        mask = torch.tril(torch.ones(size, size) == 1) # Lower triangular matrix
-        mask = mask.float()
-        mask = mask.masked_fill(mask == 0, float('-inf')) # Convert zeros to -inf
-        mask = mask.masked_fill(mask == 1, float(0.0)) # Convert ones to 0
-        
-        # EX for size=5:
-        # [[0., -inf, -inf, -inf, -inf],
-        #  [0.,   0., -inf, -inf, -inf],
-        #  [0.,   0.,   0., -inf, -inf],
-        #  [0.,   0.,   0.,   0., -inf],
-        #  [0.,   0.,   0.,   0.,   0.]]
-        
-        return mask
 
 class ConstantX(nn.Module):
     def __init__(self, batch_size, device, hyperparams_dict, parameters, drop_prob = 0.1):

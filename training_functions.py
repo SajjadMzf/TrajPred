@@ -18,6 +18,7 @@ import matplotlib
 from matplotlib.backends.backend_pdf import PdfPages
 from debugging_utils import *
 import kpis
+import models_functions as mf
 
 font = {'size'   : 22}
 matplotlib.rcParams['figure.figsize'] = (18, 12)
@@ -191,7 +192,7 @@ def train_model(p, tb, model, optimizer, scheduler, train_loader, man_loss_func,
         
         # 2. feeding data to model (forward method will be computed)
         target_data_in = torch.stack([target_data_in,target_data_in,target_data_in], dim = 1)
-        output_dict = model(x = encoder_input, y = target_data_in, y_mask = model.get_y_mask(p.TGT_SEQ_LEN).to(device))
+        output_dict = model(x = encoder_input, y = target_data_in, y_mask = mf.get_y_mask(p.TGT_SEQ_LEN).to(device))
         traj_pred = output_dict['traj_pred']
         man_pred = output_dict['man_pred']
         
@@ -347,7 +348,7 @@ def eval_model(p, tb, model, man_loss_func, traj_loss_func, test_loader, test_da
         else:
             encoder_out = model.encoder_forward(x = encoder_input)
             man_pred = model.man_decoder_forward(encoder_out)
-            mode_prob, man_vectors = kpis.calc_man_vectors(man_pred, model.n_mode, model.man_per_mode, p.TGT_SEQ_LEN, device)
+            mode_prob, man_vectors = mf.calc_man_vectors(man_pred, model.n_mode, model.man_per_mode, p.TGT_SEQ_LEN, device)
             '''
             traj_preds = []
             data_dist_preds = []
@@ -361,7 +362,7 @@ def eval_model(p, tb, model, man_loss_func, traj_loss_func, test_loader, test_da
             traj_preds = torch.stack(traj_preds, dim = 1)
             data_dist_preds = torch.stack(data_dist_preds, dim =1)
             '''
-            BM_man_vector = kpis.sel_high_prob_man( man_pred, model.n_mode, model.man_per_mode, p.TGT_SEQ_LEN, device)
+            BM_man_vector = mf.sel_high_prob_man( man_pred, model.n_mode, model.man_per_mode, p.TGT_SEQ_LEN, device)
             decoder_input = initial_traj
             decoder_input = torch.stack([decoder_input,decoder_input,decoder_input], dim = 1) #multi-modal
             BM_predicted_data_dist, BM_traj_pred = trajectory_inference(p, model, device, decoder_input, encoder_out, BM_man_vector)
@@ -458,9 +459,9 @@ def eval_model(p, tb, model, man_loss_func, traj_loss_func, test_loader, test_da
 
 def trajectory_inference(p, model, device, decoder_input, encoder_out, man_pred_vector):
     for out_seq_itr in range(p.TGT_SEQ_LEN):
-        #output_dict = model(x = encoder_input, y =decoder_input, y_mask = model.get_y_mask(decoder_input.size(2)).to(device))
+        #output_dict = model(x = encoder_input, y =decoder_input, y_mask = mf.get_y_mask(decoder_input.size(2)).to(device))
         traj_pred = model.traj_decoder_forward(y = decoder_input, 
-                                                    y_mask = model.get_y_mask(decoder_input.size(2)).to(device), 
+                                                    y_mask = mf.get_y_mask(decoder_input.size(2)).to(device), 
                                                     encoder_out = encoder_out)
         
         current_traj_pred = traj_pred[:,:,out_seq_itr:(out_seq_itr+1)] #traj output at current timestep

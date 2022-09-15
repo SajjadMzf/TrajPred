@@ -1,0 +1,12 @@
+name: LSTM_ED
+ref: models.LSTM_EncDec
+hyperparams:
+  layer number: 1
+  model dim: 512
+  feedforward dim: 128
+  probabilistic output: True
+optimizer: torch.optim.Adam
+lc loss function: torch.nn.CrossEntropyLoss
+traj loss function: torch.nn.MSELoss
+data type: 'state'
+state type: 'wirth'
