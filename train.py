@@ -18,7 +18,7 @@ import models
 import params
 import kpis
 import training_functions
-
+import model_specific_training_functions as mstf
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -48,14 +48,17 @@ def train_model_dict(p):
     # Instantiate Model:
     #print('x')
     model = p.model_dictionary['ref'](p.BATCH_SIZE, device, p.model_dictionary['hyperparams'], p)
+    model = model.to(device)
     optimizer = p.model_dictionary['optimizer'](params = model.parameters(), lr = p.LR)
     man_loss_func = p.model_dictionary['man loss function']
     if p.model_dictionary['hyperparams']['probabilistic output']:
         traj_loss_func = kpis.NLL_loss
     else:
         traj_loss_func = p.model_dictionary['traj loss function']()
-    #print('x')
-    # Instantiate Dataset: 
+    model_train_func = p.model_dictionary['model training function']
+    model_eval_func = p.model_dictionary['model evaluation function']
+    model_kpi_func = p.model_dictionary['model kpi function']
+    
     tr_dataset = Dataset.LCDataset(p.TRAIN_DATASET_DIR, p.TR_DATA_FILES,
         in_seq_len = p.IN_SEQ_LEN,
         out_seq_len = p.TGT_SEQ_LEN,
@@ -104,8 +107,8 @@ def train_model_dict(p):
     #exit()
     # Train/Evaluate:
     tb = SummaryWriter()
-    val_result_dic = training_functions.train_top_func(p, model, optimizer, man_loss_func, traj_loss_func, tr_dataset, val_dataset,device, tensorboard = tb)    
-    te_result_dic, traj_df = training_functions.eval_top_func(p, model, man_loss_func, traj_loss_func, te_dataset, device,  tensorboard = tb)
+    val_result_dic = training_functions.train_top_func(p,model_train_func, model_eval_func, model_kpi_func, model, (traj_loss_func, man_loss_func), optimizer, tr_dataset, val_dataset,device, tensorboard = tb)    
+    kpi_dic = training_functions.eval_top_func(p, model_eval_func, model_kpi_func, model, (traj_loss_func, man_loss_func), te_dataset, device,  tensorboard = tb)
     #print('x')
     p.export_experiment()
     # Save results:

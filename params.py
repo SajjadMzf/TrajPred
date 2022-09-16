@@ -7,6 +7,8 @@ from datetime import datetime
 import yaml
 import copy
 import kpis
+import model_specific_training_functions as mstf
+
 class ParametersHandler:
     def __init__(self, model, dataset, parameters_dir, experiments_dir = 'experiments/', models_dir = 'models/', datasets_dir = 'datasets/', constants_file = 'constants.yaml', hyperparams_file = 'hyperparams.yaml'):
         self.parameter_tuning_experiment = False 
@@ -71,6 +73,8 @@ class ParametersHandler:
         self.MAN_DEC_IN = self.hyperparams['model']['man_dec_in']
         self.MAN_DEC_OUT = self.hyperparams['model']['man_dec_out']
         self.MULTI_MODAL = self.hyperparams['model']['multi_modal']
+        self.VAL_SCORE = self.hyperparams['model']['validation_score']
+        self.LOWER_BETTER_VAL_SCORE = self.hyperparams['model']['lower_better_val_score']
         
         
         self.IMAGE_HEIGHT = self.dataset['image_height']
@@ -129,6 +133,9 @@ class ParametersHandler:
         self.model_dictionary['optimizer'] = eval(self.model_dictionary['optimizer'])
         self.model_dictionary['man loss function'] = eval(self.model_dictionary['man loss function'])
         self.model_dictionary['traj loss function'] = eval(self.model_dictionary['traj loss function'])
+        self.model_dictionary['model training function'] = eval(self.model_dictionary['model training function'])
+        self.model_dictionary['model evaluation function'] = eval(self.model_dictionary['model evaluation function'])
+        self.model_dictionary['model kpi function'] = eval(self.model_dictionary['model kpi function'])
         
         self.CLASSIFICATION = self.constants['TASKS']['CLASSIFICATION']
         self.REGRESSION = self.constants['TASKS']['REGRESSION']

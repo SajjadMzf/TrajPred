@@ -13,5 +13,8 @@ hyperparams:
 optimizer: torch.optim.Adam
 man loss function: kpis.MTPM_loss
 traj loss function: torch.nn.MSELoss
+model training function: mstf.MMnTP_training
+model evaluation function: mstf.MMnTP_evaluation
+model kpi function: kpis.MMnTP_kpis
 data type: 'state'
 state type: 'wirth'

@@ -96,6 +96,7 @@ class MMnTP(nn.Module):
         return man_pred
 
     def traj_decoder_forward(self, y, y_mask, encoder_out):
+        
         encoder_out_flattened = encoder_out.reshape(self.batch_size, self.in_seq_len*self.model_dim)
         
         #traj decoder
@@ -242,3 +243,84 @@ class PositionalEncoding(nn.Module):
 
 
 
+class DMTP(nn.Module): 
+    def __init__(self, batch_size, device, hyperparams_dict, parameters, drop_prob = 0.1):
+        super(DMTP, self).__init__()
+
+        self.batch_size = batch_size
+        self.device = device
+        
+        self.model_dim = hyperparams_dict['model dim']# Dimension of transformer model ()
+        self.ff_dim = hyperparams_dict['feedforward dim']
+        self.layers_num = hyperparams_dict['layer number']
+        self.head_num = hyperparams_dict['head number']
+        self.n_mode = hyperparams_dict['number of modes']
+        self.multi_modal = parameters.MULTI_MODAL
+        
+        self.prob_output = hyperparams_dict['probabilistic output']
+        self.in_seq_len = parameters.IN_SEQ_LEN
+        self.tgt_seq_len = parameters.TGT_SEQ_LEN
+        self.decoder_in_dim = 2
+        
+        self.input_dim = 18
+        
+        if self.prob_output:
+            self.output_dim = (5+1)*self.n_mode # muY, muX, sigY, sigX, rho 
+        else:
+            self.output_dim = (2+1)*self.n_mode
+        
+        self.dropout = nn.Dropout(drop_prob)
+        
+        ''' 1. Positional encoder: '''
+        self.positional_encoder = PositionalEncoding(dim_model=self.model_dim, dropout_p=drop_prob, max_len=100)
+        
+        ''' 2. Transformer Encoder: '''
+        self.encoder_embedding = nn.Linear(self.input_dim, self.model_dim)
+        encoder_layers = nn.TransformerEncoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
+        self.transformer_encoder = nn.TransformerEncoder(encoder_layers, self.layers_num)
+        
+        ''' 3. Transformer Decoder: '''
+        self.decoder_embedding = nn.Linear(self.decoder_in_dim, self.model_dim)
+        self.man_decoder_embedding = nn.Linear(2, self.model_dim)
+        decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
+        
+        self.transformer_decoder = nn.TransformerDecoder(decoder_layers, self.layers_num)
+        
+        ''' 5. Trajectory Output '''
+        self.trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
+        
+        
+    def forward(self, x, y, y_mask):      
+        encoder_out = self.encoder_forward(x)
+        traj_pred = self.traj_decoder_forward(y, y_mask, encoder_out)
+        
+        return {'traj_pred':traj_pred}
+    
+    def encoder_forward(self, x):
+        #encoder
+        x = self.encoder_embedding(x)
+        x = self.positional_encoder(x)
+        encoder_out = self.transformer_encoder(x)
+        
+        return encoder_out
+    
+    def traj_decoder_forward(self, y, y_mask, encoder_out):
+        encoder_out_flattened = encoder_out.reshape(self.batch_size, self.in_seq_len*self.model_dim)    
+        #traj decoder
+        y = self.decoder_embedding(y[:,0,:,:self.decoder_in_dim])
+        y = self.positional_encoder(y)
+        decoder_out = self.lk_transformer_decoder(y, encoder_out, tgt_mask = y_mask)
+        
+        if self.multi_modal== False:
+            raise(ValueError('Single Modal not supported'))
+        
+        #traj decoder linear layer
+        
+        traj_pred = self.trajectory_fc(decoder_out)
+        traj_probs = traj_pred[:,0:self.n_mode]
+        if self.prob_output:
+            traj_pred = traj_pred[:,self.n_mode:].reshape(-1,self.n_mode,5)
+            traj_pred = mf.prob_activation_func(traj_pred)
+            traj_pred = traj_pred.reshape(-1, self.n_mode*5)
+        
+        return traj_pred 

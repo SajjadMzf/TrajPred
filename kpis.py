@@ -23,6 +23,10 @@ matplotlib.rc('font', **font)
 
 import models_functions as mf
 
+
+def MMnTP_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
+    return {}
+
 def calc_metric(p, all_traj_preds, all_traj_labels, man_preds, man_labels, traj_label_min, traj_label_max, epoch=None, eval_type = 'Test', figure_name= None):
     
     traj_metrics, man_metrics, traj_df, RMSE_table, FDE_table = calc_traj_metrics(p, all_traj_preds, all_traj_labels, man_preds, man_labels, traj_label_min, traj_label_max)

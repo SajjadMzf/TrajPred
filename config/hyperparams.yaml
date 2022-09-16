@@ -24,6 +24,8 @@ model:
   man_dec_in: False # If True Manouvre will be inputted to Trajectory decoders
   man_dec_out: True # True means the model can predict manouvre, and manouvre prediction will be considered in loss function calculation
   multi_modal: True
+  validation_score: 'Traj Loss'
+  lower_better_val_score: True
 
 problem:
   FPS: 5
