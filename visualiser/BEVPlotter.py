@@ -68,6 +68,7 @@ class BEVPlotter:
         data_file = self.scenarios[0]['data_file'][0]
         data_file = int(data_file.split('.')[0])
         track_path = p.track_paths[data_file]
+        pickle_path = p.frame_pickle_paths[data_file]
         #df = pd.read_csv(track_path)
         #print(len(df[rc.X]))
         #exit()
@@ -78,19 +79,35 @@ class BEVPlotter:
         #exit()
         np_array = np.empty((total_len,4), dtype = object)
         itr = 0
+        traj_max = self.scenarios[0]['traj_max']
+        traj_min = self.scenarios[0]['traj_min']
+        in_seq_len = self.scenarios[0]['traj_labels'].shape[1]- self.scenarios[0]['traj_dist_preds'].shape[1]  
+        tgt_seq_len = self.scenarios[0]['traj_dist_preds'].shape[1] 
+        frames_data, image_width = rc.read_track_csv(track_path, pickle_path, group_by = 'frames', reload = False)
+        frame_list = [frame_data[rc.FRAME][0] for frame_data in frames_data]  
         for scenario_itr, scenario in enumerate(self.scenarios):
-            #print('Scenario: {}/{}'.format(scenario_itr+1, len(self.scenarios)))
+            if scenario_itr%100 ==0:
+                print('Scenario: {}/{}'.format(scenario_itr+1, len(self.scenarios)))
             for batch_itr in range(scenario['tv'].shape[0]):
                 tv = scenario['tv'][batch_itr]
                 frame = scenario['frames'][batch_itr][9]
+                frame_data = frames_data[frame_list.index(frame)]
+                tv_itr = np.nonzero(frame_data[rc.TRACK_ID] == tv)[0][0]
+                initial_xy = [frame_data[rc.X][tv_itr],frame_data[rc.Y][tv_itr]]
+                traj_pred = np.zeros_like(scenario['traj_dist_preds'][batch_itr,:,:2])
+                dxdy_pred = scenario['traj_dist_preds'][batch_itr,:,:2]*(traj_max-traj_min) + traj_min
+                dxdy_pred = np.cumsum(dxdy_pred,0)
+                traj_pred[:,0] = initial_xy[0] + dxdy_pred[:,0]
+                traj_pred[:,1] = initial_xy[1] + dxdy_pred[:,1]
+                    
                 np_array[itr,0] = [frame]
                 np_array[itr,1] = [tv]
-                np_array[itr,2] = scenario['traj_dist_preds'][batch_itr,:,0].tolist()
-                np_array[itr,3] = scenario['traj_dist_preds'][batch_itr,:,1].tolist()
+                np_array[itr,2] = traj_pred[:0].tolist()
+                np_array[itr,3] = traj_pred[:0].tolist()
                 itr += 1
         
         print('to df')
-        df = pd.DataFrame(data = np_array, columns=[rc.FRAME, rc.TRACK_ID, 'prX', 'prY'])
+        df = pd.DataFrame(data = np_array, columns=[rc.FRAME, rc.TRACK_ID, 'prD', 'prS'])
         df = df.applymap(lambda x: ';'.join([str(i) for i in x]))
         print('to csv')
         df.to_csv('Prediction.csv', index = False)              
