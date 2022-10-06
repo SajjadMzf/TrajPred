@@ -75,6 +75,7 @@ class BEVPlotter:
         total_len = 0
         for scenario in self.scenarios:
             total_len += scenario['tv'].shape[0]
+            
         print(total_len)
         #exit()
         np_array = np.empty((total_len,4), dtype = object)
@@ -102,13 +103,15 @@ class BEVPlotter:
                     
                 np_array[itr,0] = [frame]
                 np_array[itr,1] = [tv]
-                np_array[itr,2] = traj_pred[:0].tolist()
-                np_array[itr,3] = traj_pred[:0].tolist()
+                np_array[itr,2] = traj_pred[:,0].tolist()
+                np_array[itr,3] = traj_pred[:,1].tolist()
                 itr += 1
+            
         
         print('to df')
         df = pd.DataFrame(data = np_array, columns=[rc.FRAME, rc.TRACK_ID, 'prD', 'prS'])
         df = df.applymap(lambda x: ';'.join([str(i) for i in x]))
+        print(df.head())
         print('to csv')
         df.to_csv('Prediction.csv', index = False)              
 
