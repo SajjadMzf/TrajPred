@@ -89,6 +89,8 @@ class LCDataset(Dataset):
         for i in range(len(self.output_states_min)):
             if self.output_states_min[i] == self.output_states_max[i]:
                 self.output_states_max[i] += np.finfo('float').eps
+        
+        #print('State min: {},\n State max: {}'.format(self.states_min, self.states_max))
 
     def __len__(self):
         return self.dataset_size

@@ -172,7 +172,7 @@ class ConstantX(nn.Module):
             raise(ValueError('multi modality or manouvre based outputs are not supported in ConstantX model'))
             exit()
         self.constant_parameter = hyperparams_dict['parameter']# Dimension of transformer model ()
-        
+        self.n_mode = 1
         self.in_seq_len = parameters.IN_SEQ_LEN
         self.out_seq_len = parameters.TGT_SEQ_LEN
         self.fps = parameters.FPS

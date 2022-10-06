@@ -1,22 +1,24 @@
 import cv2
-DATASET = 'HIGHD'
+DATASET = 'AutoplexCPM' #'HIGHD'
 FPS = 5
 OCCLUSION = False
-model_name =  'MTPMTT_highD_2022-08-24 21:34:37.789667'#'MTPMTT_highD_2022-08-22 15:47:03.709155'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-06-27 14:46:40.899317'#'ManouvreTransformerTraj_highD_2022-06-14 15:14:02.050065'
+model_name =  'MTPMTT_autoplex_2022-09-21 10:23:24.439641'#'MTPMTT_highD_2022-08-22 15:47:03.709155'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-06-27 14:46:40.899317'#'ManouvreTransformerTraj_highD_2022-06-14 15:14:02.050065'
 RESULT_FILE = "../results/vis_data/"+ model_name +".pickle"
+
+EXPORT_CSV = True
 WHAT_IF_RENDERING = False
 ITERATIVE_RENDERING = True
 
 NUM_OUTPUT = 1000
 CUT_OFF_SIGMA_RATIO = 3
-N_PLOTTED_MODES = 5
-MODE_PROB_THR = 0.2
+N_PLOTTED_MODES = 1
+MODE_PROB_THR = 0
 # Actual image
 
 # TAGS:
 HIDE_SVS = False
 PLOT_TEXTS = True
-PLOT_MAN = True
+PLOT_MAN = False
 
 Y_IMAGE_SCALE = 8*2
 X_IMAGE_SCALE = 2*2
@@ -90,6 +92,12 @@ tv_dict = {
     '5':'Left Following'
 }
 
+def generate_paths2(first_leg, path_list, second_leg):
+    generated_path_list = []
+    for path in path_list:
+        generated_path_list.append(first_leg+path+second_leg)
+    return generated_path_list
+
 if DATASET == 'HIGHD':
     track_paths = generate_paths('../../../Dataset/HighD/Tracks/', 60, '_tracks.csv')
     frame_pickle_paths = generate_paths('../../../Dataset/HighD/Pickles/', 60, '_frames.csv')
@@ -129,4 +137,25 @@ elif DATASET == 'FNGSIM':
                     '../../Dataset/FNGSIM/Traj_data/static_trajectories-0750am-0805am.csv',
                     '../../Dataset/FNGSIM/Traj_data/static_trajectories-0805am-0820am.csv',
                     '../../Dataset/FNGSIM/Traj_data/static_trajectories-0820am-0835am.csv']
-    
+elif DATASET == 'AutoplexCPM':
+    file_names = ['M40_h06',
+                    'M40_h07', 
+                    'M40_h08',
+                    'M40_h09', 
+                    'M40_h11', 
+                    'M40_h12', 
+                    'M40_h13', 
+                    'M40_h14', 
+                    'M40_h15', 
+                    'M40_h16', 
+                    'M40_h17', 
+                    'M40_h18', 
+                    'M40_h19',
+                    'M40_h10'] # H10 is test
+        
+    track_paths = generate_paths2('../../../Dataset/Autoplex/Tracks/', file_names,'.csv')
+    frame_pickle_paths = generate_paths2('../../../Dataset/Autoplex/Pickles/', file_names,'_frames.pickle')#['../../Dataset/Autoplex/Pickles/M40draft2_processed_frames.pickle']
+    track_pickle_paths = generate_paths2('../../../Dataset/Autoplex/Pickles/', file_names,'_tracks.pickle')#['../../Dataset/Autoplex/Pickles/M40draft2_processed_tracks.pickle']
+    meta_paths = generate_paths2('../../../Dataset/Autoplex/Metas/', file_names,'_recordingMeta.csv')#['../../Dataset/Autoplex/Metas/M40draft2_processed_recordingMeta.csv']
+    static_paths = generate_paths2('../../../Dataset/Autoplex/Statics/', file_names,'_tracksMeta.csv')#['../../Dataset/Autoplex/Statics/M40draft2_processed_tracksMeta.csv'] 
+        

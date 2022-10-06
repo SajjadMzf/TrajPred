@@ -343,7 +343,8 @@ def eval_model(p, tb, model, man_loss_func, traj_loss_func, test_loader, test_da
             #print(traj_pred.size())
             traj_pred = traj_pred.unsqueeze(1)
             #print(traj_pred.size())
-            predicted_data_dist = traj_pred[:,0]
+            BM_predicted_data_dist = traj_pred[:,0]
+            BM_traj_pred = traj_pred[:,0]
         else:
             encoder_out = model.encoder_forward(x = encoder_input)
             man_pred = model.man_decoder_forward(encoder_out)
@@ -396,9 +397,10 @@ def eval_model(p, tb, model, man_loss_func, traj_loss_func, test_loader, test_da
             plot_dict['traj_labels'] = unnormalised_traj_label.numpy()
             #plot_dict['traj_preds']= unnormalised_traj_pred.numpy() #TODO: remove traj pred and use traj_dist_preds instead
             plot_dict['traj_dist_preds'] = x_y_dist_pred.cpu().data.numpy()# TODO: export unnormalised dist
-            plot_dict['man_labels'] = labels.cpu().data.numpy()
-            plot_dict['man_preds'] = man_vectors.cpu().numpy()
-            plot_dict['mode_prob'] = mode_prob.detach().cpu().numpy()
+            if p.SELECTED_MODEL != 'CONSTANT_PARAMETER':
+                plot_dict['man_labels'] = labels.cpu().data.numpy()
+                plot_dict['man_preds'] = man_vectors.cpu().numpy()
+                plot_dict['mode_prob'] = mode_prob.detach().cpu().numpy()
             
                 
         all_traj_preds[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size)] = BM_traj_pred.cpu().data

@@ -2,12 +2,19 @@ import pandas
 import numpy as np
 import os
 import pickle
+import param as p
 # TRACK FILE
 BBOX = "bbox"
 FRAME = "frame"
 TRACK_ID = "id"
-X = "d"
-Y = "y"
+
+if p.DATASET == "Processed_highD":
+    X = "x"
+    Y = "y"
+else:
+    X = 'd_smooth'
+    Y = 's_smooth'
+
 WIDTH = "width"
 HEIGHT = "height"
 X_VELOCITY = "xVelocity"
@@ -80,18 +87,20 @@ def read_track_csv(input_path, pickle_path, reload = True, group_by = 'frames', 
     :param arguments: the parsed arguments for the program containing the input path for the tracks csv file.
     :return: a list containing all tracks as dictionaries.
     """
-    if reload == False and os.path.exists(pickle_path):
-            pickle_in = open(pickle_path, "rb")
-            #print('Record read from pickle file:', pickle_path)
-            [frames, highway_length] = pickle.load(pickle_in)
-            return frames, highway_length 
     # Read the csv file, convert it into a useful data structure
     df = pandas.read_csv(input_path)
     selected_frames = (df.frame%fr_div == 0).real.tolist()
     df = df.loc[selected_frames]#.to_frame()
     #frame_group = df.groupby([FRAME], sort = False)
 
-    highway_length = np.max(df[X])
+    highway_length = np.max(df[X]) - np.min(df[X])
+
+    if reload == False and os.path.exists(pickle_path):
+            pickle_in = open(pickle_path, "rb")
+            #print('Record read from pickle file:', pickle_path)
+            frames = pickle.load(pickle_in)
+            return frames, highway_length 
+    
     # Use groupby to aggregate track info. Less error prone than iterating over the data.
     if group_by == 'frames':
         grouped = df.groupby([FRAME], sort=True)    
@@ -106,8 +115,8 @@ def read_track_csv(input_path, pickle_path, reload = True, group_by = 'frames', 
                                                 rows[Y].values,
                                                 rows[WIDTH].values,
                                                 rows[HEIGHT].values]))
-        groups[current_group] = {TRACK_ID: rows[TRACK_ID].values if group_by=='frames' else np.int64(group_id),  # for compatibility, int would be more space efficient
-                                 FRAME: rows[FRAME].values if group_by=='tracks' else np.int64(group_id),
+        groups[current_group] = {TRACK_ID: rows[TRACK_ID].values if group_by=='frames' else np.ones_like(rows[X].values)*group_id,  # for compatibility, int would be more space efficient
+                                 FRAME: rows[FRAME].values if group_by=='tracks' else np.ones_like(rows[X].values)*group_id,
                                  BBOX: bounding_boxes,
                                  X: rows[X].values,
                                  Y: rows[Y].values,
@@ -129,7 +138,7 @@ def read_track_csv(input_path, pickle_path, reload = True, group_by = 'frames', 
                                  }
         current_group = current_group + 1
     pickle_out = open(pickle_path, "wb")
-    pickle.dump([groups, highway_length], pickle_out)
+    pickle.dump(groups, pickle_out)
     pickle_out.close()
     return groups, highway_length
 

@@ -23,7 +23,10 @@ class RenderScenarios:
         self.pre_lc_len = p.PRE_LC_LEN
         self.post_lc_len = p.POST_LC_LEN
         self.metas = rc.read_meta_info(meta_path)
-        self.fr_div = self.metas[rc.FRAME_RATE]/p.FPS
+        self.fr_div = 10/p.FPS#self.metas[rc.FRAME_RATE]/p.FPS
+        if self.fr_div<=0:
+            raise(ValueError('non integer fr_div'))
+
         self.track_path = track_path
         self.scenarios = []
         self.file_num = file_num
@@ -54,9 +57,9 @@ class RenderScenarios:
         self.LC_states_dir = "../../Dataset/" + dataset_name + "/Scenarios" + p.dir_ext 
         self.LC_image_dataset_rdir = "../../Dataset/" + dataset_name + "/RenderedDataset" + p.dir_ext
          
-        self.frames_data, image_width = rc.read_track_csv(track_path, pickle_path, group_by = 'frames', fr_div = self.fr_div)
-        self.statics = rc.read_static_info(static_path)
-        
+        self.frames_data, image_width = rc.read_track_csv(track_path, pickle_path,reload = False, group_by = 'frames', fr_div = self.fr_div)
+        #self.statics = rc.read_static_info(static_path)
+        self.frame_list = [data_frame[rc.FRAME][0] for data_frame in self.frames_data]
         self.image_width = int(image_width * self.image_scaleW)
         self.image_height = int((self.metas[rc.LOWER_LANE_MARKINGS][-1])*self.image_scaleH + self.highway_top_margin + self.highway_bottom_margin)
         self.update_dirs()
@@ -150,7 +153,7 @@ class RenderScenarios:
                 svs_ids = scenario['svs']['id'][:,fr]
                 
                 invalid_state , state_wirth, state_shou,state_ours, state_9svs, output_state, tv_lane_ind = self.calc_states(
-                    self.frames_data[int(frame/self.fr_div -1)],
+                    self.frames_data[self.frame_list.index(frame)],
                     tv_id, 
                     svs_ids,
                     driving_dir,
@@ -168,7 +171,7 @@ class RenderScenarios:
                 
                 if p.GENERATE_IMAGE_DATA:
                     cropped_img, whole_img, valid = self.plot_frame(
-                        self.frames_data[int(frame/self.fr_div -1)],
+                        self.frames_data[self.frame_list.index(frame)],
                         tv_id, 
                         svs_ids,
                         driving_dir,
@@ -223,7 +226,7 @@ class RenderScenarios:
         tv_lane_ind:'tv lane index'):
         
         veh_channel, lane_channel, obs_channel = rf.initialize_representation(self.image_width, self.image_height, rep_dtype = self.dtype, filled_value = self.filled, occlusion= False)
-        assert(frame_data[rc.FRAME]==frame)   
+        assert(frame_data[rc.FRAME][0]==frame)   
         tv_itr = np.nonzero(frame_data[rc.TRACK_ID] == tv_id)[0][0]
         svs_itr = np.array([np.nonzero(frame_data[rc.TRACK_ID] == sv_id)[0][0] if sv_id!=0 else None for sv_id in svs_ids])
         
@@ -304,7 +307,7 @@ class RenderScenarios:
         tv_lane_ind:'TV lane index',
         post_lc_only:'A flag for only producing output state'):
         
-        assert(frame_data[rc.FRAME]==frame)   
+        assert(frame_data[rc.FRAME][0]==frame)   
         invalid_data = False
         tv_itr = np.nonzero(frame_data[rc.TRACK_ID] == tv_id)[0][0]
         
@@ -337,8 +340,9 @@ class RenderScenarios:
             tv_lane_ind = frame_data[rc.LANE_ID][tv_itr]-2
         else:
             tv_lane_ind = frame_data[rc.LANE_ID][tv_itr]-len(self.metas[rc.UPPER_LANE_MARKINGS])-2
-        
+        tv_lane_ind = int(tv_lane_ind)
         tv_left_lane_ind = tv_lane_ind + 1 if driving_dir==1 else tv_lane_ind
+        
         if tv_lane_ind+1 >=len(tv_lane_markings):
             return True, 0, 0, 0, 0, 0, 0
         lane_width = (tv_lane_markings[tv_lane_ind+1]-tv_lane_markings[tv_lane_ind])

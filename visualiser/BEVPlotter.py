@@ -22,6 +22,8 @@ import torch.utils.data as utils_data
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+import pandas as pd
+from numpy.linalg import norm
 
 import sys
 sys.path.insert(1,'../')
@@ -59,8 +61,102 @@ class BEVPlotter:
         #print(torch.cuda.is_available())
         with open(self.result_file, 'rb') as handle:
             self.scenarios = pickle.load(handle)
+    def post_process(self):
+        traj_max = self.scenarios[0]['traj_max']
+        traj_min = self.scenarios[0]['traj_min']
+        in_seq_len = self.scenarios[0]['traj_labels'].shape[1]- self.scenarios[0]['traj_dist_preds'].shape[1]  
+        tgt_seq_len = self.scenarios[0]['traj_dist_preds'].shape[1] 
+        data_file = self.scenarios[0]['data_file']
+        data_file = int(data_file.split('.')[0])
+        track_path = p.track_paths[data_file]
+        static_path = p.static_paths[data_file]
+        pickle_path = p.frame_pickle_paths[data_file]
+        frames_data, image_width = rc.read_track_csv(track_path, pickle_path, group_by = 'frames', reload = False, fr_div = self.fr_div)
+        frame_list = [data_frame[rc.FRAME][0] for data_frame in self.frames_data]    
+        
+        for scenario_itr, scenario in enumerate(self.scenarios):
+            gt_frenet = np.zeros((in_seq_len + tgt_seq_len, 2))
+            pr_cart = np.zeros((tgt_seq_len, 2))
+            frame = scenario['frames'][0]
+            frame_data = frames_data[self.frame_list.index(frame)]
+            tv_id = scenario['tv']
+            traj_pred = scenario['traj_dist_preds'][0,:,:2]*(traj_max-traj_min) + traj_min
+            traj_gt = scenario['traj_labels'][0,:,:2]*(traj_max-traj_min) + traj_min
+            #from dx dy to x,y
 
-    def sort_scenarios(self, force_sort = True):
+            tv_itr = np.nonzero(frame_data[rc.TRACK_ID] == tv_id)[0][0]
+            initial_xy = [frame_data[rc.D][tv_itr],frame_data[rc.S][tv_itr]]
+            gt_cart[0,0] =  initial_xy[0]
+            gt_cart[0,1] = initial_xy[1]
+            dxy = gt_frenet[0]
+            for i in range(in_seq_len):
+                dxy += traj_gt[i]
+                gt_frenet[i] = dxy
+            gt_cart = self.frenet2cart(gt_frenet, lane_ref)
+            #TODO plot gt_cart vs actual data
+            #for i in range(tgt_seq_len):
+            #    break
+            self.scenarios[scenario_itr]['traj_preds_cart'] = 0
+            
+        return
+    def frenet2cart(self, traj, ref): #assumption: traj y>ref y
+        L = ref.shape[0]
+        T = traj.shape[0]
+        cart_traj = np.zeros_like(traj)
+        gamma = np.zeros((L))
+        for i in range(L-1):
+            gamma[i] = norm(ref[i+1]-ref[i])
+        gamma[L-1] = gamma[L-2]
+        gamma = np.cumsum(gamma)
+        traj_cart = np.zeros((T,2))
+        for i in range(T):
+            it1 = np.nonzero(traj[:,0]>=gamma)[0][0]
+            it2 = it1+1
+            frenet_origin_x = ref[it1,0]
+
+            thetha1 = np.arctan((ref[it2,1]-ref[it1,1])/(ref[it2,0]-ref[it1,0]))
+            thetha = np.arctan((np.abs(traj[i,1]))/(np.abs(traj[i,0]- gamma[it1])))
+            if thetha < np.abs(thetha1):
+                thetha *= -1
+            thetha_cart = thetha1+thetha
+            dist2origin = np.sqrt(np.power(traj[i,1], 2) + np.power((traj[i,0]- gamma[it1]), 2))
+            cart_traj[i,0] = dist2origin * np.sin(thetha_cart)
+            cart_traj[i,1] = dist2origin * np.cos(thetha_cart)
+        return cart_traj
+
+
+    def export_csv(self):
+        data_file = self.scenarios[0]['data_file'][0]
+        data_file = int(data_file.split('.')[0])
+        track_path = p.track_paths[data_file]
+        #df = pd.read_csv(track_path)
+        #print(len(df[rc.X]))
+        #exit()
+        
+        total_len = len(self.scenarios)
+        print(total_len)
+        exit()
+        np_array = np.empty((total_len,4), dtype = object)
+        itr = 0
+        for scenario_itr, scenario in enumerate(self.scenarios):
+            #print('Scenario: {}/{}'.format(scenario_itr+1, len(self.scenarios)))
+            tv = scenario['tv'][0]
+            frame = scenario['frames'][0][9]
+            np_array[itr,0] = [frame]
+            np_array[itr,1] = [tv]
+            np_array[itr,2] = scenario['traj_preds_cart'][:,0].tolist()
+            np_array[itr,3] = scenario['traj_preds_cart'][:,1].tolist()
+            
+            itr += 1
+        
+        print('to df')
+        df = pd.DataFrame(data = np_array, columns=[rc.FRAME, rc.TRACK_ID, 'prX', 'prY'])
+        df = df.applymap(lambda x: ';'.join([str(i) for i in x]))
+        print('to csv')
+        df.to_csv('Prediction.csv', index = False)              
+
+
+    def sort_scenarios(self, force_sort = False):
         sorted_scenarios_path = self.result_file.split('.pickle')[0] + '_sorted' + '.pickle'
         if os.path.exists(sorted_scenarios_path) and force_sort == False:
             print('loading: {}'.format(sorted_scenarios_path))
@@ -160,7 +256,7 @@ class BEVPlotter:
             mode_prob = sorted_dict[scenario_number]['mode_prob'][j]
             traj_labels = sorted_dict[scenario_number]['traj_labels'][j]
             
-            traj_preds = sorted_dict[scenario_number]['traj_preds'][j]
+            traj_preds = sorted_dict[scenario_number]['traj_dist_preds'][j]
             frames = sorted_dict[scenario_number]['frames'][j]
             input_features = sorted_dict[scenario_number]['input_features'][j]
 
@@ -186,12 +282,15 @@ class BEVPlotter:
             data_file = sorted_dict[i]['data_file']
             traj_min = sorted_dict[i]['traj_min']
             traj_max = sorted_dict[i]['traj_max']
-            static_path = p.static_paths[data_file-1]
+            static_path = p.static_paths[data_file]
+            track_path = p.track_paths[data_file]
+            track_pickle_path = p.track_pickle_paths[data_file]
             self.statics = rc.read_static_info(static_path)
+            self.track_data, _ = rc.read_track_csv(track_path, track_pickle_path,reload = False, group_by = 'tracks')
             driving_dir = self.statics[tv_id][rc.DRIVING_DIRECTION]
             print('TV ID: {}, List of Available Frames: {}, dd:{}'.format(tv_id, sorted_dict[i]['times'], driving_dir ))
-            if driving_dir !=2: #TODO: rotate driving_dir=1 data
-                continue
+            #if driving_dir !=2: #TODO: rotate driving_dir=1 data
+            #    continue
             
             
             np.set_printoptions(precision=2, suppress=True)
@@ -204,7 +303,7 @@ class BEVPlotter:
                 mode_prob = sorted_dict[i]['mode_prob'][j]
                 traj_labels = sorted_dict[i]['traj_labels'][j]
                 
-                traj_preds = sorted_dict[i]['traj_preds'][j]
+                traj_preds = sorted_dict[i]['traj_dist_preds'][j]
                 frames = sorted_dict[i]['frames'][j]
                 
                 #print("j: {}, min: {}, max: {}".format(j,np.amin(man_preds), np.amax(man_preds)))
@@ -231,7 +330,7 @@ class BEVPlotter:
                 mode_prob = scenario['mode_prob'][batch_itr]
                 traj_labels = scenario['traj_labels'][batch_itr]
                 
-                traj_preds = scenario['traj_preds'][batch_itr]
+                traj_preds = scenario['traj_dist_preds'][batch_itr]
                 
                 frames = scenario['frames'][batch_itr]
                 data_file = int(scenario['data_file'][batch_itr].split('.')[0])
@@ -254,13 +353,14 @@ class BEVPlotter:
         in_seq_len = man_labels.shape[0]-man_preds.shape[-1]
         tgt_seq_len = man_preds.shape[-1]
         
-        track_path = p.track_paths[data_file-1]
-        static_path = p.static_paths[data_file-1]
-        pickle_path = p.frame_pickle_paths[data_file-1]
-        meta_path = p.meta_paths[data_file-1]
+        track_path = p.track_paths[data_file]
+        static_path = p.static_paths[data_file]
+        pickle_path = p.frame_pickle_paths[data_file]
+        meta_path = p.meta_paths[data_file]
         self.metas = rc.read_meta_info(meta_path)
         self.fr_div = self.metas[rc.FRAME_RATE]/self.fps
         self.frames_data, image_width = rc.read_track_csv(track_path, pickle_path, group_by = 'frames', reload = False, fr_div = self.fr_div)
+        self.frame_list = [data_frame[rc.FRAME][0] for data_frame in self.frames_data]
         self.statics = rc.read_static_info(static_path)
         prev_data_file = data_file
         self.image_width = int(image_width*p.X_IMAGE_SCALE )
@@ -276,7 +376,7 @@ class BEVPlotter:
             frame = frames[fr]
             traj_img, tv_track, tv_future_track, tv_lane_ind = self.plot_frame(
                 data_file,
-                self.frames_data[int(frame/self.fr_div -1)],
+                self.frames_data[self.frame_list.index(frame)],
                 tv_id, 
                 driving_dir,
                 frame,
@@ -313,17 +413,17 @@ class BEVPlotter:
         in_seq_len = man_labels.shape[0]-man_preds.shape[-1]
         tgt_seq_len = man_preds.shape[-1]
         
-        track_path = p.track_paths[data_file-1]
-        static_path = p.static_paths[data_file-1]
-        pickle_path = p.frame_pickle_paths[data_file-1]
-        meta_path = p.meta_paths[data_file-1]
+        track_path = p.track_paths[data_file]
+        static_path = p.static_paths[data_file]
+        pickle_path = p.frame_pickle_paths[data_file]
+        meta_path = p.meta_paths[data_file]
         self.metas = rc.read_meta_info(meta_path)
         self.fr_div = self.metas[rc.FRAME_RATE]/self.fps
         self.frames_data, image_width = rc.read_track_csv(track_path, pickle_path, group_by = 'frames', reload = False, fr_div = self.fr_div)
         self.statics = rc.read_static_info(static_path)
         prev_data_file = data_file
         self.image_width = int(image_width*p.X_IMAGE_SCALE )
-        self.image_height = int(self.metas[rc.LOWER_LANE_MARKINGS][-1]*p.Y_IMAGE_SCALE + p.BORDER_PIXELS)
+        self.image_height = int(self.metas[rc.UPPER_LANE_MARKINGS][-1]*p.Y_IMAGE_SCALE + p.BORDER_PIXELS)
 
         driving_dir = self.statics[tv_id][rc.DRIVING_DIRECTION]
                         
@@ -337,7 +437,7 @@ class BEVPlotter:
             
             traj_img, tv_track, tv_future_track, tv_lane_ind = self.plot_frame(
                 data_file,
-                self.frames_data[int(frame/self.fr_div -1)],
+                self.frames_data[self.frame_list.index(frame)],
                 tv_id, 
                 driving_dir,
                 frame,
@@ -389,7 +489,7 @@ class BEVPlotter:
         wif_traj = [],
         man_preds_range = (0,1)
         ):
-        assert(frame_data[rc.FRAME]==frame) 
+        assert(frame_data[rc.FRAME][0]==frame) 
         
         sorted_modes = np.argsort(mode_prob)[::-1]
         image = np.ones((self.image_height, self.image_width,3), dtype=np.int32)*p.COLOR_CODES['BACKGROUND']
@@ -414,8 +514,7 @@ class BEVPlotter:
 
         '''3. Draw Lines'''
         # Draw lines
-        image = self.draw_lines(image, self.image_width, 
-                                (self.metas[rc.LOWER_LANE_MARKINGS]*p.Y_IMAGE_SCALE),
+        image = self.draw_lines(image, self.image_width,
                                 (self.metas[rc.UPPER_LANE_MARKINGS]*p.Y_IMAGE_SCALE))
         
         '''Draw vehicles'''
@@ -451,6 +550,9 @@ class BEVPlotter:
         image = image.astype(np.uint8)
         # calculate future trajectories
         if seq_fr == in_seq_len-1:
+            traj_preds = np.expand_dims(traj_preds, axis = 0)
+            traj_preds = traj_preds[:,:,:2]
+            traj_preds = traj_preds*(traj_max-traj_min) + traj_min 
             tgt_seq_len = traj_preds.shape[1]
             n_mode = traj_preds.shape[0]
             tv_gt_future_track = []
@@ -509,9 +611,9 @@ class BEVPlotter:
 
         
         if seq_fr>=in_seq_len-1:
-            for mode_itr in range(p.N_PLOTTED_MODES-2):
+            for mode_itr in range(p.N_PLOTTED_MODES):
                 
-                bm = sorted_modes[mode_itr]
+                bm = 0#sorted_modes[mode_itr]
                 #if mode_prob[bm]<p.MODE_PROB_THR:
                  #   continue
                 #print(sorted_modes)
@@ -683,22 +785,16 @@ class BEVPlotter:
         image[y:(y+height), x:(x+width)] = color_code
         return image
 
-    def draw_lines(self,lane_channel, width, lower_lines, upper_lines):
+    def draw_lines(self,lane_channel, width, upper_lines):
         # Continues lines
         color_code = p.COLOR_CODES['LANE']
         lane_channel[int(upper_lines[0]):(int(upper_lines[0]) + self.lines_width), 0:width] = color_code
         lane_channel[int(upper_lines[-1]):(int(upper_lines[-1]) + self.lines_width), 0:width] = color_code
-        lane_channel[int(lower_lines[0]):(int(lower_lines[0]) + self.lines_width), 0:width] = color_code
-        lane_channel[int(lower_lines[-1]):(int(lower_lines[-1]) + self.lines_width), 0:width] = color_code
         
         # Broken Lines
         filled = int(self.dash_lines[0])
         total_line = int((self.dash_lines[0]+ self.dash_lines[1]))
         for line in upper_lines[1:-1]:
-            for i in range(int(width/total_line)):
-                lane_channel[int(line):(int(line) + self.lines_width), (i*total_line):(i*total_line+filled)] = color_code
-
-        for line in lower_lines[1:-1]:
             for i in range(int(width/total_line)):
                 lane_channel[int(line):(int(line) + self.lines_width), (i*total_line):(i*total_line+filled)] = color_code
         
@@ -748,7 +844,11 @@ if __name__ =="__main__":
         result_file = p.RESULT_FILE,
         dataset_name = p.DATASET,
         num_output = p.NUM_OUTPUT)
-    if p.WHAT_IF_RENDERING:
+    if p.EXPORT_CSV:
+        bev_plotter.post_process()
+        bev_plotter.export_csv()
+        exit()
+    elif p.WHAT_IF_RENDERING:
         dl_params = params.ParametersHandler('MTPMTT.yaml', 'highD.yaml', '../config')
         experiment_file = '../experiments/'+ p.model_name
         dl_params.import_experiment(experiment_file)
