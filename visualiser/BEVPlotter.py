@@ -61,69 +61,8 @@ class BEVPlotter:
         #print(torch.cuda.is_available())
         with open(self.result_file, 'rb') as handle:
             self.scenarios = pickle.load(handle)
-    def post_process(self):
-        traj_max = self.scenarios[0]['traj_max']
-        traj_min = self.scenarios[0]['traj_min']
-        in_seq_len = self.scenarios[0]['traj_labels'].shape[1]- self.scenarios[0]['traj_dist_preds'].shape[1]  
-        tgt_seq_len = self.scenarios[0]['traj_dist_preds'].shape[1] 
-        data_file = self.scenarios[0]['data_file']
-        data_file = int(data_file.split('.')[0])
-        track_path = p.track_paths[data_file]
-        static_path = p.static_paths[data_file]
-        pickle_path = p.frame_pickle_paths[data_file]
-        frames_data, image_width = rc.read_track_csv(track_path, pickle_path, group_by = 'frames', reload = False, fr_div = self.fr_div)
-        frame_list = [data_frame[rc.FRAME][0] for data_frame in self.frames_data]    
-        
-        for scenario_itr, scenario in enumerate(self.scenarios):
-            gt_frenet = np.zeros((in_seq_len + tgt_seq_len, 2))
-            pr_cart = np.zeros((tgt_seq_len, 2))
-            frame = scenario['frames'][0]
-            frame_data = frames_data[self.frame_list.index(frame)]
-            tv_id = scenario['tv']
-            traj_pred = scenario['traj_dist_preds'][0,:,:2]*(traj_max-traj_min) + traj_min
-            traj_gt = scenario['traj_labels'][0,:,:2]*(traj_max-traj_min) + traj_min
-            #from dx dy to x,y
-
-            tv_itr = np.nonzero(frame_data[rc.TRACK_ID] == tv_id)[0][0]
-            initial_xy = [frame_data[rc.D][tv_itr],frame_data[rc.S][tv_itr]]
-            gt_cart[0,0] =  initial_xy[0]
-            gt_cart[0,1] = initial_xy[1]
-            dxy = gt_frenet[0]
-            for i in range(in_seq_len):
-                dxy += traj_gt[i]
-                gt_frenet[i] = dxy
-            gt_cart = self.frenet2cart(gt_frenet, lane_ref)
-            #TODO plot gt_cart vs actual data
-            #for i in range(tgt_seq_len):
-            #    break
-            self.scenarios[scenario_itr]['traj_preds_cart'] = 0
-            
-        return
-    def frenet2cart(self, traj, ref): #assumption: traj y>ref y
-        L = ref.shape[0]
-        T = traj.shape[0]
-        cart_traj = np.zeros_like(traj)
-        gamma = np.zeros((L))
-        for i in range(L-1):
-            gamma[i] = norm(ref[i+1]-ref[i])
-        gamma[L-1] = gamma[L-2]
-        gamma = np.cumsum(gamma)
-        traj_cart = np.zeros((T,2))
-        for i in range(T):
-            it1 = np.nonzero(traj[:,0]>=gamma)[0][0]
-            it2 = it1+1
-            frenet_origin_x = ref[it1,0]
-
-            thetha1 = np.arctan((ref[it2,1]-ref[it1,1])/(ref[it2,0]-ref[it1,0]))
-            thetha = np.arctan((np.abs(traj[i,1]))/(np.abs(traj[i,0]- gamma[it1])))
-            if thetha < np.abs(thetha1):
-                thetha *= -1
-            thetha_cart = thetha1+thetha
-            dist2origin = np.sqrt(np.power(traj[i,1], 2) + np.power((traj[i,0]- gamma[it1]), 2))
-            cart_traj[i,0] = dist2origin * np.sin(thetha_cart)
-            cart_traj[i,1] = dist2origin * np.cos(thetha_cart)
-        return cart_traj
-
+   
+    
 
     def export_csv(self):
         data_file = self.scenarios[0]['data_file'][0]
@@ -132,22 +71,23 @@ class BEVPlotter:
         #df = pd.read_csv(track_path)
         #print(len(df[rc.X]))
         #exit()
-        
-        total_len = len(self.scenarios)
+        total_len = 0
+        for scenario in self.scenarios:
+            total_len += scenario['tv'].shape[0]
         print(total_len)
-        exit()
+        #exit()
         np_array = np.empty((total_len,4), dtype = object)
         itr = 0
         for scenario_itr, scenario in enumerate(self.scenarios):
             #print('Scenario: {}/{}'.format(scenario_itr+1, len(self.scenarios)))
-            tv = scenario['tv'][0]
-            frame = scenario['frames'][0][9]
-            np_array[itr,0] = [frame]
-            np_array[itr,1] = [tv]
-            np_array[itr,2] = scenario['traj_preds_cart'][:,0].tolist()
-            np_array[itr,3] = scenario['traj_preds_cart'][:,1].tolist()
-            
-            itr += 1
+            for batch_itr in range(scenario['tv'].shape[0]):
+                tv = scenario['tv'][batch_itr]
+                frame = scenario['frames'][batch_itr][9]
+                np_array[itr,0] = [frame]
+                np_array[itr,1] = [tv]
+                np_array[itr,2] = scenario['traj_dist_preds'][batch_itr,:,0].tolist()
+                np_array[itr,3] = scenario['traj_dist_preds'][batch_itr,:,1].tolist()
+                itr += 1
         
         print('to df')
         df = pd.DataFrame(data = np_array, columns=[rc.FRAME, rc.TRACK_ID, 'prX', 'prY'])
@@ -845,7 +785,6 @@ if __name__ =="__main__":
         dataset_name = p.DATASET,
         num_output = p.NUM_OUTPUT)
     if p.EXPORT_CSV:
-        bev_plotter.post_process()
         bev_plotter.export_csv()
         exit()
     elif p.WHAT_IF_RENDERING:
