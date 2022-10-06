@@ -27,7 +27,7 @@ matplotlib.rc('font', **font)
 def eval_top_func(p, model, man_loss_func, traj_loss_func, te_dataset, device, tensorboard = None):
     model = model.to(device)
     
-    te_loader = utils_data.DataLoader(dataset = te_dataset, shuffle = True, batch_size = p.BATCH_SIZE, drop_last= True, pin_memory= True, num_workers= 12)
+    te_loader = utils_data.DataLoader(dataset = te_dataset, shuffle = True, batch_size = p.BATCH_SIZE, drop_last= False, pin_memory= True, num_workers= 12)
 
     vis_data_path = p.VIS_DIR + p.experiment_tag + '.pickle'
     best_model_path = p.MODELS_DIR + p.experiment_tag + '.pt'
@@ -286,23 +286,29 @@ def eval_model(p, tb, model, man_loss_func, traj_loss_func, test_loader, test_da
     average_time = 0
     plot_dicts = []
     
-    all_traj_preds = np.zeros(((num_batch*model.batch_size), p.TGT_SEQ_LEN, 2))
-    all_traj_labels = np.zeros(((num_batch*model.batch_size), p.TGT_SEQ_LEN + p.IN_SEQ_LEN,2))
-    all_man_preds = np.zeros(((num_batch*model.batch_size), p.TGT_SEQ_LEN))
-    all_man_labels = np.zeros(((num_batch*model.batch_size), p.TGT_SEQ_LEN + p.IN_SEQ_LEN,3))
+    all_traj_preds = np.zeros((total, p.TGT_SEQ_LEN, 2))
+    all_traj_labels = np.zeros((total, p.TGT_SEQ_LEN + p.IN_SEQ_LEN, 2))
+    all_man_preds = np.zeros((total, p.TGT_SEQ_LEN))
+    all_man_labels = np.zeros((total, p.TGT_SEQ_LEN + p.IN_SEQ_LEN, 3))
     
     
-    
+    batch_group_time = time()  
     for batch_idx, (data_tuple, labels, plot_info, _) in enumerate(test_loader):
         
         if p.DEBUG_MODE == True:
             if batch_idx >2: 
                 break
         
+        data_tuple = [data.to(device) for data in data_tuple]
+        
+        tv_traj_data = data_tuple[-1]
+        initial_traj = tv_traj_data[:,(p.IN_SEQ_LEN-1):p.IN_SEQ_LEN]
+        traj_gt = tv_traj_data[:,p.IN_SEQ_LEN:(p.IN_SEQ_LEN+p.TGT_SEQ_LEN)]
+        batch_size = tv_traj_data.shape[0]
+        
         # Plot data initialisation
         if eval_type == 'Test':
             (tv_id, frames, data_file) = plot_info
-            batch_size = frames.shape[0]
             plot_dict = {
                 'data_file': data_file,
                 'tv': tv_id.numpy(),
@@ -317,11 +323,7 @@ def eval_model(p, tb, model, man_loss_func, traj_loss_func, test_loader, test_da
                 'man_preds':np.zeros((batch_size, model.n_mode, p.TGT_SEQ_LEN)),
                 'mode_prob': np.zeros((batch_size, model.n_mode))     
             }
-        data_tuple = [data.to(device) for data in data_tuple]
-        
-        tv_traj_data = data_tuple[-1]
-        initial_traj = tv_traj_data[:,(p.IN_SEQ_LEN-1):p.IN_SEQ_LEN]
-        traj_gt = tv_traj_data[:,p.IN_SEQ_LEN:(p.IN_SEQ_LEN+p.TGT_SEQ_LEN)] 
+         
         
         in_data_tuple = data_tuple[:-1]
         encoder_input = in_data_tuple[0]
@@ -334,7 +336,7 @@ def eval_model(p, tb, model, man_loss_func, traj_loss_func, test_loader, test_da
         st_time = time()
         
             
-            
+        
         if p.SELECTED_MODEL== 'CONSTANT_PARAMETER':
             output_dict = model(encoder_input, test_dataset.states_min, test_dataset.states_max, test_dataset.output_states_min, test_dataset.output_states_max, traj_labels = None)
             traj_pred = output_dict['traj_pred']
@@ -346,8 +348,8 @@ def eval_model(p, tb, model, man_loss_func, traj_loss_func, test_loader, test_da
             BM_predicted_data_dist = traj_pred[:,0]
             BM_traj_pred = traj_pred[:,0]
         else:
-            encoder_out = model.encoder_forward(x = encoder_input)
-            man_pred = model.man_decoder_forward(encoder_out)
+            encoder_out = model.encoder_forward(x = encoder_input, batch_size = batch_size)
+            man_pred = model.man_decoder_forward(encoder_out, batch_size = batch_size)
             mode_prob, man_vectors = kpis.calc_man_vectors(man_pred, model.n_mode, model.man_per_mode, p.TGT_SEQ_LEN, device)
             '''
             traj_preds = []
@@ -362,10 +364,10 @@ def eval_model(p, tb, model, man_loss_func, traj_loss_func, test_loader, test_da
             traj_preds = torch.stack(traj_preds, dim = 1)
             data_dist_preds = torch.stack(data_dist_preds, dim =1)
             '''
-            BM_man_vector = kpis.sel_high_prob_man( man_pred, model.n_mode, model.man_per_mode, p.TGT_SEQ_LEN, device)
+            BM_man_vector = kpis.sel_high_prob_man(man_pred, model.n_mode, model.man_per_mode, p.TGT_SEQ_LEN, device)
             decoder_input = initial_traj
             decoder_input = torch.stack([decoder_input,decoder_input,decoder_input], dim = 1) #multi-modal
-            BM_predicted_data_dist, BM_traj_pred = trajectory_inference(p, model, device, decoder_input, encoder_out, BM_man_vector)
+            BM_predicted_data_dist, BM_traj_pred = trajectory_inference(p, model, device, decoder_input, encoder_out, BM_man_vector, batch_size = batch_size)
                 
                 
         
@@ -429,7 +431,8 @@ def eval_model(p, tb, model, man_loss_func, traj_loss_func, test_loader, test_da
         if eval_type == 'Test':
             plot_dicts.append(plot_dict)
         if (batch_idx+1) % 500 == 0:
-            print('Epoch: ',epoch, ' Batch: ', batch_idx+1)
+            print('Epoch: ',epoch, ' Batch: ', batch_idx+1, 'Time per 500 samples: ', (time()-batch_group_time)/batch_size)
+            batch_group_time = time()  
             
             
         
@@ -458,12 +461,13 @@ def eval_model(p, tb, model, man_loss_func, traj_loss_func, test_loader, test_da
     avg_losses = avg_loss, avg_man_loss, avg_traj_loss, avg_mode_ploss, avg_man_ploss, avg_time_ploss
     return accuracy, avg_losses, auc, max_j, precision, recall, f1, rmse, fde, traj_df
 
-def trajectory_inference(p, model, device, decoder_input, encoder_out, man_pred_vector):
+def trajectory_inference(p, model, device, decoder_input, encoder_out, man_pred_vector, batch_size):
     for out_seq_itr in range(p.TGT_SEQ_LEN):
         #output_dict = model(x = encoder_input, y =decoder_input, y_mask = model.get_y_mask(decoder_input.size(2)).to(device))
         traj_pred = model.traj_decoder_forward(y = decoder_input, 
                                                     y_mask = model.get_y_mask(decoder_input.size(2)).to(device), 
-                                                    encoder_out = encoder_out)
+                                                    encoder_out = encoder_out,
+                                                    batch_size = batch_size)
         
         current_traj_pred = traj_pred[:,:,out_seq_itr:(out_seq_itr+1)] #traj output at current timestep
         current_man_pred = man_pred_vector[:,out_seq_itr:(out_seq_itr+1)]      
@@ -498,8 +502,7 @@ def trajectory_inference(p, model, device, decoder_input, encoder_out, man_pred_
     traj_pred = traj_pred[:,0]
     return predicted_data_dist, traj_pred
 
-def multi_modal_inference(p, model, test_loader, test_dataset, epoch, device, eval_type = 'Validation', vis_data_path = None, figure_name = None):
-    return 0
+
 
 def extract_modes(p, man_prob, prob_thr = 0.33, derivative_thr =0.5):
     # man_prob dim = [batch size, tgt_seq_len, 3]

@@ -88,6 +88,6 @@ if __name__ == '__main__':
     experiment_file = 'experiments/MTPMTT_autoplex_2022-09-21 10:23:24.439641'
     p.import_experiment(experiment_file)
     p.UNBALANCED = True
-    p.BATCH_SIZE = 1
+    p.BATCH_SIZE = 32
     test_model_dict(p)
     

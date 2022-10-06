@@ -74,27 +74,35 @@ class MTPMTT(nn.Module):
         self.dec_man_fc1 = nn.Linear(self.in_seq_len*self.model_dim, self.classifier_dim)
         self.dec_man_fc2 = nn.Linear(self.classifier_dim, self.man_output_dim)
         
-    def forward(self, x, y, y_mask):      
+    def forward(self, x, y, y_mask, batch_size = None):      
+        if batch_size != None:
+            self.batch_size = batch_size
         encoder_out = self.encoder_forward(x)
         man_pred = self.man_decoder_forward(encoder_out)
         traj_pred = self.traj_decoder_forward(y, y_mask, encoder_out)
         
         return {'traj_pred':traj_pred, 'man_pred': man_pred }
     
-    def encoder_forward(self, x):
+    def encoder_forward(self, x, batch_size = None):
         #encoder
+        if batch_size != None:
+            self.batch_size = batch_size
         x = self.encoder_embedding(x)
         x = self.positional_encoder(x)
         encoder_out = self.transformer_encoder(x)
         
         return encoder_out
     
-    def man_decoder_forward(self, encoder_out):
+    def man_decoder_forward(self, encoder_out, batch_size = None):
+        if batch_size != None:
+            self.batch_size = batch_size
         encoder_out_flattened = encoder_out.reshape(self.batch_size, self.in_seq_len*self.model_dim)
         man_pred = self.dec_man_fc2(F.relu(self.dec_man_fc1(encoder_out_flattened)))
         return man_pred
 
-    def traj_decoder_forward(self, y, y_mask, encoder_out):
+    def traj_decoder_forward(self, y, y_mask, encoder_out, batch_size = None):
+        if batch_size != None:
+            self.batch_size = batch_size
         encoder_out_flattened = encoder_out.reshape(self.batch_size, self.in_seq_len*self.model_dim)
         
         #traj decoder
