@@ -68,6 +68,7 @@ class ParametersHandler:
         self.UNBALANCED = not self.hyperparams['dataset']['balanced']
         self.ABLATION = self.hyperparams['dataset']['ablation']
         self.DEBUG_MODE = self.hyperparams['experiment']['debug_mode']
+        
         self.MAN_DEC_IN = self.hyperparams['model']['man_dec_in']
         self.MAN_DEC_OUT = self.hyperparams['model']['man_dec_out']
         self.MULTI_MODAL = self.hyperparams['model']['multi_modal']

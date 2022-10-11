@@ -98,8 +98,8 @@ class BEVPlotter:
                 traj_pred = np.zeros_like(scenario['traj_dist_preds'][batch_itr,:,:2])
                 dxdy_pred = scenario['traj_dist_preds'][batch_itr,:,:2]*(traj_max-traj_min) + traj_min
                 dxdy_pred = np.cumsum(dxdy_pred,0)
-                traj_pred[:,0] = initial_xy[0] + dxdy_pred[:,0]
-                traj_pred[:,1] = initial_xy[1] + dxdy_pred[:,1]
+                traj_pred[:,0] = initial_xy[0] + dxdy_pred[:,1] #dxdy[:,1] is x (refer to render_scenarios output_state definition)
+                traj_pred[:,1] = initial_xy[1] + dxdy_pred[:,0] #dxdy[:,1] is y
                     
                 np_array[itr,0] = [frame]
                 np_array[itr,1] = [tv]

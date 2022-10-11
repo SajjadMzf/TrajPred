@@ -24,6 +24,24 @@ matplotlib.rcParams['figure.figsize'] = (18, 12)
 matplotlib.rc('font', **font)
 
 
+def deploy_top_func(p, model, te_dataset, device):
+    model = model.to(device)
+    
+    te_loader = utils_data.DataLoader(dataset = te_dataset, shuffle = False, batch_size = p.BATCH_SIZE, drop_last= False, pin_memory= True, num_workers= 12)
+
+    vis_data_path = p.VIS_DIR + p.experiment_tag + '_D'+ '.pickle'
+    best_model_path = p.MODELS_DIR + p.experiment_tag + '.pt'
+    figure_name =  p.experiment_tag
+    
+    if p.SELECTED_MODEL != 'CONSTANT_PARAMETER':
+        model.load_state_dict(torch.load(best_model_path))
+    
+    
+    deploy_model(p, model, te_loader, te_dataset, ' N/A', device, vis_data_path = vis_data_path, figure_name = figure_name)
+    
+    
+
+
 def eval_top_func(p, model, man_loss_func, traj_loss_func, te_dataset, device, tensorboard = None):
     model = model.to(device)
     
@@ -395,8 +413,8 @@ def eval_model(p, tb, model, man_loss_func, traj_loss_func, test_loader, test_da
             x_y_label = data_tuple[-1]
             #unnormalised_traj_pred = x_y_pred.cpu().data*(traj_max-traj_min) + traj_min
             unnormalised_traj_label = x_y_label.cpu().data*(traj_max-traj_min) + traj_min
-            plot_dict['input_features'] = encoder_input
             plot_dict['traj_labels'] = unnormalised_traj_label.numpy()
+            plot_dict['input_features'] = encoder_input
             #plot_dict['traj_preds']= unnormalised_traj_pred.numpy() #TODO: remove traj pred and use traj_dist_preds instead
             plot_dict['traj_dist_preds'] = x_y_dist_pred.cpu().data.numpy()# TODO: export unnormalised dist
             if p.SELECTED_MODEL != 'CONSTANT_PARAMETER':
@@ -405,9 +423,8 @@ def eval_model(p, tb, model, man_loss_func, traj_loss_func, test_loader, test_da
                 plot_dict['mode_prob'] = mode_prob.detach().cpu().numpy()
             
                 
-        all_traj_preds[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size)] = BM_traj_pred.cpu().data
+        all_traj_preds[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size)] = BM_traj_pred.cpu().data 
         all_traj_labels[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size)] = data_tuple[-1].cpu().data
-        
         all_man_labels[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size)] = man_gt_onehot.cpu().data
 
         avg_traj_loss += traj_loss.cpu().data / len(test_loader)
@@ -437,15 +454,15 @@ def eval_model(p, tb, model, man_loss_func, traj_loss_func, test_loader, test_da
             
         
     
-  
+               
     traj_metrics, man_metrics, traj_df = kpis.calc_metric(p, all_traj_preds, all_traj_labels, all_man_preds, all_man_labels, test_dataset.output_states_min, test_dataset.output_states_max, epoch, eval_type = eval_type, figure_name = figure_name)
     accuracy, precision, recall = man_metrics
+    rmse = traj_metrics[0:3]
+    fde = traj_metrics[3]
     f1=0
     FPR=0
     auc=0
-    max_j=0 
-    rmse = traj_metrics[0:3]
-    fde = traj_metrics [3]
+    max_j=0   
     print('                                   ')
     print("{}: Epoch: {}, Accuracy: {:.2f}%, Total LOSS: {}, MAN LOSS: {},MODE PLOSS: {},MAN PLOSS: {},TIME LOSS: {},TRAJ LOSS: {}, PRECISION:{}, RECALL:{}, F1:{}, FPR:{}, AUC:{}, Max J:{}, RMSE:{}, FDE:{}".format(
         eval_type, epoch, 100. * accuracy, avg_loss, avg_man_loss, avg_mode_ploss, avg_man_ploss, avg_time_ploss, avg_traj_loss, precision, recall, f1, FPR, auc, max_j, rmse, fde))
@@ -460,6 +477,118 @@ def eval_model(p, tb, model, man_loss_func, traj_loss_func, test_loader, test_da
             pickle.dump(plot_dicts, fp)
     avg_losses = avg_loss, avg_man_loss, avg_traj_loss, avg_mode_ploss, avg_man_ploss, avg_time_ploss
     return accuracy, avg_losses, auc, max_j, precision, recall, f1, rmse, fde, traj_df
+
+def deploy_model(p, model, test_loader, test_dataset, epoch, device, vis_data_path = None, figure_name = None):
+    total = len(test_loader.dataset)
+    num_batch = int(np.floor(total/model.batch_size))
+    # Initialise Variables
+    
+    time_counter = 0
+    average_time = 0
+    plot_dicts = []
+    
+    all_traj_preds = np.zeros((total, p.TGT_SEQ_LEN, 2))
+    all_man_preds = np.zeros((total, p.TGT_SEQ_LEN))
+    
+    
+    batch_group_time = time()  
+    for batch_idx, (data_tuple, labels, plot_info, _) in enumerate(test_loader):
+        
+        if p.DEBUG_MODE == True:
+            if batch_idx >2: 
+                break
+        
+        data_tuple = [data.to(device) for data in data_tuple]
+        
+        tv_traj_data = data_tuple[-1]
+        initial_traj = tv_traj_data[:,(p.IN_SEQ_LEN-1):p.IN_SEQ_LEN]
+
+        batch_size = tv_traj_data.shape[0]
+        
+        # Plot data initialisation
+        if eval_type == 'Test':
+            (tv_id, frames, data_file) = plot_info
+            plot_dict = {
+                'data_file': data_file,
+                'tv': tv_id.numpy(),
+                'frames': frames.numpy(),
+                'traj_min': test_dataset.output_states_min,
+                'traj_max': test_dataset.output_states_max,
+                'input_features': np.zeros((batch_size, p.IN_SEQ_LEN, 18)),
+                'traj_preds': np.zeros((batch_size, model.n_mode, p.TGT_SEQ_LEN, 2)),
+                'traj_dist_preds': np.zeros((batch_size, model.n_mode, p.TGT_SEQ_LEN, 5)),
+                'man_preds':np.zeros((batch_size, model.n_mode, p.TGT_SEQ_LEN)),
+                'mode_prob': np.zeros((batch_size, model.n_mode))     
+            }
+         
+        
+        in_data_tuple = data_tuple[:-1]
+        encoder_input = in_data_tuple[0]
+        
+        
+
+        st_time = time()
+        
+            
+        
+        if p.SELECTED_MODEL== 'CONSTANT_PARAMETER':
+            output_dict = model(encoder_input, test_dataset.states_min, test_dataset.states_max, test_dataset.output_states_min, test_dataset.output_states_max, traj_labels = None)
+            traj_pred = output_dict['traj_pred']
+            man_pred = output_dict['man_pred'] # All zero vector for this model
+            man_pred = torch.unsqueeze(man_pred, dim = 1)
+            #print(traj_pred.size())
+            traj_pred = traj_pred.unsqueeze(1)
+            #print(traj_pred.size())
+            BM_predicted_data_dist = traj_pred[:,0]
+            BM_traj_pred = traj_pred[:,0]
+        else:
+            encoder_out = model.encoder_forward(x = encoder_input, batch_size = batch_size)
+            man_pred = model.man_decoder_forward(encoder_out, batch_size = batch_size)
+            mode_prob, man_vectors = kpis.calc_man_vectors(man_pred, model.n_mode, model.man_per_mode, p.TGT_SEQ_LEN, device)
+            
+            BM_man_vector = kpis.sel_high_prob_man(man_pred, model.n_mode, model.man_per_mode, p.TGT_SEQ_LEN, device)
+            decoder_input = initial_traj
+            decoder_input = torch.stack([decoder_input,decoder_input,decoder_input], dim = 1) #multi-modal
+            BM_predicted_data_dist, BM_traj_pred = trajectory_inference(p, model, device, decoder_input, encoder_out, BM_man_vector, batch_size = batch_size)
+                
+                
+        
+        end_time = time()-st_time
+        #print_shape('traj_gt', traj_gt)
+        #print_shape('predicted_data_dist', predicted_data_dist)
+        
+
+        traj_min = test_dataset.output_states_min
+        traj_max = test_dataset.output_states_max
+        x_y_dist_pred = BM_predicted_data_dist
+        
+        plot_dict['input_features'] = encoder_input
+        
+        plot_dict['traj_dist_preds'] = x_y_dist_pred.cpu().data.numpy()# TODO: export unnormalised dist
+        if p.SELECTED_MODEL != 'CONSTANT_PARAMETER':
+            plot_dict['man_preds'] = man_vectors.cpu().numpy()
+            plot_dict['mode_prob'] = mode_prob.detach().cpu().numpy()
+            
+                
+        all_traj_preds[(batch_idx*model.batch_size):((batch_idx+1)*model.batch_size)] = BM_traj_pred.cpu().data
+        
+
+        
+        
+
+        time_counter += 1
+        average_time +=end_time
+        
+        plot_dicts.append(plot_dict)
+        if (batch_idx+1) % 500 == 0:
+            print('Epoch: ',epoch, ' Batch: ', batch_idx+1, 'Time per 500 samples: ', (time()-batch_group_time)/batch_size)
+            batch_group_time = time()  
+               
+    with open(vis_data_path, "wb") as fp:
+        pickle.dump(plot_dicts, fp)
+
+
+
 
 def trajectory_inference(p, model, device, decoder_input, encoder_out, man_pred_vector, batch_size):
     for out_seq_itr in range(p.TGT_SEQ_LEN):

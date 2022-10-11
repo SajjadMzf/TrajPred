@@ -101,6 +101,7 @@ class MTPMTT(nn.Module):
         return man_pred
 
     def traj_decoder_forward(self, y, y_mask, encoder_out, batch_size = None):
+        #print(y.shape)
         if batch_size != None:
             self.batch_size = batch_size
         encoder_out_flattened = encoder_out.reshape(self.batch_size, self.in_seq_len*self.model_dim)
@@ -108,6 +109,7 @@ class MTPMTT(nn.Module):
         #traj decoder
         lk_y = self.decoder_embedding(y[:,0,:,:self.decoder_in_dim])
         lk_y = self.positional_encoder(lk_y)
+        #print(lk_y.shape)
         lk_decoder_out = self.lk_transformer_decoder(lk_y, encoder_out, tgt_mask = y_mask)
         
         if self.multi_modal: #if single modal lk represents the single modal not the lane keeping man anymore

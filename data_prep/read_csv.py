@@ -12,8 +12,8 @@ if p.DATASET == "Processed_highD":
     X = "x"
     Y = "y"
 else:
-    X = 'd_smooth'
-    Y = 's_smooth'
+    X = 'd'
+    Y = 'd'
 
 WIDTH = "width"
 HEIGHT = "height"

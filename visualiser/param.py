@@ -1,11 +1,11 @@
 import cv2
 DATASET = 'AutoplexCPM' #'HIGHD'
-FPS = 5
+FPS = 10
 OCCLUSION = False
-model_name =  'MTPMTT_autoplex_2022-09-21 10:23:24.439641'#'MTPMTT_highD_2022-08-22 15:47:03.709155'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-06-27 14:46:40.899317'#'ManouvreTransformerTraj_highD_2022-06-14 15:14:02.050065'
+model_name =  'MTPMTT_autoplex_2022-10-11 12:37:33.393413'#'MTPMTT_autoplex_2022-09-21 10:23:24.439641'#'MTPMTT_highD_2022-08-22 15:47:03.709155'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-06-27 14:46:40.899317'#'ManouvreTransformerTraj_highD_2022-06-14 15:14:02.050065'
 RESULT_FILE = "../results/vis_data/"+ model_name +".pickle"
 
-EXPORT_CSV = True
+EXPORT_CSV = False
 WHAT_IF_RENDERING = False
 ITERATIVE_RENDERING = True
 

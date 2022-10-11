@@ -39,8 +39,8 @@ class ExtractScenarios:
         self.LC_states_dir = "../../Dataset/"+ dataset_name +"/Scenarios"+ p.dir_ext
         if not os.path.exists(self.LC_states_dir):
             os.makedirs(self.LC_states_dir)
-        self.data_tracks, _ = rc.read_track_csv(track_path, track_pickle_path, group_by = 'tracks', reload = False, fr_div = self.fr_div)
-        self.data_frames, _ = rc.read_track_csv(track_path, frame_pickle_path, group_by = 'frames', reload = False, fr_div = self.fr_div)
+        self.data_tracks, _ = rc.read_track_csv(track_path, track_pickle_path, group_by = 'tracks', reload = True, fr_div = self.fr_div)
+        self.data_frames, _ = rc.read_track_csv(track_path, frame_pickle_path, group_by = 'frames', reload = True, fr_div = self.fr_div)
         self.track_list = [data_track[rc.TRACK_ID][0] for data_track in self.data_tracks]
         self.frame_list = [data_frame[rc.FRAME][0] for data_frame in self.data_frames]
         self.statics = rc.read_static_info(static_path)

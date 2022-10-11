@@ -36,8 +36,12 @@ class LCDataset(Dataset):
         self.in_seq_len = in_seq_len
         self.out_seq_len = out_seq_len
         self.end_of_seq_skip_len = end_of_seq_skip_len
-        self.total_seq_len = self.in_seq_len + self.out_seq_len
         self.unbalanced = unbalanced
+        self.deploy_data = deploy_data
+        if self.deploy_data:   
+            self.total_seq_len = self.in_seq_len 
+        else:
+            self.total_seq_len = self.in_seq_len + self.out_seq_len
         if data_type == 'image':
             self.image_only = True
             self.state_only = False
@@ -122,19 +126,25 @@ class LCDataset(Dataset):
         return states_min, states_max
                 
     def get_samples_start_index(self, in_seq_len, out_seq_len, end_of_seq_skip_len, data_file, force_recalc = False):
-        sample_start_indx_file = data_file.replace('.h5', '_start_indx_{}_{}_{}.npy'.format(in_seq_len, out_seq_len, end_of_seq_skip_len))
+        if self.deploy_data:
+            deploy_flag = 'D'
+            sample_length = in_seq_len
+        else:
+            deploy_flag = ''
+            sample_length = in_seq_len+out_seq_len+end_of_seq_skip_len
+        sample_start_indx_file = data_file.replace('.h5', '_start_indx_{}_{}_{}_{}.npy'.format(in_seq_len, out_seq_len, end_of_seq_skip_len, deploy_flag))
         if force_recalc or (not os.path.exists(sample_start_indx_file)):
             samples_start_index = []
             with h5py.File(data_file, 'r') as f:
                 tv_ids = f['tv_data']
                 len_scenario = tv_ids.shape[0]
                 for itr, tv_id in enumerate(tv_ids):
-                    if (itr+in_seq_len+out_seq_len+end_of_seq_skip_len) <= len_scenario:
-                        if np.all(tv_ids[itr:(itr+in_seq_len+out_seq_len+end_of_seq_skip_len)] == tv_id):
+                    if (itr+sample_length) <= len_scenario:
+                        if np.all(tv_ids[itr:(itr+sample_length)] == tv_id):
                             samples_start_index.append(itr)         
             samples_start_index = np.array(samples_start_index)
             np.save(sample_start_indx_file, samples_start_index)
-            print('Saving file: {}'.format(sample_start_indx_file))
+            print('Saving file: {}, total data: {}'.format(sample_start_indx_file, len(samples_start_index)))
         else:
             #print('loading {}'.format(sample_start_indx_file))
             samples_start_index = np.load(sample_start_indx_file)
