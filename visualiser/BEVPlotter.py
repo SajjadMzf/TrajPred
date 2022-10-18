@@ -82,16 +82,16 @@ class BEVPlotter:
         itr = 0
         traj_max = self.scenarios[0]['traj_max']
         traj_min = self.scenarios[0]['traj_min']
-        in_seq_len = self.scenarios[0]['traj_labels'].shape[1]- self.scenarios[0]['traj_dist_preds'].shape[1]  
+        in_seq_len = 20#self.scenarios[0]['traj_labels'].shape[1]- self.scenarios[0]['traj_dist_preds'].shape[1]  
         tgt_seq_len = self.scenarios[0]['traj_dist_preds'].shape[1] 
-        frames_data, image_width = rc.read_track_csv(track_path, pickle_path, group_by = 'frames', reload = False)
+        frames_data, image_width = rc.read_track_csv(track_path, pickle_path, group_by = 'frames', reload = True)
         frame_list = [frame_data[rc.FRAME][0] for frame_data in frames_data]  
         for scenario_itr, scenario in enumerate(self.scenarios):
             if scenario_itr%100 ==0:
                 print('Scenario: {}/{}'.format(scenario_itr+1, len(self.scenarios)))
             for batch_itr in range(scenario['tv'].shape[0]):
                 tv = scenario['tv'][batch_itr]
-                frame = scenario['frames'][batch_itr][9]
+                frame = scenario['frames'][batch_itr][in_seq_len-1]
                 frame_data = frames_data[frame_list.index(frame)]
                 tv_itr = np.nonzero(frame_data[rc.TRACK_ID] == tv)[0][0]
                 initial_xy = [frame_data[rc.X][tv_itr],frame_data[rc.Y][tv_itr]]
@@ -246,7 +246,7 @@ class BEVPlotter:
             track_path = p.track_paths[data_file]
             track_pickle_path = p.track_pickle_paths[data_file]
             self.statics = rc.read_static_info(static_path)
-            self.track_data, _ = rc.read_track_csv(track_path, track_pickle_path,reload = False, group_by = 'tracks')
+            self.track_data, _ = rc.read_track_csv(track_path, track_pickle_path,reload = True, group_by = 'tracks')
             driving_dir = self.statics[tv_id][rc.DRIVING_DIRECTION]
             print('TV ID: {}, List of Available Frames: {}, dd:{}'.format(tv_id, sorted_dict[i]['times'], driving_dir ))
             #if driving_dir !=2: #TODO: rotate driving_dir=1 data
@@ -319,7 +319,7 @@ class BEVPlotter:
         meta_path = p.meta_paths[data_file]
         self.metas = rc.read_meta_info(meta_path)
         self.fr_div = self.metas[rc.FRAME_RATE]/self.fps
-        self.frames_data, image_width = rc.read_track_csv(track_path, pickle_path, group_by = 'frames', reload = False, fr_div = self.fr_div)
+        self.frames_data, image_width = rc.read_track_csv(track_path, pickle_path, group_by = 'frames', reload = True, fr_div = self.fr_div)
         self.frame_list = [data_frame[rc.FRAME][0] for data_frame in self.frames_data]
         self.statics = rc.read_static_info(static_path)
         prev_data_file = data_file
@@ -379,7 +379,7 @@ class BEVPlotter:
         meta_path = p.meta_paths[data_file]
         self.metas = rc.read_meta_info(meta_path)
         self.fr_div = self.metas[rc.FRAME_RATE]/self.fps
-        self.frames_data, image_width = rc.read_track_csv(track_path, pickle_path, group_by = 'frames', reload = False, fr_div = self.fr_div)
+        self.frames_data, image_width = rc.read_track_csv(track_path, pickle_path, group_by = 'frames', reload = True, fr_div = self.fr_div)
         self.statics = rc.read_static_info(static_path)
         prev_data_file = data_file
         self.image_width = int(image_width*p.X_IMAGE_SCALE )

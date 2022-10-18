@@ -85,7 +85,7 @@ if __name__ == '__main__':
     #p = params.ParametersHandler('Constant_Parameter.yaml', 'highD.yaml', './config')
     p = params.ParametersHandler('MTPMTT.yaml', 'highD.yaml', './config')
     # Do Not import experiment file for constant parameter models
-    experiment_file = 'experiments/MTPMTT_autoplex_2022-09-21 10:23:24.439641'
+    experiment_file = 'experiments/MTPMTT_autoplex_2022-10-11 12:37:33.393413'
     p.import_experiment(experiment_file)
     p.UNBALANCED = True
     p.BATCH_SIZE = 32

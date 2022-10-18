@@ -506,20 +506,20 @@ def deploy_model(p, model, test_loader, test_dataset, epoch, device, vis_data_pa
         batch_size = tv_traj_data.shape[0]
         
         # Plot data initialisation
-        if eval_type == 'Test':
-            (tv_id, frames, data_file) = plot_info
-            plot_dict = {
-                'data_file': data_file,
-                'tv': tv_id.numpy(),
-                'frames': frames.numpy(),
-                'traj_min': test_dataset.output_states_min,
-                'traj_max': test_dataset.output_states_max,
-                'input_features': np.zeros((batch_size, p.IN_SEQ_LEN, 18)),
-                'traj_preds': np.zeros((batch_size, model.n_mode, p.TGT_SEQ_LEN, 2)),
-                'traj_dist_preds': np.zeros((batch_size, model.n_mode, p.TGT_SEQ_LEN, 5)),
-                'man_preds':np.zeros((batch_size, model.n_mode, p.TGT_SEQ_LEN)),
-                'mode_prob': np.zeros((batch_size, model.n_mode))     
-            }
+        
+        (tv_id, frames, data_file) = plot_info
+        plot_dict = {
+            'data_file': data_file,
+            'tv': tv_id.numpy(),
+            'frames': frames.numpy(),
+            'traj_min': test_dataset.output_states_min,
+            'traj_max': test_dataset.output_states_max,
+            'input_features': np.zeros((batch_size, p.IN_SEQ_LEN, 18)),
+            'traj_preds': np.zeros((batch_size, model.n_mode, p.TGT_SEQ_LEN, 2)),
+            'traj_dist_preds': np.zeros((batch_size, model.n_mode, p.TGT_SEQ_LEN, 5)),
+            'man_preds':np.zeros((batch_size, model.n_mode, p.TGT_SEQ_LEN)),
+            'mode_prob': np.zeros((batch_size, model.n_mode))     
+        }
          
         
         in_data_tuple = data_tuple[:-1]

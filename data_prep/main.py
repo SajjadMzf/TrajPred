@@ -58,7 +58,7 @@ if __name__ =="__main__":
     # Single Core (For Debugging purposes)
     
     i = np.arange(0,14)
-    #extract(1, i)    
+    extract(1, i)    
     render(1, i)
     exit()
     
