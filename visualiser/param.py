@@ -91,11 +91,11 @@ tv_dict = {
 }
 
 if DATASET == 'HIGHD':
-    track_paths = generate_paths('../../../Dataset/HighD/Tracks/', 60, '_tracks.csv')
-    frame_pickle_paths = generate_paths('../../../Dataset/HighD/Pickles/', 60, '_frames.csv')
-    track_pickle_paths = generate_paths('../../../Dataset/HighD/Pickles/', 60, '_tracks.csv')
-    meta_paths = generate_paths('../../../Dataset/HighD/Metas/', 60, '_recordingMeta.csv')
-    static_paths = generate_paths('../../../Dataset/HighD/Statics/', 60, '_tracksMeta.csv')
+    track_paths = generate_paths('../../Dataset/HighD/Tracks/', 60, '_tracks.csv')
+    frame_pickle_paths = generate_paths('../../Dataset/HighD/Pickles/', 60, '_frames.csv')
+    track_pickle_paths = generate_paths('../../Dataset/HighD/Pickles/', 60, '_tracks.csv')
+    meta_paths = generate_paths('../../Dataset/HighD/Metas/', 60, '_recordingMeta.csv')
+    static_paths = generate_paths('../../Dataset/HighD/Statics/', 60, '_tracksMeta.csv')
     #background_paths = generate_paths('./Backgrounds/',60, '_highway.jpg')
 elif DATASET == 'FNGSIM':
     track_paths = ['../../Dataset/FNGSIM/Traj_data/track_trajectories-0400-0415.csv',

@@ -147,15 +147,17 @@ def train_model(p, tb, model_train_func, model, loss_func_tuple, optimizer, sche
                 g['lr'] = lr
 
         optimizer.step()
+        # For epoch level printing
         if batch_idx == 0:
             print_dict = batch_print_info_dict
         else:
             for k in print_dict:
                 print_dict[k] += batch_print_info_dict[k]/len(train_loader)
         
+        # Every X batch print vis_print_dict
         if batch_idx % 500 == 0:
             if batch_idx !=0:
-                print('Training Epoch: {}, Batch: {}\,'+ ''.join(['{}:{}\n'.format(k,v) for k,v in vis_print_dict.iteritems()]))
+                print('Training Epoch: {}, Batch: {}/{}\n'.format(epoch, int(batch_idx/500), int(len(train_loader)/500))+ ''.join(['{}:{}\n'.format(k,vis_print_dict[k]) for k in vis_print_dict]))
             vis_print_dict = batch_print_info_dict
         else:
             for k in vis_print_dict:
@@ -183,25 +185,12 @@ def eval_model(p, tb, model_eval_func, model_kpi_func, model, loss_func_tuple, t
             if batch_idx >3: 
                 break
         
-        # Plot data initialisation
-        if eval_type == 'Test':
-            (tv_id, frames, data_file) = plot_info
-            batch_size = frames.shape[0]
-            plot_dict = {
-                'data_file': data_file,
-                'tv': tv_id.numpy(),
-                'frames': frames.numpy(),
-                'traj_min': test_dataset.output_states_min,
-                'traj_max': test_dataset.output_states_max,  
-            }
+        
         data_tuple = [data.to(device) for data in data_tuple]
         label_tuple = (labels.to(device),)
         
-        batch_print_info_dict, batch_plot_info_dict, batch_kpi_input_dict = model_eval_func(p, data_tuple, label_tuple, model, loss_func_tuple, device)
+        batch_print_info_dict, batch_kpi_input_dict = model_eval_func(p, data_tuple, plot_info, test_dataset, label_tuple, model, loss_func_tuple, device, eval_type)
 
-        if eval_type == 'Test':
-            for k in batch_plot_info_dict:
-                plot_dict[k] = batch_plot_info_dict[k]
             
         if batch_idx == 0:
             for k in batch_kpi_input_dict:
@@ -215,8 +204,6 @@ def eval_model(p, tb, model_eval_func, model_kpi_func, model, loss_func_tuple, t
             for k in batch_print_info_dict:
                 print_dict[k] += batch_print_info_dict[k]/len(test_loader)
         
-        if eval_type == 'Test':
-            plot_dicts.append(plot_dict)
         if (batch_idx+1) % 500 == 0:
             print('Epoch: ',epoch, ' Batch: ', batch_idx+1)
                
@@ -224,7 +211,7 @@ def eval_model(p, tb, model_eval_func, model_kpi_func, model, loss_func_tuple, t
    
     if eval_type == 'Test':
         with open(vis_data_path, "wb") as fp:
-            pickle.dump(plot_dicts, fp)
+            pickle.dump(kpi_input_dict, fp)
     
     return print_dict, kpi_dict
 

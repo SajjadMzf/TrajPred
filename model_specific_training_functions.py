@@ -56,7 +56,9 @@ def MMnTP_training(p, data_tuple, label_tuple, model, loss_func_tuple, device):
     }
     return training_loss, batch_print_info_dict
 
-def MMnTP_evaluation(p, data_tuple, label_tuple, model, loss_func_tuple, device):
+def MMnTP_evaluation(p, data_tuple, plot_info, dataset, label_tuple, model, loss_func_tuple, device, eval_type):
+    (tv_id, frames, data_file) = plot_info
+    
     traj_loss_func = loss_func_tuple[0]
     man_loss_func = loss_func_tuple[1]
 
@@ -71,6 +73,7 @@ def MMnTP_evaluation(p, data_tuple, label_tuple, model, loss_func_tuple, device)
     encoder_out = model.encoder_forward(x = feature_data)
     man_pred = model.man_decoder_forward(encoder_out)
     mode_prob, man_vectors = mf.calc_man_vectors(man_pred, model.n_mode, model.man_per_mode, p.TGT_SEQ_LEN, device)
+    mode_prob = F.softmax(mode_prob,dim = 1)
 
     BM_man_vector = mf.sel_high_prob_man(man_pred, model.n_mode, model.man_per_mode, p.TGT_SEQ_LEN, device)
     decoder_input = traj_initial_input
@@ -86,20 +89,27 @@ def MMnTP_evaluation(p, data_tuple, label_tuple, model, loss_func_tuple, device)
         man_ploss = 0
         time_ploss = 0
     evaluation_loss =  man_loss + p.TRAJ2CLASS_LOSS_RATIO*traj_loss 
-    '''
+    
     # Trajectory inference for all modes!
+    if eval_type == 'Test':
         traj_preds = []
         data_dist_preds = []
         for mode_itr in range(model.n_mode):
             man_pred_vector = man_vectors[:,mode_itr]
-            decoder_input = initial_traj
+            decoder_input = traj_initial_input
             decoder_input = torch.stack([decoder_input,decoder_input,decoder_input], dim = 1) #multi-modal
-            predicted_data_dist, traj_pred = trajectory_inference(p, model, device, decoder_input, encoder_out, man_pred_vector)
+            predicted_data_dist, traj_pred = MMnTP_trajectory_inference(p, model, device, decoder_input, encoder_out, man_pred_vector)
             traj_preds.append(traj_pred)
             data_dist_preds.append(predicted_data_dist)
         traj_preds = torch.stack(traj_preds, dim = 1)
         data_dist_preds = torch.stack(data_dist_preds, dim =1)
-    ''' 
+    else:
+        data_dist_preds = []
+        for mode_itr in range(model.n_mode):
+            data_dist_preds.append(BM_predicted_data_dist)
+        data_dist_preds = torch.stack(data_dist_preds, dim =1)
+
+        
     batch_print_info_dict = {
         'Total Loss': evaluation_loss.cpu().data.numpy()/model.batch_size,
         'Traj Loss': traj_loss.cpu().data.numpy()/model.batch_size,
@@ -109,22 +119,20 @@ def MMnTP_evaluation(p, data_tuple, label_tuple, model, loss_func_tuple, device)
         'Time Partial Loss': time_ploss.cpu().data.numpy()/model.batch_size,
     }
 
-    batch_plot_info_dict = {
+    batch_kpi_input_dict = {    
+        'data_file': data_file,
+        'tv': tv_id.numpy(),
+        'frames': frames.numpy(),
+        'traj_min': dataset.output_states_min,
+        'traj_max': dataset.output_states_max,  
         'input_features': feature_data.cpu().data.numpy(),
         'traj_gt': traj_gt.cpu().data.numpy(),
-        'traj_dist_pred': BM_predicted_data_dist.cpu().data.numpy(),
+        'traj_dist_pred': data_dist_preds.cpu().data.numpy(),
         'man_gt': man_gt.cpu().data.numpy(),
         'man_preds': man_vectors.cpu().data.numpy(),
         'mode_prob': mode_prob.detach().cpu().data.numpy(),
     }
-    batch_kpi_input_dict = {
-        'traj_gt': traj_gt.cpu().data.numpy(),
-        'traj_dist_pred': BM_predicted_data_dist.cpu().data.numpy(),
-        'man_gt': man_gt.cpu().data.numpy(),
-        'man_preds': man_vectors.cpu().data.numpy(),
-        'mode_prob': mode_prob.detach().cpu().data.numpy(),
-    }
-    return batch_print_info_dict, batch_plot_info_dict, batch_kpi_input_dict
+    return batch_print_info_dict, batch_kpi_input_dict
 
 def MMnTP_trajectory_inference(p, model, device, decoder_input, encoder_out, man_pred_vector):
     for out_seq_itr in range(p.TGT_SEQ_LEN):

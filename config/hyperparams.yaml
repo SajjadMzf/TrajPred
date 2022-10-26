@@ -4,7 +4,7 @@ dataset:
 
 experiment:
   cuda: True
-  debug_mode: True
+  debug_mode: False
 
 training:
   batch_size: 16

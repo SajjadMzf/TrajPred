@@ -25,8 +25,142 @@ import models_functions as mf
 
 
 def MMnTP_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
-    return {}
+    '''
+    1. NLL (TBD)
+    2. error based 
+    Miss Rate (MR):  The number of scenarios where none of the forecasted trajectories are within 2.0 meters of ground truth according to endpoint error.
+    Minimum Final Displacement Error  (minFDE): The L2 distance between the endpoint of the best forecasted trajectory and the ground truth.  The best here refers to the trajectory that has the minimum endpoint error.
+    Minimum Average Displacement Error  (minADE): The average L2 distance between the best forecasted trajectory and the ground truth.  The best here refers to the trajectory that has the minimum endpoint error.
+    Probabilistic minimum Final Displacement Error  (p-minFDE): This is similar to minFDE. The only difference is we add min(-log(p), -log(0.05)) to the endpoint L2 distance, where p corresponds to the probability of the best forecasted trajectory.
+    Probabilistic minimum Average Displacement Error  (p-minADE): This is similar to minADE. The only difference is we add min(-log(p), -log(0.05)) to the average L2 distance, where p corresponds to the probability of the best forecasted trajectory.
+    3. N accident, N road violation (not here)
+    '''
+    '''
+     batch_kpi_input_dict = {    
+        'data_file': data_file,
+        'tv': tv_id.numpy(),
+        'frames': frames.numpy(),
+        'traj_min': dataset.output_states_min,
+        'traj_max': dataset.output_states_max,  
+        'input_features': feature_data.cpu().data.numpy(),
+        'traj_gt': traj_gt.cpu().data.numpy(),
+        'traj_dist_pred': BM_predicted_data_dist.cpu().data.numpy(),
+        'man_gt': man_gt.cpu().data.numpy(),
+        'man_preds': man_vectors.cpu().data.numpy(),
+        'mode_prob': mode_prob.detach().cpu().data.numpy(),
+    }
+    '''
+    K = 6
 
+    mode_prob = np.concatenate(kpi_input_dict['mode_prob'], axis = 0)
+    total_samples = mode_prob.shape[0]
+
+    hp_mode = np.argmax(mode_prob, axis = 1)
+    kbest_modes = np.argpartition(mode_prob, -1*K, axis = 1)[:,-1*K:]
+    traj_gt = np.concatenate(kpi_input_dict['traj_gt'], axis = 0)
+    
+    traj_pred = np.concatenate(kpi_input_dict['traj_dist_pred'], axis = 0)
+    traj_pred = traj_pred[:,:,:,:2]
+    traj_max = kpi_input_dict['traj_max'][0]
+    traj_min = kpi_input_dict['traj_min'][0]
+    
+    #denormalise
+    traj_pred = traj_pred*(traj_max-traj_min) + traj_min
+    traj_gt = traj_gt*(traj_max-traj_min) + traj_min
+    #from diff to actual
+    traj_pred = np.cumsum(traj_pred, axis = 1)
+    traj_gt = np.cumsum(traj_gt, axis = 1)
+    hp_traj_pred = traj_pred[np.arange(total_samples), hp_mode]
+    index_array = np.repeat(np.arange(total_samples),K).reshape(total_samples, K)
+    #print(index_array)
+    kbest_traj_pred = traj_pred[index_array, kbest_modes]
+    kbest_modes_probs = mode_prob[index_array, kbest_modes]
+    kbest_modes_probs = np.divide(kbest_modes_probs, np.sum(kbest_modes_probs, axis = 1).reshape(total_samples,1)) 
+    #print(kbest_modes_probs)
+    #print(np.sum(kbest_modes_probs, axis = 1))
+    #exit()
+    sm_metrics_df = calc_sm_metric_df(p, hp_traj_pred, traj_gt)
+    
+    minFDE, p_minFDE, brier_minFDE, MR = calc_minFDE(kbest_traj_pred, kbest_modes_probs, traj_gt)
+    minADE, p_minADE, brier_minADE = calc_minADE(kbest_traj_pred, kbest_modes_probs, traj_gt)
+    
+    return {
+        'single modal metrics:\n': sm_metrics_df,
+        'minFDEs': (minFDE, p_minFDE, brier_minFDE),
+        'missrate': MR,
+        'minADE': (minADE, p_minADE, brier_minADE),
+    }
+
+
+def calc_sm_metric_df(p,traj_pred, traj_gt):
+    # fde, rmse table
+    total_samples = traj_gt.shape[0]
+    prediction_ts = int(p.TGT_SEQ_LEN/p.FPS)
+    if (p.TGT_SEQ_LEN/p.FPS) % 1 != 0:
+        raise(ValueError('Target sequence length not dividable by FPS'))
+    columns = ['<{} sec'.format(ts+1) for ts in range(prediction_ts)]
+    index = ['FDE_lat', 'FDE_long', 'FDE', 'RMSE_lat', 'RMSE_long', 'RMSE']
+    data = np.zeros((6, prediction_ts))
+    for ts in range(prediction_ts):
+        
+        ts_index = (ts+1)*p.FPS
+        current_total_samples = total_samples * ts_index
+        #fde
+        data[0,ts] = np.sum(np.absolute(traj_pred[:,ts_index-1,0]-traj_gt[:,ts_index-1,0]))/total_samples # 0 is laterel, 1 is longitudinal
+        data[1,ts] = np.sum(np.absolute(traj_pred[:,ts_index-1,1]-traj_gt[:,ts_index-1,1]))/total_samples # 0 is laterel, 1 is longitudinal
+        data[2,ts] = np.sum(np.absolute(traj_pred[:,ts_index-1,:]-traj_gt[:,ts_index-1,:]))/total_samples # 0 is laterel, 1 is longitudinal
+        #rmse
+        data[3,ts] = np.sqrt(
+            np.sum((traj_pred[:,:ts_index,0]-traj_gt[:,:ts_index,0])**2)/current_total_samples
+            )
+        data[4,ts] = np.sqrt(
+            np.sum((traj_pred[:,:ts_index,1]-traj_gt[:,:ts_index,1])**2)/current_total_samples
+            )
+        data[5,ts] = np.sqrt(
+            np.sum((traj_pred[:,:ts_index,:]-traj_gt[:,:ts_index,:])**2)/current_total_samples
+            )
+    #FDE_table = ''.join(['{}:{:.4f}'.format(columns[ts], data[2,ts]) for ts in range(prediction_ts)])
+    #RMSE_table = ''.join(['{}:{:.4f}'.format(columns[ts], data[5,ts]) for ts in range(prediction_ts)])
+    result_df = pd.DataFrame(data= data, columns = columns, index = index)
+    
+    return result_df
+def calc_minFDE(traj_pred, mode_prob, traj_gt, mr_thr = 2):
+    total_samples = traj_pred.shape[0]
+    n_mode = traj_pred.shape[1]
+    fde = np.zeros((total_samples, n_mode))
+    for i in range(n_mode):
+        fde[:,i] = np.sum(np.absolute(traj_pred[:,i,-1,:]-traj_gt[:,-1,:]), axis=-1)
+    
+    best_mode = np.argmax(fde, axis = 1)
+    best_mode_prob = mode_prob[np.arange(total_samples), best_mode]
+    b_fde_prob = np.power((1-best_mode_prob),2)
+    p_fde_prob = -1*np.log(best_mode_prob)
+    p_fde_prob[p_fde_prob<-1*np.log(0.05)] = -1*np.log(0.05) 
+    fde = fde[np.arange(total_samples), best_mode]
+    minFDE = np.sum(fde)/total_samples
+    p_minFDE = np.sum(p_fde_prob*fde)/total_samples
+    brier_minFDE = np.sum(b_fde_prob*fde)/total_samples
+    MR = np.sum(fde<mr_thr)/total_samples
+    return minFDE, p_minFDE, brier_minFDE, MR
+
+def calc_minADE(traj_pred, mode_prob, traj_gt):
+    total_samples = traj_pred.shape[0]
+    seq_len = traj_pred.shape[2]
+    n_mode = traj_pred.shape[1]
+    ade = np.zeros((total_samples, n_mode))
+    for i in range(n_mode):
+        ade[:,i] = np.sum(np.sum(np.absolute(traj_pred[:,i,:,:]-traj_gt[:,:,:]), axis=-1), axis = -1)
+    
+    best_mode = np.argmax(ade, axis = 1)
+    best_mode_prob = mode_prob[np.arange(total_samples), best_mode]
+    b_ade_prob = np.power((1-best_mode_prob),2)
+    p_ade_prob = -1*np.log(best_mode_prob)
+    p_ade_prob[p_ade_prob<-1*np.log(0.05)] = -1*np.log(0.05) 
+    ade = ade[np.arange(total_samples), best_mode]
+    minADE = np.sum(ade)/total_samples
+    p_minADE = np.sum(p_ade_prob*ade)/total_samples*seq_len
+    brier_minADE = np.sum(b_ade_prob*ade)/total_samples*seq_len
+    return minADE, p_minADE, brier_minADE
 def calc_metric(p, all_traj_preds, all_traj_labels, man_preds, man_labels, traj_label_min, traj_label_max, epoch=None, eval_type = 'Test', figure_name= None):
     
     traj_metrics, man_metrics, traj_df, RMSE_table, FDE_table = calc_traj_metrics(p, all_traj_preds, all_traj_labels, man_preds, man_labels, traj_label_min, traj_label_max)
@@ -96,31 +230,6 @@ def calc_traj_metrics(p,
     precision = 0#TP/TPnFP
     accuracy =  0#np.sum(man_preds == man_labels)/total_frames
 
-    # fde, rmse table
-    prediction_ts = int(p.TGT_SEQ_LEN/p.FPS)
-    if (p.TGT_SEQ_LEN/p.FPS) % 1 != 0:
-        raise(ValueError('Target sequence length not dividable by FPS'))
-    columns = ['<{} sec'.format(ts+1) for ts in range(prediction_ts)]
-    index = ['FDE_lat', 'FDE_long', 'FDE', 'RMSE_lat', 'RMSE_long', 'RMSE']
-    data = np.zeros((6, prediction_ts))
-    for ts in range(prediction_ts):
-        
-        ts_index = (ts+1)*p.FPS
-        current_total_samples = total_sequences * ts_index
-        #fde
-        data[0,ts] = np.sum(np.absolute(traj_preds[:,ts_index-1,0]-traj_labels[:,ts_index-1,0]))/total_sequences # 0 is laterel, 1 is longitudinal
-        data[1,ts] = np.sum(np.absolute(traj_preds[:,ts_index-1,1]-traj_labels[:,ts_index-1,1]))/total_sequences # 0 is laterel, 1 is longitudinal
-        data[2,ts] = np.sum(np.absolute(traj_preds[:,ts_index-1,:]-traj_labels[:,ts_index-1,:]))/total_sequences # 0 is laterel, 1 is longitudinal
-        #rmse
-        data[3,ts] = np.sqrt(
-            np.sum((traj_preds[:,:ts_index,0]-traj_labels[:,:ts_index,0])**2)/current_total_samples
-            )
-        data[4,ts] = np.sqrt(
-            np.sum((traj_preds[:,:ts_index,1]-traj_labels[:,:ts_index,1])**2)/current_total_samples
-            )
-        data[5,ts] = np.sqrt(
-            np.sum((traj_preds[:,:ts_index,:]-traj_labels[:,:ts_index,:])**2)/current_total_samples
-            )
     
     '''
     if p.PLOT_TRAJS:
@@ -158,10 +267,8 @@ def calc_traj_metrics(p,
             plt.show()
             exit()
     '''
-    FDE_table = ''.join(['{}:{:.4f}'.format(columns[ts], data[2,ts]) for ts in range(prediction_ts)])
-    RMSE_table = ''.join(['{}:{:.4f}'.format(columns[ts], data[5,ts]) for ts in range(prediction_ts)])
-    result_df = pd.DataFrame(data= data, columns = columns, index = index)
-    traj_metrics = (rmse, rmse_lc, rmse_lk, fde)
+    
+    traj_metrics = (rmse, rmse_lc, rmse_lk, fde, )
     man_metrics = (accuracy, precision, recall)
 
     return traj_metrics, man_metrics, result_df, RMSE_table, FDE_table

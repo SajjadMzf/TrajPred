@@ -44,6 +44,8 @@ def test_model_dict(p):
     model = p.model_dictionary['ref'](p.BATCH_SIZE, device, p.model_dictionary['hyperparams'], p)
     optimizer = p.model_dictionary['optimizer'](params = model.parameters(), lr = p.LR)
     man_loss_func = p.model_dictionary['man loss function']
+    model_eval_func = p.model_dictionary['model evaluation function']
+    model_kpi_func = p.model_dictionary['model kpi function']
     if p.model_dictionary['hyperparams']['probabilistic output']:
         traj_loss_func = kpis.NLL_loss
     else:
@@ -76,7 +78,7 @@ def test_model_dict(p):
         output_states_max = tr_dataset.output_states_max)
     
     # Evaluate:
-    te_result_dic, traj_df = training_functions.eval_top_func(p, model, man_loss_func, traj_loss_func, te_dataset, device)
+    kpi_dict = training_functions.eval_top_func(p, model_eval_func, model_kpi_func, model, (traj_loss_func, man_loss_func), te_dataset, device)
     
 
 if __name__ == '__main__':
@@ -86,7 +88,7 @@ if __name__ == '__main__':
     #p = params.ParametersHandler('Constant_Parameter.yaml', 'highD.yaml', './config')
     p = params.ParametersHandler('MMnTP.yaml', 'highD.yaml', './config')
     # Do Not import experiment file for constant parameter models
-    experiment_file = 'experiments/MTPMTT_highD_2022-08-22 15:47:03.709155'
+    experiment_file = 'experiments/MMnTP_highD_2022-10-20 18:26:31.377915'
     p.import_experiment(experiment_file)
     p.UNBALANCED = False
     p.BATCH_SIZE = 2

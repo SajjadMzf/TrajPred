@@ -123,6 +123,7 @@ def read_track_csv(input_path, pickle_path, reload = True, group_by = 'frames', 
                                  RIGHT_ALONGSIDE_ID: rows[RIGHT_ALONGSIDE_ID].values,
                                  RIGHT_PRECEDING_ID: rows[RIGHT_PRECEDING_ID].values,
                                  LANE_ID: rows[LANE_ID].values
+                                 
                                  }
         current_group = current_group + 1
     pickle_out = open(pickle_path, "wb")

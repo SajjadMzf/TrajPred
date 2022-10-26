@@ -79,7 +79,7 @@ def train_model_dict(p):
         end_of_seq_skip_len = p.SKIP_SEQ_LEN,
         data_type = p.model_dictionary['data type'], 
         state_type = p.model_dictionary['state type'], 
-        keep_plot_info= False, 
+        keep_plot_info= True, 
         import_states = True,
         unbalanced = p.UNBALANCED,
         force_recalc_start_indexes = False,
@@ -108,7 +108,7 @@ def train_model_dict(p):
     # Train/Evaluate:
     tb = SummaryWriter()
     val_result_dic = training_functions.train_top_func(p,model_train_func, model_eval_func, model_kpi_func, model, (traj_loss_func, man_loss_func), optimizer, tr_dataset, val_dataset,device, tensorboard = tb)    
-    kpi_dic = training_functions.eval_top_func(p, model_eval_func, model_kpi_func, model, (traj_loss_func, man_loss_func), te_dataset, device,  tensorboard = tb)
+    #kpi_dic = training_functions.eval_top_func(p, model_eval_func, model_kpi_func, model, (traj_loss_func, man_loss_func), te_dataset, device,  tensorboard = tb)
     #print('x')
     p.export_experiment()
     # Save results:
