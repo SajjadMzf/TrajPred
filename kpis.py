@@ -68,7 +68,7 @@ def MMnTP_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
     traj_pred = traj_pred*(traj_max-traj_min) + traj_min
     traj_gt = traj_gt*(traj_max-traj_min) + traj_min
     #from diff to actual
-    traj_pred = np.cumsum(traj_pred, axis = 1)
+    traj_pred = np.cumsum(traj_pred, axis = 2)
     traj_gt = np.cumsum(traj_gt, axis = 1)
     hp_traj_pred = traj_pred[np.arange(total_samples), hp_mode]
     index_array = np.repeat(np.arange(total_samples),K).reshape(total_samples, K)
@@ -124,6 +124,7 @@ def calc_sm_metric_df(p,traj_pred, traj_gt):
     result_df = pd.DataFrame(data= data, columns = columns, index = index)
     
     return result_df
+
 def calc_minFDE(traj_pred, mode_prob, traj_gt, mr_thr = 2):
     total_samples = traj_pred.shape[0]
     n_mode = traj_pred.shape[1]
@@ -140,7 +141,7 @@ def calc_minFDE(traj_pred, mode_prob, traj_gt, mr_thr = 2):
     minFDE = np.sum(fde)/total_samples
     p_minFDE = np.sum(p_fde_prob*fde)/total_samples
     brier_minFDE = np.sum(b_fde_prob*fde)/total_samples
-    MR = np.sum(fde<mr_thr)/total_samples
+    MR = np.sum(fde>mr_thr)/total_samples
     return minFDE, p_minFDE, brier_minFDE, MR
 
 def calc_minADE(traj_pred, mode_prob, traj_gt):
@@ -157,124 +158,14 @@ def calc_minADE(traj_pred, mode_prob, traj_gt):
     p_ade_prob = -1*np.log(best_mode_prob)
     p_ade_prob[p_ade_prob<-1*np.log(0.05)] = -1*np.log(0.05) 
     ade = ade[np.arange(total_samples), best_mode]
-    minADE = np.sum(ade)/total_samples
-    p_minADE = np.sum(p_ade_prob*ade)/total_samples*seq_len
-    brier_minADE = np.sum(b_ade_prob*ade)/total_samples*seq_len
+    minADE = np.sum(ade)/(total_samples*seq_len)
+    p_minADE = np.sum(p_ade_prob*ade)/(total_samples*seq_len)
+    brier_minADE = np.sum(b_ade_prob*ade)/(total_samples*seq_len)
     return minADE, p_minADE, brier_minADE
-def calc_metric(p, all_traj_preds, all_traj_labels, man_preds, man_labels, traj_label_min, traj_label_max, epoch=None, eval_type = 'Test', figure_name= None):
-    
-    traj_metrics, man_metrics, traj_df, RMSE_table, FDE_table = calc_traj_metrics(p, all_traj_preds, all_traj_labels, man_preds, man_labels, traj_label_min, traj_label_max)
-    if eval_type == 'Test' and p.parameter_tuning_experiment:
-        for metric_str in p.selected_metrics:
-            p.log_dict[metric_str] = eval(metric_str)
-    
-    return traj_metrics, man_metrics, traj_df
 
 
-def calc_traj_metrics(p, 
-    traj_preds:'[number of samples, target sequence length, number of output states]', 
-    traj_labels,
-    man_preds,
-    man_labels,
-    traj_min, 
-    traj_max):
-    #traj_preds [number of samples, target sequence length, number of output states]
-    #TODO:1. manouvre specific fde and rmse table, 2.  save sample output traj imags 3. man pred error
-    #man_preds = traj_preds[:,:,2:]*2
-    #man_preds = np.rint(man_preds)
-    #man_labels = traj_labels[:,:,2:]*2
-    #man_labels = np.rint(man_labels)
-    
-    traj_preds = traj_preds[:,:,:2]
-    in_man_labels = man_labels[:,:p.IN_SEQ_LEN]
-    man_labels = man_labels[:,p.IN_SEQ_LEN:]
-    in_traj_labels = traj_labels[:,:p.IN_SEQ_LEN,:2]
-    traj_labels = traj_labels[:,p.IN_SEQ_LEN:,:2]
-    arg_man_labels = np.argmax(man_labels, axis = -1)
-    lc_frames = (arg_man_labels>0)
-    lk_frames = (arg_man_labels ==0)
-    total_lc_frames = np.count_nonzero(lc_frames)
-    total_lk_frames = np.count_nonzero(lk_frames)
-    total_frames = np.prod(traj_labels[:,:,0].shape)
-    total_sequences = traj_labels.shape[0]
-    #print_shape('traj_labels', traj_labels)
-    print_value('total_frames', total_frames)
-    print_value('total_lk_frames', total_lk_frames)
-    print_value('total_lc_frames', total_lc_frames)
-    #assert(total_frames ==  total_lk_frames + total_lc_frames)
 
-    #denormalise
-    traj_preds = traj_preds*(traj_max-traj_min) + traj_min
-    traj_labels = traj_labels*(traj_max-traj_min) + traj_min
-    #from diff to actual
-    traj_preds = np.cumsum(traj_preds, axis = 1)
-    traj_labels = np.cumsum(traj_labels, axis = 1)
-
-    # fde
-    fde = np.sum(np.absolute(traj_preds[:,-1,:]-traj_labels[:,-1,:]))/total_sequences
-    # rmse
-    mse = np.sum((traj_preds-traj_labels)**2)/total_frames
-    #print_shape('traj_preds', traj_preds)
-    mse_lc = 0 #np.sum((lc_frames*(traj_preds-traj_labels))**2)/total_lc_frames
-    mse_lk = 0 #np.sum((lk_frames*(traj_preds-traj_labels))**2)/total_lk_frames
-    rmse = np.sqrt(mse) 
-    rmse_lc = 0 #np.sqrt(mse_lc) 
-    rmse_lk = 0 #np.sqrt(mse_lk) 
-
-    # man metrics TODO: update man metrics
-    #TP = np.sum(np.logical_and((man_preds == man_labels), (man_labels>0))) #TODO 1: argmax man preds
-    #TPnFP = np.sum(man_preds>0)
-    #TPnFN = np.sum(man_labels>0)
-    #print_value('TP',TP)
-    recall = 0#TP/TPnFN
-    precision = 0#TP/TPnFP
-    accuracy =  0#np.sum(man_preds == man_labels)/total_frames
-
-    
-    '''
-    if p.PLOT_TRAJS:
-        p.PLOT_TRAJS_DIR 
-        for i in range(p.PLOT_TRAJS_NUM):
-            fig = plt.figure()
-            ax_traj = fig.add_subplot(2, 1, 1)
-            gt_man = np.argmax(man_labels[i], axis = -1)
-            pr_man = np.argmax(man_preds[i], axis = -1)
-
-            gt_traj = traj_labels[i]
-            pr_traj = traj_preds[i]
-            print(gt_traj[:,1], gt_traj[:,0])
-            
-            ax_traj.plot(gt_traj[0,1], gt_traj[0,0], '*')
-            ax_traj.plot(gt_traj[:,1], gt_traj[:,0], label = 'gt traj')
-            ax_traj.plot(pr_traj[0,1], pr_traj[0,0], '*')
-            ax_traj.plot(pr_traj[:,1], pr_traj[:,0], label = 'predicted traj')
-            # And a corresponding grid
-            ax_traj.grid(True)
-            #plt.xlim(ttlc_seq[0], ttlc_seq[-1])
-            #plt.ylim(0,100)
-            plt.xlabel('X Coordinate (m)')
-            plt.ylabel('Y Coordinate (m)')
-            plt.tight_layout()
-            ax_traj.legend(loc = 'lower right')
-            
-            ax_man = fig.add_subplot(2,1,2)
-            ax_man.grid(True)
-            ax_man.plot(gt_man, label = 'gt man')
-            ax_man.plot(pr_man, label = 'predicted man')
-
-            
-            
-            plt.show()
-            exit()
-    '''
-    
-    traj_metrics = (rmse, rmse_lc, rmse_lk, fde, )
-    man_metrics = (accuracy, precision, recall)
-
-    return traj_metrics, man_metrics, result_df, RMSE_table, FDE_table
-
-
-    
+   
 
 def calc_roc_n_prc(p, all_lc_preds, all_labels, num_samples, figure_name, thr_type, eval_type):
     if thr_type == 'thr':

@@ -91,7 +91,7 @@ def MMnTP_evaluation(p, data_tuple, plot_info, dataset, label_tuple, model, loss
     evaluation_loss =  man_loss + p.TRAJ2CLASS_LOSS_RATIO*traj_loss 
     
     # Trajectory inference for all modes!
-    if eval_type == 'Test':
+    if eval_type == 'Test' and p.MULTI_MODAL_EVAL == True:
         traj_preds = []
         data_dist_preds = []
         for mode_itr in range(model.n_mode):

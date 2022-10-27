@@ -182,7 +182,7 @@ def eval_model(p, tb, model_eval_func, model_kpi_func, model, loss_func_tuple, t
     for batch_idx, (data_tuple, labels, plot_info, _) in enumerate(test_loader):
         
         if p.DEBUG_MODE == True:
-            if batch_idx >3: 
+            if batch_idx >100: 
                 break
         
         
@@ -205,7 +205,7 @@ def eval_model(p, tb, model_eval_func, model_kpi_func, model, loss_func_tuple, t
                 print_dict[k] += batch_print_info_dict[k]/len(test_loader)
         
         if (batch_idx+1) % 500 == 0:
-            print('Epoch: ',epoch, ' Batch: ', batch_idx+1)
+            print('Epoch: ',epoch, ' Batch: ', batch_idx+1, '/{}'.format(len(test_loader)))
                
     kpi_dict = model_kpi_func(p, kpi_input_dict, test_dataset.output_states_min, test_dataset.output_states_max, figure_name)
    

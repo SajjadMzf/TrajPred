@@ -260,12 +260,12 @@ class DMTP(nn.Module):
         self.prob_output = hyperparams_dict['probabilistic output']
         self.in_seq_len = parameters.IN_SEQ_LEN
         self.tgt_seq_len = parameters.TGT_SEQ_LEN
-        self.decoder_in_dim = 2
+        self.decoder_in_dim = 2*self.tgt_seq_len+1
         
         self.input_dim = 18
         
         if self.prob_output:
-            self.output_dim = (5+1)*self.n_mode # muY, muX, sigY, sigX, rho 
+            self.output_dim = (5*self.tgt_seq_len+1)*self.n_mode # muY, muX, sigY, sigX, rho 
         else:
             self.output_dim = (2+1)*self.n_mode
         

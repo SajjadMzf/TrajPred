@@ -88,9 +88,10 @@ if __name__ == '__main__':
     #p = params.ParametersHandler('Constant_Parameter.yaml', 'highD.yaml', './config')
     p = params.ParametersHandler('MMnTP.yaml', 'highD.yaml', './config')
     # Do Not import experiment file for constant parameter models
-    experiment_file = 'experiments/MMnTP_highD_2022-10-20 18:26:31.377915'
+    experiment_file = 'experiments/MMnTP_highD_2022-10-26 17:52:20.822886' #MMnTP_highD_2022-10-20 18:26:31.377915'
     p.import_experiment(experiment_file)
     p.UNBALANCED = False
+    p.DEBUG_MODE = True
     p.BATCH_SIZE = 2
     test_model_dict(p)
     
