@@ -11,7 +11,10 @@ hyperparams:
   manouvre per mode: 3
 
 optimizer: torch.optim.Adam
-man loss function: kpis.MTPM_loss
+man loss function: kpis.DMTP_loss
 traj loss function: torch.nn.MSELoss
+model training function: mstf.DMTP_training
+model evaluation function: mstf.DMTP_evaluation
+model kpi function: kpis.DMTP_kpis
 data type: 'state'
 state type: 'wirth'

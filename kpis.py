@@ -72,28 +72,39 @@ def MMnTP_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
     traj_gt = np.cumsum(traj_gt, axis = 1)
     hp_traj_pred = traj_pred[np.arange(total_samples), hp_mode]
     index_array = np.repeat(np.arange(total_samples),K).reshape(total_samples, K)
-    #print(index_array)
+    #print(mode_prob)
+    #print(hp_mode)
+    #print(kbest_modes)
+    #print(kbest_modes[0])
+    #print(index_array[0])
     kbest_traj_pred = traj_pred[index_array, kbest_modes]
     kbest_modes_probs = mode_prob[index_array, kbest_modes]
     kbest_modes_probs = np.divide(kbest_modes_probs, np.sum(kbest_modes_probs, axis = 1).reshape(total_samples,1)) 
     #print(kbest_modes_probs)
     #print(np.sum(kbest_modes_probs, axis = 1))
     #exit()
-    sm_metrics_df = calc_sm_metric_df(p, hp_traj_pred, traj_gt)
+    sm_metrics_df, rmse = calc_sm_metric_df(p, hp_traj_pred, traj_gt)
     
     minFDE, p_minFDE, brier_minFDE, MR = calc_minFDE(kbest_traj_pred, kbest_modes_probs, traj_gt)
     minADE, p_minADE, brier_minADE = calc_minADE(kbest_traj_pred, kbest_modes_probs, traj_gt)
     
     return {
-        'single modal metrics:\n': sm_metrics_df,
-        'minFDEs': (minFDE, p_minFDE, brier_minFDE),
+        'high prob mode histogram':hp_mode,
+        'single modal metric group:\n': sm_metrics_df,
+        'minFDE': minFDE, 
+        'p_minFDE':p_minFDE,
+        'brier_minFDE':brier_minFDE,
         'missrate': MR,
-        'minADE': (minADE, p_minADE, brier_minADE),
+        'minADE': minADE,
+        'p_minADE': p_minADE, 
+        'brier_min_ADE':brier_minADE,
+        'rmse': rmse
     }
 
 
 def calc_sm_metric_df(p,traj_pred, traj_gt):
     # fde, rmse table
+    
     total_samples = traj_gt.shape[0]
     prediction_ts = int(p.TGT_SEQ_LEN/p.FPS)
     if (p.TGT_SEQ_LEN/p.FPS) % 1 != 0:
@@ -121,9 +132,10 @@ def calc_sm_metric_df(p,traj_pred, traj_gt):
             )
     #FDE_table = ''.join(['{}:{:.4f}'.format(columns[ts], data[2,ts]) for ts in range(prediction_ts)])
     #RMSE_table = ''.join(['{}:{:.4f}'.format(columns[ts], data[5,ts]) for ts in range(prediction_ts)])
+    rmse = data[5,prediction_ts-1]
     result_df = pd.DataFrame(data= data, columns = columns, index = index)
     
-    return result_df
+    return result_df, rmse
 
 def calc_minFDE(traj_pred, mode_prob, traj_gt, mr_thr = 2):
     total_samples = traj_pred.shape[0]
@@ -132,7 +144,7 @@ def calc_minFDE(traj_pred, mode_prob, traj_gt, mr_thr = 2):
     for i in range(n_mode):
         fde[:,i] = np.sum(np.absolute(traj_pred[:,i,-1,:]-traj_gt[:,-1,:]), axis=-1)
     
-    best_mode = np.argmax(fde, axis = 1)
+    best_mode = np.argmin(fde, axis = 1)
     best_mode_prob = mode_prob[np.arange(total_samples), best_mode]
     b_fde_prob = np.power((1-best_mode_prob),2)
     p_fde_prob = -1*np.log(best_mode_prob)
@@ -152,7 +164,7 @@ def calc_minADE(traj_pred, mode_prob, traj_gt):
     for i in range(n_mode):
         ade[:,i] = np.sum(np.sum(np.absolute(traj_pred[:,i,:,:]-traj_gt[:,:,:]), axis=-1), axis = -1)
     
-    best_mode = np.argmax(ade, axis = 1)
+    best_mode = np.argmin(ade, axis = 1)
     best_mode_prob = mode_prob[np.arange(total_samples), best_mode]
     b_ade_prob = np.power((1-best_mode_prob),2)
     p_ade_prob = -1*np.log(best_mode_prob)

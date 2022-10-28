@@ -61,7 +61,8 @@ def test_model_dict(p):
         unbalanced = p.UNBALANCED,
         force_recalc_start_indexes = False)
     #val_dataset = Dataset.LCDataset(p.TRAIN_DATASET_DIR, p.VAL_DATA_FILES,  data_type = p.model_dictionary['data type'], state_type = p.model_dictionary['state type'], keep_plot_info= False, states_min = tr_dataset.states_min, states_max = tr_dataset.states_max, output_states_min = tr_dataset.output_states_min, output_states_max = tr_dataset.output_states_max)
-    
+    print(p.TE_DATA_FILES)
+    #exit()
     te_dataset = Dataset.LCDataset(p.TEST_DATASET_DIR, p.TE_DATA_FILES,
         in_seq_len = p.IN_SEQ_LEN,
         out_seq_len = p.TGT_SEQ_LEN,
@@ -88,10 +89,11 @@ if __name__ == '__main__':
     #p = params.ParametersHandler('Constant_Parameter.yaml', 'highD.yaml', './config')
     p = params.ParametersHandler('MMnTP.yaml', 'highD.yaml', './config')
     # Do Not import experiment file for constant parameter models
-    experiment_file = 'experiments/MMnTP_highD_2022-10-26 17:52:20.822886' #MMnTP_highD_2022-10-20 18:26:31.377915'
+    #experiment_file = 'experiments/MTPMTT_highD_2022-08-22 15:47:03.709155'#MTPMTT_highD_2022-08-22 15:47:03.709155' #MMnTP_highD_2022-10-26 17:52:20.822886' #MMnTP_highD_2022-10-20 18:26:31.377915'
+    
+    experiment_file = 'experiments/MMnTP_highD_2022-10-27 18:56:48.230838'
     p.import_experiment(experiment_file)
     p.UNBALANCED = False
-    p.DEBUG_MODE = True
-    p.BATCH_SIZE = 2
+    p.BATCH_SIZE = 32
     test_model_dict(p)
     

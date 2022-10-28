@@ -7,11 +7,14 @@ hyperparams:
   classifier dim: 256
   head number: 8
   probabilistic output: True
-  number of modes: 10
-  manouvre per mode: 3
+  number of modes: 3
+  manouvre per mode: 1
 
 optimizer: torch.optim.Adam
-man loss function: kpis.MTPM_loss
+man loss function: kpis.SMTP_loss
 traj loss function: torch.nn.MSELoss
+model training function: mstf.SMTP_training
+model evaluation function: mstf.SMTP_evaluation
+model kpi function: kpis.SMTP_kpis
 data type: 'state'
 state type: 'wirth'

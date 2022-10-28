@@ -55,7 +55,7 @@ def sel_high_prob_man( man_pred, n_mode, man_per_mode, tgt_seq_len, device):
 
 def find_winning_mode(man_losses, time_losses, thr=0):
     # [n_mode, batch_size, ]
-    ml_values, ml_index = torch.sort(man_losses + time_losses, dim=0)
+    ml_values, ml_index = torch.sort(man_losses , dim=0)
     #ml_values-ml_values[0]<thr
     #tl_values, tl_index = torch.sort(time_losses, dim=0)
     return ml_index[0,:]

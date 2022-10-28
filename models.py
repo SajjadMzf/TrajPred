@@ -253,6 +253,7 @@ class DMTP(nn.Module):
         self.model_dim = hyperparams_dict['model dim']# Dimension of transformer model ()
         self.ff_dim = hyperparams_dict['feedforward dim']
         self.layers_num = hyperparams_dict['layer number']
+        self.classifier_dim = hyperparams_dict['classifier dim']
         self.head_num = hyperparams_dict['head number']
         self.n_mode = hyperparams_dict['number of modes']
         self.multi_modal = parameters.MULTI_MODAL
@@ -260,14 +261,13 @@ class DMTP(nn.Module):
         self.prob_output = hyperparams_dict['probabilistic output']
         self.in_seq_len = parameters.IN_SEQ_LEN
         self.tgt_seq_len = parameters.TGT_SEQ_LEN
-        self.decoder_in_dim = 2*self.tgt_seq_len+1
-        
+        self.decoder_in_dim = 2
         self.input_dim = 18
-        
+        self.mode_output_dim = self.n_mode
         if self.prob_output:
-            self.output_dim = (5*self.tgt_seq_len+1)*self.n_mode # muY, muX, sigY, sigX, rho 
+            self.output_dim = 5*self.n_mode # muY, muX, sigY, sigX, rho 
         else:
-            self.output_dim = (2+1)*self.n_mode
+            self.output_dim = 2*self.n_mode
         
         self.dropout = nn.Dropout(drop_prob)
         
@@ -288,13 +288,18 @@ class DMTP(nn.Module):
         
         ''' 5. Trajectory Output '''
         self.trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
+        self.mode_prob_fc = nn.Linear(self.model_dim, self.output_dim)
         
-        
+        ''' 6. Manouvre Output '''
+        self.dec_mode_fc1 = nn.Linear(self.in_seq_len*self.model_dim, self.classifier_dim)
+        self.dec_mode_fc2 = nn.Linear(self.classifier_dim, self.mode_output_dim)
+
     def forward(self, x, y, y_mask):      
         encoder_out = self.encoder_forward(x)
+        mode_prob_pred = self.mode_decoder_forward(encoder_out)
         traj_pred = self.traj_decoder_forward(y, y_mask, encoder_out)
         
-        return {'traj_pred':traj_pred}
+        return {'traj_pred':traj_pred, 'mode_prob_pred': mode_prob_pred}
     
     def encoder_forward(self, x):
         #encoder
@@ -304,6 +309,11 @@ class DMTP(nn.Module):
         
         return encoder_out
     
+    def man_decoder_forward(self, encoder_out):
+        encoder_out_flattened = encoder_out.reshape(self.batch_size, self.in_seq_len*self.model_dim)
+        mode_prob_pred = self.dec_mode_fc2(F.relu(self.dec_mode_fc1(encoder_out_flattened)))
+        return mode_prob_pred
+
     def traj_decoder_forward(self, y, y_mask, encoder_out):
         encoder_out_flattened = encoder_out.reshape(self.batch_size, self.in_seq_len*self.model_dim)    
         #traj decoder
@@ -317,10 +327,121 @@ class DMTP(nn.Module):
         #traj decoder linear layer
         
         traj_pred = self.trajectory_fc(decoder_out)
-        traj_probs = traj_pred[:,0:self.n_mode]
         if self.prob_output:
-            traj_pred = traj_pred[:,self.n_mode:].reshape(-1,self.n_mode,5)
+            traj_pred = traj_pred.reshape(-1,self.n_mode,5)
             traj_pred = mf.prob_activation_func(traj_pred)
             traj_pred = traj_pred.reshape(-1, self.n_mode*5)
         
+        return traj_pred 
+
+class SMTP(nn.Module): 
+    def __init__(self, batch_size, device, hyperparams_dict, parameters, drop_prob = 0.1):
+        super(SMTP, self).__init__()
+
+        self.batch_size = batch_size
+        self.device = device
+        
+        self.model_dim = hyperparams_dict['model dim']# Dimension of transformer model ()
+        self.ff_dim = hyperparams_dict['feedforward dim']
+        self.layers_num = hyperparams_dict['layer number']
+        self.classifier_dim = hyperparams_dict['classifier dim']
+        self.head_num = hyperparams_dict['head number']
+        self.n_mode = hyperparams_dict['number of modes']
+        self.multi_modal = parameters.MULTI_MODAL
+        
+        self.prob_output = hyperparams_dict['probabilistic output']
+        self.in_seq_len = parameters.IN_SEQ_LEN
+        self.tgt_seq_len = parameters.TGT_SEQ_LEN
+        self.decoder_in_dim = 2
+        self.input_dim = 18
+        self.mode_output_dim = self.n_mode
+        if self.multi_modal == False:
+            raise(ValueError('Single Modality not supported'))
+        if self.n_mode != 3:
+            raise(ValueError('Mode counts should be equal to manouvre counts (3).'))
+        
+        if self.prob_output:
+            self.output_dim = 5 # muY, muX, sigY, sigX, rho 
+        else:
+            self.output_dim = 2
+        
+        self.dropout = nn.Dropout(drop_prob)
+        
+        ''' 1. Positional encoder: '''
+        self.positional_encoder = PositionalEncoding(dim_model=self.model_dim, dropout_p=drop_prob, max_len=100)
+        
+        ''' 2. Transformer Encoder: '''
+        self.encoder_embedding = nn.Linear(self.input_dim, self.model_dim)
+        encoder_layers = nn.TransformerEncoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
+        self.transformer_encoder = nn.TransformerEncoder(encoder_layers, self.layers_num)
+        
+        ''' 3. Transformer Decoder: '''
+        self.decoder_embedding = nn.Linear(self.decoder_in_dim, self.model_dim)
+        self.man_decoder_embedding = nn.Linear(2, self.model_dim)
+        
+        lk_decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
+        rlc_decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
+        llc_decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
+        
+        self.lk_transformer_decoder = nn.TransformerDecoder(lk_decoder_layers, self.layers_num)
+        self.rlc_transformer_decoder = nn.TransformerDecoder(rlc_decoder_layers, self.layers_num)
+        self.llc_transformer_decoder = nn.TransformerDecoder(llc_decoder_layers, self.layers_num)
+
+        ''' 5. Trajectory Output '''
+        self.trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
+        self.mode_prob_fc = nn.Linear(self.model_dim, self.output_dim)
+        
+        ''' 6. Manouvre Output '''
+        self.dec_mode_fc1 = nn.Linear(self.in_seq_len*self.model_dim, self.classifier_dim)
+        self.dec_mode_fc2 = nn.Linear(self.classifier_dim, self.mode_output_dim)
+
+    def forward(self, x, y, y_mask):      
+        encoder_out = self.encoder_forward(x)
+        mode_prob_pred = self.mode_decoder_forward(encoder_out)
+        traj_pred = self.traj_decoder_forward(y, y_mask, encoder_out)
+        
+        return {'traj_pred':traj_pred, 'mode_prob_pred': mode_prob_pred}
+    
+    def encoder_forward(self, x):
+        #encoder
+        x = self.encoder_embedding(x)
+        x = self.positional_encoder(x)
+        encoder_out = self.transformer_encoder(x)
+        
+        return encoder_out
+    
+    def man_decoder_forward(self, encoder_out):
+        encoder_out_flattened = encoder_out.reshape(self.batch_size, self.in_seq_len*self.model_dim)
+        mode_prob_pred = self.dec_mode_fc2(F.relu(self.dec_mode_fc1(encoder_out_flattened)))
+        return mode_prob_pred
+
+    def traj_decoder_forward(self, y, y_mask, encoder_out):
+        encoder_out_flattened = encoder_out.reshape(self.batch_size, self.in_seq_len*self.model_dim)    
+        
+        #traj decoder
+        lk_y = self.decoder_embedding(y[:,0,:,:self.decoder_in_dim])
+        lk_y = self.positional_encoder(lk_y)
+        lk_decoder_out = self.lk_transformer_decoder(lk_y, encoder_out, tgt_mask = y_mask)
+        
+        rlc_y = self.decoder_embedding(y[:,1,:,:self.decoder_in_dim])
+        rlc_y = self.positional_encoder(rlc_y)
+        rlc_decoder_out = self.rlc_transformer_decoder(rlc_y, encoder_out, tgt_mask = y_mask)
+        
+        llc_y = self.decoder_embedding(y[:,2,:,:self.decoder_in_dim])
+        llc_y = self.positional_encoder(llc_y)
+        llc_decoder_out = self.llc_transformer_decoder(llc_y, encoder_out, tgt_mask = y_mask)
+
+        #traj decoder linear layer
+        
+        lk_traj_pred = self.lk_trajectory_fc(lk_decoder_out)
+        rlc_traj_pred = self.rlc_trajectory_fc(rlc_decoder_out)
+        llc_traj_pred = self.llc_trajectory_fc(llc_decoder_out)
+
+        if self.prob_output:
+            lk_traj_pred = mf.prob_activation_func(lk_traj_pred)
+            rlc_traj_pred = mf.prob_activation_func(rlc_traj_pred)
+            llc_traj_pred = mf.prob_activation_func(llc_traj_pred) 
+        
+        traj_pred = torch.stack([lk_traj_pred, rlc_traj_pred, llc_traj_pred], dim=1) # lk =0, rlc=1, llc=2
+            
         return traj_pred 

@@ -174,7 +174,42 @@ def MMnTP_trajectory_inference(p, model, device, decoder_input, encoder_out, man
     traj_pred = traj_pred[:,0]
     return predicted_data_dist, traj_pred
 
-def DMTP_training():
+def DMTP_training(p, data_tuple, label_tuple, model, loss_func_tuple, device):
+    traj_loss_func = loss_func_tuple[0]
+    #man_loss_func = loss_func_tuple[1]
+    #man_data = label_tuple[0]
+    #man_data_onehot = F.one_hot(man_data, num_classes= 3)
+    #man_input = man_data_onehot[:,(p.IN_SEQ_LEN-1):(p.IN_SEQ_LEN-1+p.TGT_SEQ_LEN)]
+    #man_gt = man_data[:, p.IN_SEQ_LEN:(p.IN_SEQ_LEN+p.TGT_SEQ_LEN)]
+
+    traj_data = data_tuple[-1]
+    traj_input = traj_data[:,(p.IN_SEQ_LEN-1):(p.IN_SEQ_LEN-1+p.TGT_SEQ_LEN) ] 
+    traj_gt = traj_data[:,p.IN_SEQ_LEN:(p.IN_SEQ_LEN+p.TGT_SEQ_LEN)]
+    
+    decoder_input = traj_input
+    feature_data = data_tuple[0]
+    
+    output_dict = model(x = feature_data, y = decoder_input, y_mask = mf.get_y_mask(p.TGT_SEQ_LEN).to(device))
+    traj_pred = output_dict['traj_pred']
+    mode_prob_pred = output_dict['mode_prob_pred']
+    
+   
+    #TODO: define mode_index based on min distance of traj in all modes 
+    traj_pred = traj_pred[np.arange(traj_pred.shape[0]), mode_index[:,i],i,:]
+    
+    traj_loss = traj_loss_func(traj_pred, traj_gt)
+    
+    
+    
+    training_loss = mode_loss + TRAJ2CLASS_LOSS_RATIO*traj_loss 
+    batch_print_info_dict = {
+        'Total Loss': training_loss.cpu().data.numpy()/model.batch_size,
+        'Traj Loss': traj_loss.cpu().data.numpy()/model.batch_size,
+        'Mode Loss': mode_loss.cpu().data.numpy()/model.batch_size,
+    }
+    return training_loss, batch_print_info_dict
+
+def DMTP_evaluation():
     return 0
 
 def CONSTANT_evaluation():

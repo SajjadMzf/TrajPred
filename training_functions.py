@@ -72,11 +72,15 @@ def train_top_func(p, model_train_func, model_eval_func, model_kpi_func, model,l
         val_start = time()
 
         val_print_dict, val_kpi_dict = eval_model(p, tensorboard, model_eval_func, model_kpi_func, model, loss_func_tuple, val_loader, val_dataset, epoch+1, device, eval_type = 'Validation')
-        val_score = val_print_dict[p.VAL_SCORE]
+        if p.VAL_SCORE in val_print_dict:
+            val_score = val_print_dict[p.VAL_SCORE]
+        else:
+            val_score= val_kpi_dict[p.VAL_SCORE]
         val_end = time()
         #print("Validation Accuracy:",val_acc,' Avg Pred Time: ', val_avg_pred_time, " Avg Loss: ", val_loss," at Epoch", epoch+1)
         #if tensorboard != None:   
             #tensorboard.add_scalar('tr_total_loss', tr_loss, epoch+1)   
+        
         if (p.LOWER_BETTER_VAL_SCORE and val_score<best_val_score) or (not p.LOWER_BETTER_VAL_SCORE and val_score>best_val_score):
             best_val_score = val_score
             best_epoch = epoch
@@ -90,7 +94,22 @@ def train_top_func(p, model_train_func, model_eval_func, model_kpi_func, model,l
         print('Best Epoch so far: {}, Validation Score: {}={}'.format(best_epoch+1, p.VAL_SCORE, best_val_score))
         print('Training Metrics:\n'+ ''.join(['{}:{}\n'.format(k,tr_print_dict[k]) for k in tr_print_dict]))
         print('Validation Metrics:\n'+ ''.join(['{}:{}\n'.format(k,val_print_dict[k]) for k  in val_print_dict]))
-
+        
+        for k in tr_print_dict:
+            tensorboard.add_scalar('Train_epoch_' + k, tr_print_dict[k], epoch)
+        for k in val_print_dict:
+            tensorboard.add_scalar('Validation_epoch_' + k, val_print_dict[k], epoch)
+        
+        print('Validation KPIs:\n')
+        for k in val_kpi_dict:
+            
+            if 'group' in k:
+                continue
+            elif 'histogram' in k:
+                tensorboard.add_histogram('Validation_epoch_' + k, val_kpi_dict[k], epoch)
+                continue
+            print(''.join('{}:{}'.format(k,val_kpi_dict[k])))
+            tensorboard.add_scalar('Validation_epoch_' + k, val_kpi_dict[k], epoch)
         if p.DEBUG_MODE == True:
             print('Debugging Mode Active.')
             break
@@ -158,6 +177,8 @@ def train_model(p, tb, model_train_func, model, loss_func_tuple, optimizer, sche
         if batch_idx % 500 == 0:
             if batch_idx !=0:
                 print('Training Epoch: {}, Batch: {}/{}\n'.format(epoch, int(batch_idx/500), int(len(train_loader)/500))+ ''.join(['{}:{}\n'.format(k,vis_print_dict[k]) for k in vis_print_dict]))
+                for k in vis_print_dict:
+                    tb.add_scalar(k, vis_print_dict[k], epoch*(int(len(train_loader)/500)) + int(batch_idx/500))
             vis_print_dict = batch_print_info_dict
         else:
             for k in vis_print_dict:
@@ -172,6 +193,8 @@ def train_model(p, tb, model_train_func, model, loss_func_tuple, optimizer, sche
         
 def eval_model(p, tb, model_eval_func, model_kpi_func, model, loss_func_tuple, test_loader, test_dataset, epoch, device, eval_type = 'Validation', vis_data_path = None, figure_name = None):
     total = len(test_loader.dataset)
+    #print('Total test data',total)
+    #exit()
     num_batch = int(np.floor(total/model.batch_size))
     # Initialise Variables
     
@@ -182,7 +205,7 @@ def eval_model(p, tb, model_eval_func, model_kpi_func, model, loss_func_tuple, t
     for batch_idx, (data_tuple, labels, plot_info, _) in enumerate(test_loader):
         
         if p.DEBUG_MODE == True:
-            if batch_idx >100: 
+            if batch_idx >3: 
                 break
         
         
@@ -208,7 +231,6 @@ def eval_model(p, tb, model_eval_func, model_kpi_func, model, loss_func_tuple, t
             print('Epoch: ',epoch, ' Batch: ', batch_idx+1, '/{}'.format(len(test_loader)))
                
     kpi_dict = model_kpi_func(p, kpi_input_dict, test_dataset.output_states_min, test_dataset.output_states_max, figure_name)
-   
     if eval_type == 'Test':
         with open(vis_data_path, "wb") as fp:
             pickle.dump(kpi_input_dict, fp)

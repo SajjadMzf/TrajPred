@@ -4,12 +4,12 @@ dataset:
 
 experiment:
   cuda: True
-  debug_mode: True
+  debug_mode: False
   multi_modal_eval: False
 
 training:
-  batch_size: 16
-  lr: 0.0001
+  batch_size: 32
+  lr: 0.00001
   lr_wu: False
   lr_wu_batches: 400
   lr_wu_current_batch: 0
@@ -25,7 +25,7 @@ model:
   man_dec_in: False # If True Manouvre will be inputted to Trajectory decoders
   man_dec_out: True # True means the model can predict manouvre, and manouvre prediction will be considered in loss function calculation
   multi_modal: True
-  validation_score: 'Traj Loss'
+  validation_score: 'rmse' #'Traj Loss'
   lower_better_val_score: True
 
 problem:
