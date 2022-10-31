@@ -309,7 +309,7 @@ class DMTP(nn.Module):
         
         return encoder_out
     
-    def man_decoder_forward(self, encoder_out):
+    def mode_decoder_forward(self, encoder_out):
         encoder_out_flattened = encoder_out.reshape(self.batch_size, self.in_seq_len*self.model_dim)
         mode_prob_pred = self.dec_mode_fc2(F.relu(self.dec_mode_fc1(encoder_out_flattened)))
         return mode_prob_pred
@@ -317,9 +317,9 @@ class DMTP(nn.Module):
     def traj_decoder_forward(self, y, y_mask, encoder_out):
         encoder_out_flattened = encoder_out.reshape(self.batch_size, self.in_seq_len*self.model_dim)    
         #traj decoder
-        y = self.decoder_embedding(y[:,0,:,:self.decoder_in_dim])
+        y = self.decoder_embedding(y[:,:,:self.decoder_in_dim])
         y = self.positional_encoder(y)
-        decoder_out = self.lk_transformer_decoder(y, encoder_out, tgt_mask = y_mask)
+        decoder_out = self.transformer_decoder(y, encoder_out, tgt_mask = y_mask)
         
         if self.multi_modal== False:
             raise(ValueError('Single Modal not supported'))
@@ -327,10 +327,17 @@ class DMTP(nn.Module):
         #traj decoder linear layer
         
         traj_pred = self.trajectory_fc(decoder_out)
+        
         if self.prob_output:
-            traj_pred = traj_pred.reshape(-1,self.n_mode,5)
+            seq_len = traj_pred.shape[1]
+            traj_pred = traj_pred.reshape(-1, seq_len*self.n_mode,5)
+            
             traj_pred = mf.prob_activation_func(traj_pred)
-            traj_pred = traj_pred.reshape(-1, self.n_mode*5)
+            traj_pred = traj_pred.reshape(-1, seq_len,self.n_mode,5)
+            
+            traj_pred = torch.permute(traj_pred, (0,2,1,3))
+        else:
+            raise(ValueError('not supported yet!'))
         
         return traj_pred 
 
@@ -386,10 +393,11 @@ class SMTP(nn.Module):
         self.lk_transformer_decoder = nn.TransformerDecoder(lk_decoder_layers, self.layers_num)
         self.rlc_transformer_decoder = nn.TransformerDecoder(rlc_decoder_layers, self.layers_num)
         self.llc_transformer_decoder = nn.TransformerDecoder(llc_decoder_layers, self.layers_num)
-
         ''' 5. Trajectory Output '''
-        self.trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
-        self.mode_prob_fc = nn.Linear(self.model_dim, self.output_dim)
+        self.lk_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
+        self.rlc_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
+        self.llc_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
+        
         
         ''' 6. Manouvre Output '''
         self.dec_mode_fc1 = nn.Linear(self.in_seq_len*self.model_dim, self.classifier_dim)
@@ -410,7 +418,7 @@ class SMTP(nn.Module):
         
         return encoder_out
     
-    def man_decoder_forward(self, encoder_out):
+    def mode_decoder_forward(self, encoder_out):
         encoder_out_flattened = encoder_out.reshape(self.batch_size, self.in_seq_len*self.model_dim)
         mode_prob_pred = self.dec_mode_fc2(F.relu(self.dec_mode_fc1(encoder_out_flattened)))
         return mode_prob_pred
@@ -419,15 +427,15 @@ class SMTP(nn.Module):
         encoder_out_flattened = encoder_out.reshape(self.batch_size, self.in_seq_len*self.model_dim)    
         
         #traj decoder
-        lk_y = self.decoder_embedding(y[:,0,:,:self.decoder_in_dim])
+        lk_y = self.decoder_embedding(y[:,:,:self.decoder_in_dim])
         lk_y = self.positional_encoder(lk_y)
         lk_decoder_out = self.lk_transformer_decoder(lk_y, encoder_out, tgt_mask = y_mask)
         
-        rlc_y = self.decoder_embedding(y[:,1,:,:self.decoder_in_dim])
+        rlc_y = self.decoder_embedding(y[:,:,:self.decoder_in_dim])
         rlc_y = self.positional_encoder(rlc_y)
         rlc_decoder_out = self.rlc_transformer_decoder(rlc_y, encoder_out, tgt_mask = y_mask)
         
-        llc_y = self.decoder_embedding(y[:,2,:,:self.decoder_in_dim])
+        llc_y = self.decoder_embedding(y[:,:,:self.decoder_in_dim])
         llc_y = self.positional_encoder(llc_y)
         llc_decoder_out = self.llc_transformer_decoder(llc_y, encoder_out, tgt_mask = y_mask)
 

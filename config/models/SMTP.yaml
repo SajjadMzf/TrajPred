@@ -11,10 +11,10 @@ hyperparams:
   manouvre per mode: 1
 
 optimizer: torch.optim.Adam
-man loss function: kpis.SMTP_loss
+man loss function: torch.nn.CrossEntropyLoss # This is the loss function to evaluate mode prob estimation
 traj loss function: torch.nn.MSELoss
 model training function: mstf.SMTP_training
 model evaluation function: mstf.SMTP_evaluation
-model kpi function: kpis.SMTP_kpis
+model kpi function: kpis.MMnTP_kpis
 data type: 'state'
 state type: 'wirth'

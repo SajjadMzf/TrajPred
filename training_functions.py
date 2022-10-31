@@ -39,8 +39,13 @@ def eval_top_func(p, model_eval_func, model_kpi_func, model, loss_func_tuple, te
     print_dict, kpi_dict = eval_model(p, tensorboard, model_eval_func, model_kpi_func, model, loss_func_tuple, te_loader, te_dataset, ' N/A', device, eval_type = 'Test', vis_data_path = vis_data_path, figure_name=figure_name)
     
     print('Test Losses:\n'+ ''.join(['{}:{}\n'.format(k, print_dict[k]) for k in print_dict]))
+    for k in kpi_dict:
+        if 'group' in k:
+            continue
+        if 'histogram' in k:
+            continue
+        print(''.join('{}:{}'.format(k,kpi_dict[k])))
 
-    print('Test KPIs:\n'+ ''.join(['{}:{}\n'.format(k, kpi_dict[k]) for k in kpi_dict]))
     
     return kpi_dict
 
@@ -75,7 +80,7 @@ def train_top_func(p, model_train_func, model_eval_func, model_kpi_func, model,l
         if p.VAL_SCORE in val_print_dict:
             val_score = val_print_dict[p.VAL_SCORE]
         else:
-            val_score= val_kpi_dict[p.VAL_SCORE]
+            val_score = val_kpi_dict[p.VAL_SCORE]
         val_end = time()
         #print("Validation Accuracy:",val_acc,' Avg Pred Time: ', val_avg_pred_time, " Avg Loss: ", val_loss," at Epoch", epoch+1)
         #if tensorboard != None:   
@@ -105,7 +110,7 @@ def train_top_func(p, model_train_func, model_eval_func, model_kpi_func, model,l
             
             if 'group' in k:
                 continue
-            elif 'histogram' in k:
+            if 'histogram' in k:
                 tensorboard.add_histogram('Validation_epoch_' + k, val_kpi_dict[k], epoch)
                 continue
             print(''.join('{}:{}'.format(k,val_kpi_dict[k])))

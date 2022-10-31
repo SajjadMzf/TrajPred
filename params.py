@@ -8,9 +8,10 @@ import yaml
 import copy
 import kpis
 import model_specific_training_functions as mstf
+import pickle
 
 class ParametersHandler:
-    def __init__(self, model, dataset, parameters_dir, experiments_dir = 'experiments/', models_dir = 'models/', datasets_dir = 'datasets/', constants_file = 'constants.yaml', hyperparams_file = 'hyperparams.yaml'):
+    def __init__(self, model, dataset, parameters_dir, experiments_dir = 'experiments/', evaluation_dir = 'evaluations/', models_dir = 'models/', datasets_dir = 'datasets/', constants_file = 'constants.yaml', hyperparams_file = 'hyperparams.yaml'):
         self.parameter_tuning_experiment = False 
         self.model_file = os.path.join(os.path.join(parameters_dir, models_dir), model)
         self.dataset_file = os.path.join(os.path.join(parameters_dir, datasets_dir), dataset)
@@ -18,6 +19,7 @@ class ParametersHandler:
         self.constants_file = os.path.join(parameters_dir, constants_file)
         self.model_dataset = '{}_{}'.format(model.split('.')[0], dataset.split('.')[0])
         self.experiments_dir = experiments_dir
+        self.evaluation_dir = evaluation_dir
         now = datetime.now()
         self.experiment_file = '{}_{}'.format(self.model_dataset, now)
         self.latest_experiment_file = os.path.join(self.experiments_dir, self.experiment_file) 
@@ -144,7 +146,13 @@ class ParametersHandler:
         self.TRAJECTORYPRED = self.constants['TASKS']['TRAJECTORYPRED']
 
     
-    # Export experiment after training a model (Do not export an imported experiment or it will overwrite it!)
+    def export_evaluation(self, kpis_dict):
+        evaluation_cdir = os.path.join(self.evaluation_dir, '{}-{}.pkl'.format(self.experiment_file,datetime.now()))
+        eval_name_dict = {'eval Time': '{}'.format(datetime.now())}
+        name_dict = {'experiment file name': self.latest_experiment_file}
+        with open(evaluation_cdir, 'wb') as f:
+            pickle.dump([name_dict, self.hyperparams, self.model, self.dataset, kpis_dict], f) 
+    # Export experiment after training a model (Do not export an imported experiment or it will overwrite it!,use export evalution)
     def export_experiment(self):
         name_dict = {'experiment file name': self.latest_experiment_file}
         #if self.DEBUG_MODE:

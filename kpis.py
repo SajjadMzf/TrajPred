@@ -50,12 +50,16 @@ def MMnTP_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
         'mode_prob': mode_prob.detach().cpu().data.numpy(),
     }
     '''
-    K = 6
+    
 
     mode_prob = np.concatenate(kpi_input_dict['mode_prob'], axis = 0)
     total_samples = mode_prob.shape[0]
-
+    K = min(6, mode_prob.shape[1])
     hp_mode = np.argmax(mode_prob, axis = 1)
+    (unique_modes, mode_freq) = np.unique(hp_mode, return_counts = True)
+    sorted_args = np.argsort(unique_modes)
+    unique_modes = unique_modes[sorted_args]
+    mode_freq = mode_freq[sorted_args]
     kbest_modes = np.argpartition(mode_prob, -1*K, axis = 1)[:,-1*K:]
     traj_gt = np.concatenate(kpi_input_dict['traj_gt'], axis = 0)
     
@@ -89,6 +93,8 @@ def MMnTP_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
     minADE, p_minADE, brier_minADE = calc_minADE(kbest_traj_pred, kbest_modes_probs, traj_gt)
     
     return {
+        'activated modes': unique_modes,
+        'activated modes percentage': 100*mode_freq/sum(mode_freq),
         'high prob mode histogram':hp_mode,
         'single modal metric group:\n': sm_metrics_df,
         'minFDE': minFDE, 
@@ -440,9 +446,9 @@ def MTPM_loss(man_pred, man_gt, n_mode, man_per_mode, device, alpha = 1, beta = 
     time_gt = time_gt.to(device).type(torch.long)
     batch_size = man_pred.shape[0]
     #mode probabilities
-    mode_pr = man_pred[:, 0:n_mode]
-    man_pr = man_pred[:,n_mode:n_mode+ n_mode*3*man_per_mode]
-    time_pr = man_pred[:,n_mode+ n_mode*3*man_per_mode:]
+    mode_pr = man_pred[:, 0:n_mode] # mode prediction: probability of modes
+    man_pr = man_pred[:,n_mode:n_mode+ n_mode*3*man_per_mode] # manouvre prediction: order of manouvres 
+    time_pr = man_pred[:,n_mode+ n_mode*3*man_per_mode:] # timing of the manouvre
     
     
 

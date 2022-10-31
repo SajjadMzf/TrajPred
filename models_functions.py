@@ -1,7 +1,7 @@
 import numpy as np
 
 import torch
-
+from scipy import stats
 
 def calc_man_vectors(man_pred, n_mode, man_per_mode, tgt_seq_len, device):
     batch_size = man_pred.shape[0]
@@ -134,3 +134,7 @@ def get_y_mask(size) -> torch.tensor:
     #  [0.,   0.,   0.,   0.,   0.]]
     
     return mask
+
+def static_mode_from_man(man):
+    m = stats.mode(man, axis = 1)
+    return m[0][:,0]

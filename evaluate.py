@@ -80,7 +80,7 @@ def test_model_dict(p):
     
     # Evaluate:
     kpi_dict = training_functions.eval_top_func(p, model_eval_func, model_kpi_func, model, (traj_loss_func, man_loss_func), te_dataset, device)
-    
+    p.export_evaluation(kpi_dict)
 
 if __name__ == '__main__':
 
@@ -91,9 +91,14 @@ if __name__ == '__main__':
     # Do Not import experiment file for constant parameter models
     #experiment_file = 'experiments/MTPMTT_highD_2022-08-22 15:47:03.709155'#MTPMTT_highD_2022-08-22 15:47:03.709155' #MMnTP_highD_2022-10-26 17:52:20.822886' #MMnTP_highD_2022-10-20 18:26:31.377915'
     
-    experiment_file = 'experiments/MMnTP_highD_2022-10-27 18:56:48.230838'
+    experiment_file = 'experiments/DMTP_highD_2022-10-30 15:56:20.089368'#DMTP_highD_2022-10-30 15:56:20.089368'
+    # Changes w.r.t. Training Hyperparameters
     p.import_experiment(experiment_file)
-    p.UNBALANCED = False
-    p.BATCH_SIZE = 32
+    p.hyperparams['experiment']['debug_mode'] = False
+    p.hyperparams['dataset']['balanced'] = True
+    p.hyperparams['training']['batch_size'] = 3
+    p.hyperparams['experiment']['multi_modal_eval'] = True
+    # make sure to use following function to update hyperparameters
+    p.match_parameters()
     test_model_dict(p)
     

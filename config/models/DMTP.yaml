@@ -11,10 +11,10 @@ hyperparams:
   manouvre per mode: 3
 
 optimizer: torch.optim.Adam
-man loss function: kpis.DMTP_loss
+man loss function: torch.nn.CrossEntropyLoss # This is the loss function to evaluate mode prob estimation
 traj loss function: torch.nn.MSELoss
 model training function: mstf.DMTP_training
 model evaluation function: mstf.DMTP_evaluation
-model kpi function: kpis.DMTP_kpis
+model kpi function: kpis.MMnTP_kpis
 data type: 'state'
 state type: 'wirth'
