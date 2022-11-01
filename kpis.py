@@ -51,7 +51,95 @@ def MMnTP_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
     }
     '''
     
+    man_gt = np.concatenate(kpi_input_dict['man_gt'], axis = 0)
+    man_preds = np.concatenate(kpi_input_dict['man_preds'], axis = 0)
+    mode_prob = np.concatenate(kpi_input_dict['mode_prob'], axis = 0)
+    total_samples = mode_prob.shape[0]
+    K = min(6, mode_prob.shape[1])
+    hp_mode = np.argmax(mode_prob, axis = 1)
+    (unique_modes, mode_freq) = np.unique(hp_mode, return_counts = True)
+    sorted_args = np.argsort(unique_modes)
+    unique_modes = unique_modes[sorted_args]
+    mode_freq = mode_freq[sorted_args]
+    kbest_modes = np.argpartition(mode_prob, -1*K, axis = 1)[:,-1*K:]
+    traj_gt = np.concatenate(kpi_input_dict['traj_gt'], axis = 0)
+    
+    traj_pred = np.concatenate(kpi_input_dict['traj_dist_pred'], axis = 0)
+    traj_pred = traj_pred[:,:,:,:2]
+    traj_max = kpi_input_dict['traj_max'][0]
+    traj_min = kpi_input_dict['traj_min'][0]
+    
+    #denormalise
+    traj_pred = traj_pred*(traj_max-traj_min) + traj_min
+    traj_gt = traj_gt*(traj_max-traj_min) + traj_min
+    #from diff to actual
+    traj_pred = np.cumsum(traj_pred, axis = 2)
+    traj_gt = np.cumsum(traj_gt, axis = 1)
+    hp_traj_pred = traj_pred[np.arange(total_samples), hp_mode]
+    index_array = np.repeat(np.arange(total_samples),K).reshape(total_samples, K)
+    #print(mode_prob)
+    #print(hp_mode)
+    #print(kbest_modes)
+    #print(kbest_modes[0])
+    #print(index_array[0])
+    kbest_traj_pred = traj_pred[index_array, kbest_modes]
+    kbest_modes_probs = mode_prob[index_array, kbest_modes]
+    kbest_modes_probs = np.divide(kbest_modes_probs, np.sum(kbest_modes_probs, axis = 1).reshape(total_samples,1)) 
+    kbest_man_preds = man_preds[index_array, kbest_modes]
+    #print(kbest_modes_probs)
+    #print(np.sum(kbest_modes_probs, axis = 1))
+    #exit()
+    minACC = calc_man_acc(p, kbest_man_preds, man_gt)
+    sm_metrics_df, rmse = calc_sm_metric_df(p, hp_traj_pred, traj_gt)
+    
+    minFDE, p_minFDE, brier_minFDE, MR = calc_minFDE(kbest_traj_pred, kbest_modes_probs, traj_gt)
+    minADE, p_minADE, brier_minADE = calc_minADE(kbest_traj_pred, kbest_modes_probs, traj_gt)
+    
+    return {
+        'activated modes group': unique_modes,
+        'activated modes percentage group': 100*mode_freq/sum(mode_freq),
+        'high prob mode histogram':hp_mode,
+        'single modal metric group:\n': sm_metrics_df,
+        'minACC': minACC,
+        'minFDE': minFDE, 
+        'p_minFDE':p_minFDE,
+        'brier_minFDE':brier_minFDE,
+        'missrate': MR,
+        'minADE': minADE,
+        'p_minADE': p_minADE, 
+        'brier_min_ADE':brier_minADE,
+        'rmse': rmse
+    }
 
+
+def XMTP_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
+    '''
+    1. NLL (TBD)
+    2. error based 
+    Miss Rate (MR):  The number of scenarios where none of the forecasted trajectories are within 2.0 meters of ground truth according to endpoint error.
+    Minimum Final Displacement Error  (minFDE): The L2 distance between the endpoint of the best forecasted trajectory and the ground truth.  The best here refers to the trajectory that has the minimum endpoint error.
+    Minimum Average Displacement Error  (minADE): The average L2 distance between the best forecasted trajectory and the ground truth.  The best here refers to the trajectory that has the minimum endpoint error.
+    Probabilistic minimum Final Displacement Error  (p-minFDE): This is similar to minFDE. The only difference is we add min(-log(p), -log(0.05)) to the endpoint L2 distance, where p corresponds to the probability of the best forecasted trajectory.
+    Probabilistic minimum Average Displacement Error  (p-minADE): This is similar to minADE. The only difference is we add min(-log(p), -log(0.05)) to the average L2 distance, where p corresponds to the probability of the best forecasted trajectory.
+    3. N accident, N road violation (not here)
+    '''
+    '''
+     batch_kpi_input_dict = {    
+        'data_file': data_file,
+        'tv': tv_id.numpy(),
+        'frames': frames.numpy(),
+        'traj_min': dataset.output_states_min,
+        'traj_max': dataset.output_states_max,  
+        'input_features': feature_data.cpu().data.numpy(),
+        'traj_gt': traj_gt.cpu().data.numpy(),
+        'traj_dist_pred': BM_predicted_data_dist.cpu().data.numpy(),
+        'man_gt': man_gt.cpu().data.numpy(),
+        'man_preds': man_vectors.cpu().data.numpy(),
+        'mode_prob': mode_prob.detach().cpu().data.numpy(),
+    }
+    '''
+    
+    
     mode_prob = np.concatenate(kpi_input_dict['mode_prob'], axis = 0)
     total_samples = mode_prob.shape[0]
     K = min(6, mode_prob.shape[1])
@@ -108,6 +196,17 @@ def MMnTP_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
     }
 
 
+def calc_man_acc(p, man_pred, man_gt):
+    total_samples = man_pred.shape[0]
+    n_mode = man_pred.shape[1]
+    tgt_seq_len = man_pred.shape[2]
+    acc = np.zeros((total_samples, n_mode))
+    for i in range(n_mode):
+        acc[:,i] = np.sum(man_pred[:,i] == man_gt, axis = -1)/tgt_seq_len
+    best_mode = np.argmax(acc, axis = 1)
+    acc = acc[np.arange(total_samples), best_mode]
+    minACC = np.sum(acc)/total_samples
+    return minACC
 def calc_sm_metric_df(p,traj_pred, traj_gt):
     # fde, rmse table
     
@@ -477,6 +576,7 @@ def MTPM_loss(man_pred, man_vec_gt, n_mode, man_per_mode, device, alpha = 1, bet
     
     man_pr = man_pr.reshape(batch_size*n_mode, man_per_mode,3)
     time_pr = time_pr.reshape(batch_size*n_mode, tgt_seq_len)
+    ''' # Un comment for man vec loss calculation
     time_pr_arg_list = []
     for i in range(len(w_ind)):
         time_pr_arg_list.append(torch.argmax(time_pr[:,w_ind[i,0]:w_ind[i,1]], dim = -1))
@@ -491,11 +591,12 @@ def MTPM_loss(man_pred, man_vec_gt, n_mode, man_per_mode, device, alpha = 1, bet
         man_vec_loss.append(torch.sum(man_vec_loss_mode.reshape(batch_size, tgt_seq_len), dim = 1))
         
     man_vec_loss = torch.stack(man_vec_loss, dim = 1)
-
+    '''
     if test_phase:
         winning_mode = torch.argmax(mode_pr, dim=1)
     else:
-        winning_mode = torch.argmin(man_vec_loss, dim = 1)
+        #winning_mode = torch.argmin(man_vec_loss, dim = 1)
+        winning_mode = torch.argmin(man_losses, dim = 1)
     
     mode_loss = loss_func(mode_pr, winning_mode)
     man_loss = torch.mean(man_losses[np.arange(batch_size), winning_mode])
