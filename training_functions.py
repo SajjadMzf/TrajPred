@@ -40,11 +40,8 @@ def eval_top_func(p, model_eval_func, model_kpi_func, model, loss_func_tuple, te
     
     print('Test Losses:\n'+ ''.join(['{}:{}\n'.format(k, print_dict[k]) for k in print_dict]))
     for k in kpi_dict:
-        if 'group' in k:
-            continue
-        if 'histogram' in k:
-            continue
-        print(''.join('{}:{}'.format(k,kpi_dict[k])))
+        if 'histogram' not in k:
+            print(''.join('{}:{}'.format(k,kpi_dict[k])))
 
     
     return kpi_dict
@@ -108,13 +105,14 @@ def train_top_func(p, model_train_func, model_eval_func, model_kpi_func, model,l
         print('Validation KPIs:\n')
         for k in val_kpi_dict:
             
-            if 'group' in k:
-                continue
+            if 'histogram' not in k:
+                print(''.join('{}:{}'.format(k,val_kpi_dict[k])))
+           
             if 'histogram' in k:
                 tensorboard.add_histogram('Validation_epoch_' + k, val_kpi_dict[k], epoch)
                 continue
-            print(''.join('{}:{}'.format(k,val_kpi_dict[k])))
-            tensorboard.add_scalar('Validation_epoch_' + k, val_kpi_dict[k], epoch)
+            elif 'group' not in k:
+                tensorboard.add_scalar('Validation_epoch_' + k, val_kpi_dict[k], epoch)
         if p.DEBUG_MODE == True:
             print('Debugging Mode Active.')
             break

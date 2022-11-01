@@ -93,8 +93,8 @@ def MMnTP_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
     minADE, p_minADE, brier_minADE = calc_minADE(kbest_traj_pred, kbest_modes_probs, traj_gt)
     
     return {
-        'activated modes': unique_modes,
-        'activated modes percentage': 100*mode_freq/sum(mode_freq),
+        'activated modes group': unique_modes,
+        'activated modes percentage group': 100*mode_freq/sum(mode_freq),
         'high prob mode histogram':hp_mode,
         'single modal metric group:\n': sm_metrics_df,
         'minFDE': minFDE, 
@@ -435,15 +435,16 @@ def NLL_loss(y_pred, y_gt):
     
 
 
-def MTPM_loss(man_pred, man_gt, n_mode, man_per_mode, device, alpha = 1, beta = 1, test_phase = False):
+def MTPM_loss(man_pred, man_vec_gt, n_mode, man_per_mode, device, alpha = 1, beta = 1, test_phase = False):
     # man pred: [batch_size, (1+3*man_per_mode + tgt_seq_len)*modes]
     # man_gt: [batch_size, tgt_seq_len]
     
-    tgt_seq_len = man_gt.shape[1]
+    tgt_seq_len = man_vec_gt.shape[1]
     w_ind = mf.divide_prediction_window(tgt_seq_len, man_per_mode)
-    man_gt, time_gt = mf.man_vector2man_n_timing(man_gt, man_per_mode, w_ind)
+    man_gt, time_gt = mf.man_vector2man_n_timing(man_vec_gt, man_per_mode, w_ind)
     man_gt = man_gt.to(device).type(torch.long)
     time_gt = time_gt.to(device).type(torch.long)
+    man_vec_gt = man_vec_gt.to(device).type(torch.long)
     batch_size = man_pred.shape[0]
     #mode probabilities
     mode_pr = man_pred[:, 0:n_mode] # mode prediction: probability of modes
@@ -458,6 +459,7 @@ def MTPM_loss(man_pred, man_gt, n_mode, man_per_mode, device, alpha = 1, beta = 
     time_pr_list = []
     for i in range(len(w_ind)):
         time_pr_list.append(time_pr[:,:,w_ind[i,0]:w_ind[i,1]])
+        
     
     loss_func = torch.nn.CrossEntropyLoss(ignore_index = -1)
     loss_func_no_r = torch.nn.CrossEntropyLoss(ignore_index = -1, reduction = 'none')
@@ -470,17 +472,34 @@ def MTPM_loss(man_pred, man_gt, n_mode, man_per_mode, device, alpha = 1, beta = 
         for i, mode_time_pr in enumerate(time_pr_list):
             mode_time_loss += loss_func_no_r(mode_time_pr[:,mode_itr], time_gt[:,i])
         time_loss_list.append(mode_time_loss)
-    man_losses = torch.stack(man_loss_list)
-    time_losses = torch.stack(time_loss_list)
+    man_losses = torch.stack(man_loss_list, dim = 1)
+    time_losses = torch.stack(time_loss_list, dim = 1)
     
+    man_pr = man_pr.reshape(batch_size*n_mode, man_per_mode,3)
+    time_pr = time_pr.reshape(batch_size*n_mode, tgt_seq_len)
+    time_pr_arg_list = []
+    for i in range(len(w_ind)):
+        time_pr_arg_list.append(torch.argmax(time_pr[:,w_ind[i,0]:w_ind[i,1]], dim = -1))
+    
+    man_vec_pr = mf.man_n_timing2man_vector(man_pr, time_pr_arg_list, tgt_seq_len, w_ind, prediction = True)
+    man_vec_pr = man_vec_pr.reshape(batch_size, n_mode, tgt_seq_len, 3)
+    man_vec_loss = []
+    #print(man_vec_pr[:,0].shape)
+    man_vec_pr = man_vec_pr.to(device)
+    for mode_itr in range(n_mode):
+        man_vec_loss_mode = loss_func_no_r(man_vec_pr[:,mode_itr].reshape(-1,3), man_vec_gt.reshape(-1))
+        man_vec_loss.append(torch.sum(man_vec_loss_mode.reshape(batch_size, tgt_seq_len), dim = 1))
+        
+    man_vec_loss = torch.stack(man_vec_loss, dim = 1)
+
     if test_phase:
         winning_mode = torch.argmax(mode_pr, dim=1)
     else:
-        winning_mode = mf.find_winning_mode(man_losses, time_losses)
+        winning_mode = torch.argmin(man_vec_loss, dim = 1)
     
     mode_loss = loss_func(mode_pr, winning_mode)
-    man_loss = torch.mean(man_losses[winning_mode, np.arange(batch_size)])
-    time_loss = torch.mean(time_losses[winning_mode, np.arange(batch_size)])
+    man_loss = torch.mean(man_losses[np.arange(batch_size), winning_mode])
+    time_loss = torch.mean(time_losses[np.arange(batch_size), winning_mode])
     lossVal = mode_loss + alpha*man_loss + beta*time_loss 
     return lossVal, mode_loss, man_loss, time_loss
 

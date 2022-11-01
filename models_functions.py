@@ -53,9 +53,9 @@ def sel_high_prob_man( man_pred, n_mode, man_per_mode, tgt_seq_len, device):
 
     return man_vector
 
-def find_winning_mode(man_losses, time_losses, thr=0):
-    # [n_mode, batch_size, ]
-    ml_values, ml_index = torch.sort(man_losses , dim=0)
+def find_winning_mode(loss_value, thr=0):
+    # 
+    ml_values, ml_index = torch.sort(loss_value , dim=1)
     #ml_values-ml_values[0]<thr
     #tl_values, tl_index = torch.sort(time_losses, dim=0)
     return ml_index[0,:]
@@ -93,18 +93,20 @@ def man_vector2man_n_timing(man_vector, man_per_mode, w_ind):
     #exit()
     return mans, times
 
-def man_n_timing2man_vector(mans, times, tgt_seq_len, w_ind):
+def man_n_timing2man_vector(mans, times, tgt_seq_len, w_ind, prediction = False):
     batch_size = mans.shape[0]
     man_per_mode = mans.shape[1]
-    man_vector = torch.zeros((batch_size,tgt_seq_len))
+    #print(batch_size)
+    #print(times.shape)
+    #print(w_ind)
+    if prediction:
+        man_vector = torch.zeros((batch_size,tgt_seq_len,3))
+    else:
+        man_vector = torch.zeros((batch_size,tgt_seq_len))
     for i in range(man_per_mode-1):
         for batch_itr in range(batch_size):
             man_vector[batch_itr,w_ind[i,0]:w_ind[i,0]+times[i][batch_itr]] = mans[batch_itr,i]
-            man_vector[batch_itr,w_ind[i,0]+times[i][batch_itr]:w_ind[i,1]] = mans[batch_itr,i+1]
-    #print('man_vector:', man_vector)
-    #print(mans)
-    #print(times)
-    #exit()        
+            man_vector[batch_itr,w_ind[i,0]+times[i][batch_itr]:w_ind[i,1]] = mans[batch_itr,i+1]     
     return man_vector
 
 def prob_activation_func(x):

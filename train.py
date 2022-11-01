@@ -129,7 +129,7 @@ def train_model_dict(p):
 if __name__ == '__main__':
     
     
-    p = params.ParametersHandler('SMTP.yaml', 'highD.yaml', './config')
+    p = params.ParametersHandler('MMnTP.yaml', 'highD.yaml', './config')
     #1
     train_model_dict(p)
     
