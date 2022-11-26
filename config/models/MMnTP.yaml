@@ -7,8 +7,8 @@ hyperparams:
   classifier dim: 256
   head number: 8
   probabilistic output: True
-  number of modes: 10
-  manouvre per mode: 3
+  number of modes: 6
+  manouvre per mode: 3 # = number of change period+1
 
 optimizer: torch.optim.Adam
 man loss function: kpis.MTPM_loss

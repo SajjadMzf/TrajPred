@@ -111,7 +111,7 @@ def train_top_func(p, model_train_func, model_eval_func, model_kpi_func, model,l
             if 'histogram' in k:
                 tensorboard.add_histogram('Validation_epoch_' + k, val_kpi_dict[k], epoch)
                 continue
-            elif 'group' not in k:
+            elif ('group' not in k) and ('min' not in k)  :
                 tensorboard.add_scalar('Validation_epoch_' + k, val_kpi_dict[k], epoch)
         if p.DEBUG_MODE == True:
             print('Debugging Mode Active.')
@@ -137,7 +137,7 @@ def train_model(p, tb, model_train_func, model, loss_func_tuple, optimizer, sche
     model_time = 0
 
     all_start = time()
-    
+    model.train()
     vis_print_dict = []
     print_dict = []
     # Training loop over batches of data on train dataset
@@ -204,7 +204,7 @@ def eval_model(p, tb, model_eval_func, model_kpi_func, model, loss_func_tuple, t
     plot_dicts = []
     print_dict = {}
     kpi_input_dict = {}
-   
+    #model.eval()
     for batch_idx, (data_tuple, labels, plot_info, _) in enumerate(test_loader):
         
         if p.DEBUG_MODE == True:
@@ -214,8 +214,8 @@ def eval_model(p, tb, model_eval_func, model_kpi_func, model, loss_func_tuple, t
         
         data_tuple = [data.to(device) for data in data_tuple]
         label_tuple = (labels.to(device),)
-        
-        batch_print_info_dict, batch_kpi_input_dict = model_eval_func(p, data_tuple, plot_info, test_dataset, label_tuple, model, loss_func_tuple, device, eval_type)
+        with torch.no_grad():
+            batch_print_info_dict, batch_kpi_input_dict = model_eval_func(p, data_tuple, plot_info, test_dataset, label_tuple, model, loss_func_tuple, device, eval_type)
 
             
         if batch_idx == 0:

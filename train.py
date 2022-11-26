@@ -128,8 +128,9 @@ def train_model_dict(p):
 
 if __name__ == '__main__':
     
-    
     p = params.ParametersHandler('MMnTP.yaml', 'highD.yaml', './config')
+    p.hyperparams['experiment']['debug_mode'] = True
+    p.match_parameters()
     #1
     train_model_dict(p)
     

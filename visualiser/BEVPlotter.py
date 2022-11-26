@@ -16,7 +16,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 import time as time_func
 import random
-
+import math
 import torch
 import torch.utils.data as utils_data
 import torch.nn as nn
@@ -60,48 +60,47 @@ class BEVPlotter:
         with open(self.result_file, 'rb') as handle:
             self.scenarios = pickle.load(handle)
 
-    def sort_scenarios(self, force_sort = True):
+    def sort_scenarios(self, force_sort = False):
         sorted_scenarios_path = self.result_file.split('.pickle')[0] + '_sorted' + '.pickle'
         if os.path.exists(sorted_scenarios_path) and force_sort == False:
             print('loading: {}'.format(sorted_scenarios_path))
             with open(sorted_scenarios_path, 'rb') as handle:
                 sorted_scenarios_dict = pickle.load(handle)
-            self.in_seq_len = sorted_scenarios_dict[0]['man_labels'][0].shape[0]-sorted_scenarios_dict[0]['man_preds'][0].shape[0]
+            self.in_seq_len = sorted_scenarios_dict[0]['input_features'][0].shape[0]
             self.tgt_seq_len = sorted_scenarios_dict[0]['man_preds'][0].shape[0]
         else:
             sorted_scenarios_dict = []
             tv_id_file_list = []
-            for _, scenario in enumerate(self.scenarios):
-                for batch_itr, tv_id in enumerate(scenario['tv']):
-                    data_file = int(scenario['data_file'][batch_itr].split('.')[0])
+            for batch_grp in range(len(self.scenarios['tv'])):
+                for batch_itr, tv_id in enumerate(self.scenarios['tv'][batch_grp]):
+                    data_file = int(self.scenarios['data_file'][batch_grp][batch_itr].split('.')[0])
                     if (data_file,tv_id) not in tv_id_file_list:
                         tv_id_file_list.append((data_file,tv_id))
                         sorted_scenarios_dict.append({'tv': tv_id,
                                                     'data_file':data_file,
-                                                    'traj_min': scenario['traj_min'],# Assuming traj min and max are the same for all scenarios
-                                                    'traj_max':scenario['traj_max'],
+                                                    'traj_min': self.scenarios['traj_min'][batch_grp],# Assuming traj min and max are the same for all scenarios
+                                                    'traj_max':self.scenarios['traj_max'][batch_grp],
                                                     'input_features': [],
                                                     'times':[], 
                                                     'man_labels':[], 
                                                     'man_preds':[],
                                                     'mode_prob':[],  
                                                     'traj_labels':[], 
-                                                    'traj_preds':[],
                                                     'traj_dist_preds':[], 
                                                     'frames':[],
                                                     })
-                    in_seq_len = scenario['man_labels'].shape[1]-scenario['man_preds'].shape[-1]
-                    tgt_seq_len = scenario['man_preds'].shape[-1]
+                    in_seq_len = self.scenarios['input_features'][batch_grp][batch_itr].shape[0]
+                    tgt_seq_len = self.scenarios['man_gt'][batch_grp][batch_itr].shape[0]
+                    
                     sorted_index = tv_id_file_list.index(((data_file,tv_id)))
-                    sorted_scenarios_dict[sorted_index]['times'].append(scenario['frames'][batch_itr,in_seq_len])
-                    sorted_scenarios_dict[sorted_index]['man_labels'].append(scenario['man_labels'][batch_itr]) 
-                    sorted_scenarios_dict[sorted_index]['man_preds'].append(scenario['man_preds'][batch_itr])
-                    sorted_scenarios_dict[sorted_index]['mode_prob'].append(scenario['mode_prob'][batch_itr])
-                    sorted_scenarios_dict[sorted_index]['traj_labels'].append(scenario['traj_labels'][batch_itr])
-                    sorted_scenarios_dict[sorted_index]['traj_preds'].append(scenario['traj_preds'][batch_itr])
-                    sorted_scenarios_dict[sorted_index]['traj_dist_preds'].append(scenario['traj_dist_preds'][batch_itr])
-                    sorted_scenarios_dict[sorted_index]['frames'].append(scenario['frames'][batch_itr])
-                    sorted_scenarios_dict[sorted_index]['input_features'].append(scenario['input_features'][batch_itr])
+                    sorted_scenarios_dict[sorted_index]['times'].append(self.scenarios['frames'][batch_grp][batch_itr][in_seq_len])
+                    sorted_scenarios_dict[sorted_index]['man_labels'].append(self.scenarios['man_gt'][batch_grp][batch_itr]) 
+                    sorted_scenarios_dict[sorted_index]['man_preds'].append(self.scenarios['man_preds'][batch_grp][batch_itr])
+                    sorted_scenarios_dict[sorted_index]['mode_prob'].append(self.scenarios['mode_prob'][batch_grp][batch_itr])
+                    sorted_scenarios_dict[sorted_index]['traj_labels'].append(self.scenarios['traj_track_gt'][batch_grp][batch_itr])
+                    sorted_scenarios_dict[sorted_index]['traj_dist_preds'].append(self.scenarios['traj_dist_preds'][batch_grp][batch_itr])
+                    sorted_scenarios_dict[sorted_index]['frames'].append(self.scenarios['frames'][batch_grp][batch_itr])
+                    sorted_scenarios_dict[sorted_index]['input_features'].append(self.scenarios['input_features'][batch_grp][batch_itr])
                     
                     
             
@@ -113,7 +112,6 @@ class BEVPlotter:
                 sorted_scenarios_dict[i]['man_preds'] = [sorted_scenarios_dict[i]['man_preds'][indx] for indx in sorted_indxs]
                 sorted_scenarios_dict[i]['mode_prob'] = [sorted_scenarios_dict[i]['mode_prob'][indx] for indx in sorted_indxs]
                 sorted_scenarios_dict[i]['traj_labels'] = [sorted_scenarios_dict[i]['traj_labels'][indx] for indx in sorted_indxs]
-                sorted_scenarios_dict[i]['traj_preds'] = [sorted_scenarios_dict[i]['traj_preds'][indx] for indx in sorted_indxs]
                 sorted_scenarios_dict[i]['traj_dist_preds'] = [sorted_scenarios_dict[i]['traj_dist_preds'][indx] for indx in sorted_indxs]
                 sorted_scenarios_dict[i]['frames'] = [sorted_scenarios_dict[i]['frames'][indx] for indx in sorted_indxs]
                 sorted_scenarios_dict[i]['input_features'] = [sorted_scenarios_dict[i]['input_features'][indx] for indx in sorted_indxs]
@@ -160,7 +158,7 @@ class BEVPlotter:
             mode_prob = sorted_dict[scenario_number]['mode_prob'][j]
             traj_labels = sorted_dict[scenario_number]['traj_labels'][j]
             
-            traj_preds = sorted_dict[scenario_number]['traj_preds'][j]
+            traj_preds = sorted_dict[scenario_number]['traj_preds'][j][:,:2]
             frames = sorted_dict[scenario_number]['frames'][j]
             input_features = sorted_dict[scenario_number]['input_features'][j]
 
@@ -204,7 +202,7 @@ class BEVPlotter:
                 mode_prob = sorted_dict[i]['mode_prob'][j]
                 traj_labels = sorted_dict[i]['traj_labels'][j]
                 
-                traj_preds = sorted_dict[i]['traj_preds'][j]
+                traj_preds = sorted_dict[i]['traj_dist_preds'][j][:,:, :2]
                 frames = sorted_dict[i]['frames'][j]
                 
                 #print("j: {}, min: {}, max: {}".format(j,np.amin(man_preds), np.amax(man_preds)))
@@ -231,7 +229,7 @@ class BEVPlotter:
                 mode_prob = scenario['mode_prob'][batch_itr]
                 traj_labels = scenario['traj_labels'][batch_itr]
                 
-                traj_preds = scenario['traj_preds'][batch_itr]
+                traj_preds = scenario['traj_dist_preds'][batch_itr][:,:,:2]
                 
                 frames = scenario['frames'][batch_itr]
                 data_file = int(scenario['data_file'][batch_itr].split('.')[0])
@@ -251,7 +249,7 @@ class BEVPlotter:
         summary_image = True
         (traj_min, traj_max, man_labels, man_preds, mode_prob, traj_labels, traj_preds, frames, data_file) = scenario_tuple
         
-        in_seq_len = man_labels.shape[0]-man_preds.shape[-1]
+        in_seq_len = self.in_seq_len
         tgt_seq_len = man_preds.shape[-1]
         
         track_path = p.track_paths[data_file-1]
@@ -272,6 +270,9 @@ class BEVPlotter:
         tv_track = []
         tv_future_track = ([],[], [])
         tv_lane_ind = None
+        
+        traj_labels = traj_labels*(traj_max-traj_min)+traj_min
+        traj_preds =  traj_preds*(traj_max-traj_min)+traj_min
         for fr in range(in_seq_len+tgt_seq_len):
             frame = frames[fr]
             traj_img, tv_track, tv_future_track, tv_lane_ind = self.plot_frame(
@@ -285,8 +286,6 @@ class BEVPlotter:
                 mode_prob,
                 traj_labels,
                 traj_preds,
-                traj_min,
-                traj_max,
                 fr,
                 in_seq_len,
                 tv_track =  tv_track,
@@ -310,7 +309,7 @@ class BEVPlotter:
         summary_image = False
         (traj_min, traj_max, man_labels, man_preds, mode_prob, traj_labels, traj_preds, frames, data_file) = scenario_tuple
         
-        in_seq_len = man_labels.shape[0]-man_preds.shape[-1]
+        in_seq_len = self.in_seq_len
         tgt_seq_len = man_preds.shape[-1]
         
         track_path = p.track_paths[data_file-1]
@@ -332,6 +331,8 @@ class BEVPlotter:
         tv_track = []
         tv_future_track = ([],[], [])
         tv_lane_ind = None
+        traj_labels = traj_labels*(traj_max-traj_min)+traj_min
+        traj_preds =  traj_preds*(traj_max-traj_min)+traj_min
         for fr in range(in_seq_len+tgt_seq_len):
             frame = frames[fr]
             
@@ -346,8 +347,6 @@ class BEVPlotter:
                 mode_prob,
                 traj_labels,
                 traj_preds,
-                traj_min,
-                traj_max,
                 fr,
                 in_seq_len,
                 tv_track =  tv_track,
@@ -378,8 +377,6 @@ class BEVPlotter:
         mode_prob,
         traj_labels,
         traj_preds,
-        traj_min,
-        traj_max,
         seq_fr:'frame sequence',
         in_seq_len,
         tv_lane_ind,
@@ -509,7 +506,7 @@ class BEVPlotter:
 
         
         if seq_fr>=in_seq_len-1:
-            for mode_itr in range(p.N_PLOTTED_MODES-2):
+            for mode_itr in range(p.N_PLOTTED_TRAJS):
                 
                 bm = sorted_modes[mode_itr]
                 #if mode_prob[bm]<p.MODE_PROB_THR:
@@ -547,7 +544,7 @@ class BEVPlotter:
        
         if p.PLOT_MAN and seq_fr == in_seq_len -1:
             
-            fig = plt.figure(figsize=(16, 12))
+            fig = plt.figure(figsize=(16, 9))
             gs = gridspec.GridSpec(p.N_PLOTTED_MODES+1, 1) 
             axes = []
             for i in range(p.N_PLOTTED_MODES+1):
@@ -577,9 +574,8 @@ class BEVPlotter:
                     wif_y = wif_y[:,[1,0,2]]
                     wif_y = np.argmax(wif_y, axis =1)
                     axes[0].plot(x, wif_y, p.MARKERS['WIF_TRAJ'], color = 'green', alpha = 1)
-     
-            
-            gt_x = np.arange(1, in_seq_len + tgt_seq_len+1)
+                
+            gt_x = np.arange(1, tgt_seq_len+1)
             gt_y = man_labels
             gt_y_onehot = np.eye(3)[gt_y]
             gt_y_onehot = gt_y_onehot[:,[1,0,2]]
@@ -606,12 +602,6 @@ class BEVPlotter:
             man_bar = man_bar[:,:,[2,1,0]]
             image = np.concatenate((image, man_bar), axis = 0)
                               
-            
-
-
-        
-        
-        
         return  image, tv_track, tv_future_track, tv_lane_ind 
         
  
@@ -655,7 +645,7 @@ class BEVPlotter:
 
         for seq_itr in range(self.tgt_seq_len):
             output_dict = model(x = x, y = y, y_mask = model.get_y_mask(y.size(2)).to(self.device))
-            traj_dist_pred = output_dict['traj_pred']
+            traj_dist_pred = output_dict['traj_dist_preds']
             traj_dist_pred = traj_dist_pred[:,:,seq_itr:seq_itr+1]
             
             selected_traj_pred = traj_dist_pred[:,wif_man[0,seq_itr+1],:,:2]

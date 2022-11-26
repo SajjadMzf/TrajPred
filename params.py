@@ -65,6 +65,7 @@ class ParametersHandler:
         for param_str in selected_params:
             self.log_dict[param_str] = eval('self.{}'.format(param_str))
         self.selected_metrics = selected_metrics
+    
     def match_parameters(self):
         self.SELECTED_MODEL = self.model['name']#'REGIONATTCNN3'#'VCNN'
         self.SELECTED_DATASET = self.dataset['name']
@@ -115,7 +116,7 @@ class ParametersHandler:
         self.TR_JUMP_STEP = self.hyperparams['training']['tr_jump_step']
 
         if self.UNBALANCED:
-            self.unblanaced_ext = self.constants['UNBALANCED_EXT']
+            self.unblanaced_ext = self.constants['DIRS']['UNBALANCED_EXT']
         else:
             self.unblanaced_ext = ''
         self.TRAIN_DATASET_DIR = self.constants['DIRS']['TRAIN_DATASET_DIR']
@@ -153,6 +154,7 @@ class ParametersHandler:
         with open(evaluation_cdir, 'wb') as f:
             pickle.dump([name_dict, self.hyperparams, self.model, self.dataset, kpis_dict], f) 
     # Export experiment after training a model (Do not export an imported experiment or it will overwrite it!,use export evalution)
+    
     def export_experiment(self):
         name_dict = {'experiment file name': self.latest_experiment_file}
         #if self.DEBUG_MODE:
@@ -177,12 +179,3 @@ class ParametersHandler:
         self.experiment_file = self.latest_experiment_file.split('/')[-1]
         print('Experiment file is: ', self.latest_experiment_file)
         self.match_parameters()
-
-    
-
-
-
-        
-
-
-

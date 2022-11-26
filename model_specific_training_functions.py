@@ -49,10 +49,10 @@ def MMnTP_training(p, data_tuple, label_tuple, model, loss_func_tuple, device):
     batch_print_info_dict = {
         'Total Loss': training_loss.cpu().data.numpy()/model.batch_size,
         'Traj Loss': traj_loss.cpu().data.numpy()/model.batch_size,
-        'Man Loss': man_loss.cpu().data.numpy()/model.batch_size,
-        'Mode Partial Loss': mode_ploss.cpu().data.numpy()/model.batch_size,
-        'Man Partial Loss': man_ploss.cpu().data.numpy()/model.batch_size,
-        'Time Partial Loss': time_ploss.cpu().data.numpy()/model.batch_size,
+        'Man Loss': man_loss.cpu().data.numpy()/model.batch_size if p.MAN_DEC_OUT else 0,
+        'Mode Partial Loss': mode_ploss.cpu().data.numpy()/model.batch_size if p.MAN_DEC_OUT else 0,
+        'Man Partial Loss': man_ploss.cpu().data.numpy()/model.batch_size if p.MAN_DEC_OUT else 0,
+        'Time Partial Loss': time_ploss.cpu().data.numpy()/model.batch_size if p.MAN_DEC_OUT else 0,
     }
     return training_loss, batch_print_info_dict
 
@@ -68,10 +68,11 @@ def MMnTP_evaluation(p, data_tuple, plot_info, dataset, label_tuple, model, loss
     traj_data = data_tuple[-1]
     traj_initial_input = traj_data[:,(p.IN_SEQ_LEN-1):p.IN_SEQ_LEN] 
     traj_gt = traj_data[:,p.IN_SEQ_LEN:(p.IN_SEQ_LEN+p.TGT_SEQ_LEN)]
-
+    traj_track_gt = traj_data[:,:(p.IN_SEQ_LEN+p.TGT_SEQ_LEN)]
     feature_data = data_tuple[0]
-    encoder_out = model.encoder_forward(x = feature_data)
-    man_pred = model.man_decoder_forward(encoder_out)
+    with torch.no_grad():
+        encoder_out = model.encoder_forward(x = feature_data)
+        man_pred = model.man_decoder_forward(encoder_out)
     mode_prob, man_vectors = mf.calc_man_vectors(man_pred, model.n_mode, model.man_per_mode, p.TGT_SEQ_LEN, device)
     mode_prob = F.softmax(mode_prob,dim = 1)
 
@@ -113,10 +114,10 @@ def MMnTP_evaluation(p, data_tuple, plot_info, dataset, label_tuple, model, loss
     batch_print_info_dict = {
         'Total Loss': evaluation_loss.cpu().data.numpy()/model.batch_size,
         'Traj Loss': traj_loss.cpu().data.numpy()/model.batch_size,
-        'Man Loss': man_loss.cpu().data.numpy()/model.batch_size,
-        'Mode Partial Loss': mode_ploss.cpu().data.numpy()/model.batch_size,
-        'Man Partial Loss': man_ploss.cpu().data.numpy()/model.batch_size,
-        'Time Partial Loss': time_ploss.cpu().data.numpy()/model.batch_size,
+        'Man Loss': man_loss.cpu().data.numpy()/model.batch_size if p.MAN_DEC_OUT else 0,
+        'Mode Partial Loss': mode_ploss.cpu().data.numpy()/model.batch_size if p.MAN_DEC_OUT else 0,
+        'Man Partial Loss': man_ploss.cpu().data.numpy()/model.batch_size if p.MAN_DEC_OUT else 0,
+        'Time Partial Loss': time_ploss.cpu().data.numpy()/model.batch_size if p.MAN_DEC_OUT else 0,
     }
 
     batch_kpi_input_dict = {    
@@ -127,7 +128,8 @@ def MMnTP_evaluation(p, data_tuple, plot_info, dataset, label_tuple, model, loss
         'traj_max': dataset.output_states_max,  
         'input_features': feature_data.cpu().data.numpy(),
         'traj_gt': traj_gt.cpu().data.numpy(),
-        'traj_dist_pred': data_dist_preds.cpu().data.numpy(),
+        'traj_track_gt': traj_track_gt.cpu().data.numpy(),
+        'traj_dist_preds': data_dist_preds.cpu().data.numpy(),
         'man_gt': man_gt.cpu().data.numpy(),
         'man_preds': man_vectors.cpu().data.numpy(),
         'mode_prob': mode_prob.detach().cpu().data.numpy(),
@@ -137,9 +139,10 @@ def MMnTP_evaluation(p, data_tuple, plot_info, dataset, label_tuple, model, loss
 def MMnTP_trajectory_inference(p, model, device, decoder_input, encoder_out, man_pred_vector):
     for out_seq_itr in range(p.TGT_SEQ_LEN):
         #output_dict = model(x = encoder_input, y =decoder_input, y_mask = mf.get_y_mask(decoder_input.size(2)).to(device))
-        traj_pred = model.traj_decoder_forward(y = decoder_input, 
-                                                    y_mask = mf.get_y_mask(decoder_input.size(2)).to(device), 
-                                                    encoder_out = encoder_out)
+        with torch.no_grad():
+            traj_pred = model.traj_decoder_forward(y = decoder_input, 
+                                                        y_mask = mf.get_y_mask(decoder_input.size(2)).to(device), 
+                                                        encoder_out = encoder_out)
         
         current_traj_pred = traj_pred[:,:,out_seq_itr:(out_seq_itr+1)] #traj output at current timestep
         current_man_pred = man_pred_vector[:,out_seq_itr:(out_seq_itr+1)]      
@@ -256,8 +259,9 @@ def DMTP_evaluation(p, data_tuple, plot_info, dataset, label_tuple, model, loss_
     traj_gt = traj_data[:,p.IN_SEQ_LEN:(p.IN_SEQ_LEN+p.TGT_SEQ_LEN)]
 
     feature_data = data_tuple[0]
-    encoder_out = model.encoder_forward(x = feature_data)
-    mode_prob_pred = model.mode_decoder_forward(encoder_out)
+    with torch.no_grad():
+        encoder_out = model.encoder_forward(x = feature_data)
+        mode_prob_pred = model.mode_decoder_forward(encoder_out)
     mode_prob_pred = F.softmax(mode_prob_pred, dim = 1)
     decoder_input = traj_initial_input
     hp_mode = np.argmax(mode_prob_pred.cpu().detach().numpy(), axis = 1)
@@ -303,7 +307,7 @@ def DMTP_evaluation(p, data_tuple, plot_info, dataset, label_tuple, model, loss_
         'traj_max': dataset.output_states_max,  
         'input_features': feature_data.cpu().data.numpy(),
         'traj_gt': traj_gt.cpu().data.numpy(),
-        'traj_dist_pred': data_dist_preds.cpu().data.numpy(),
+        'traj_dist_preds': data_dist_preds.cpu().data.numpy(),
         'mode_prob': mode_prob_pred.detach().cpu().data.numpy(),
     }
     return batch_print_info_dict, batch_kpi_input_dict
@@ -358,10 +362,11 @@ def SMTP_evaluation(p, data_tuple, plot_info, dataset, label_tuple, model, loss_
     traj_data = data_tuple[-1]
     traj_initial_input = traj_data[:,(p.IN_SEQ_LEN-1):p.IN_SEQ_LEN] 
     traj_gt = traj_data[:,p.IN_SEQ_LEN:(p.IN_SEQ_LEN+p.TGT_SEQ_LEN)]
-
+    traj_track_gt = traj_data[:,:(p.IN_SEQ_LEN+p.TGT_SEQ_LEN)]
     feature_data = data_tuple[0]
-    encoder_out = model.encoder_forward(x = feature_data)
-    mode_prob = model.mode_decoder_forward(encoder_out)
+    with torch.no_grad():
+        encoder_out = model.encoder_forward(x = feature_data)
+        mode_prob = model.mode_decoder_forward(encoder_out)
     mode_loss_func = mode_loss_func()
     mode_loss = mode_loss_func(mode_prob, mode_gt)
     
@@ -406,7 +411,8 @@ def SMTP_evaluation(p, data_tuple, plot_info, dataset, label_tuple, model, loss_
         'traj_max': dataset.output_states_max,  
         'input_features': feature_data.cpu().data.numpy(),
         'traj_gt': traj_gt.cpu().data.numpy(),
-        'traj_dist_pred': data_dist_preds.cpu().data.numpy(),
+        'traj_track_gt': traj_track_gt.cpu().data.numpy(),
+        'traj_dist_preds': data_dist_preds.cpu().data.numpy(),
         'mode_gt': mode_gt.cpu().data.numpy(),
         'mode_prob': mode_prob.detach().cpu().data.numpy(),
     }

@@ -44,7 +44,7 @@ def MMnTP_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
         'traj_max': dataset.output_states_max,  
         'input_features': feature_data.cpu().data.numpy(),
         'traj_gt': traj_gt.cpu().data.numpy(),
-        'traj_dist_pred': BM_predicted_data_dist.cpu().data.numpy(),
+        'traj_dist_preds': BM_predicted_data_dist.cpu().data.numpy(),
         'man_gt': man_gt.cpu().data.numpy(),
         'man_preds': man_vectors.cpu().data.numpy(),
         'mode_prob': mode_prob.detach().cpu().data.numpy(),
@@ -55,16 +55,15 @@ def MMnTP_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
     man_preds = np.concatenate(kpi_input_dict['man_preds'], axis = 0)
     mode_prob = np.concatenate(kpi_input_dict['mode_prob'], axis = 0)
     total_samples = mode_prob.shape[0]
-    K = min(6, mode_prob.shape[1])
     hp_mode = np.argmax(mode_prob, axis = 1)
     (unique_modes, mode_freq) = np.unique(hp_mode, return_counts = True)
     sorted_args = np.argsort(unique_modes)
     unique_modes = unique_modes[sorted_args]
     mode_freq = mode_freq[sorted_args]
-    kbest_modes = np.argpartition(mode_prob, -1*K, axis = 1)[:,-1*K:]
+    
     traj_gt = np.concatenate(kpi_input_dict['traj_gt'], axis = 0)
     
-    traj_pred = np.concatenate(kpi_input_dict['traj_dist_pred'], axis = 0)
+    traj_pred = np.concatenate(kpi_input_dict['traj_dist_preds'], axis = 0)
     traj_pred = traj_pred[:,:,:,:2]
     traj_max = kpi_input_dict['traj_max'][0]
     traj_min = kpi_input_dict['traj_min'][0]
@@ -76,39 +75,42 @@ def MMnTP_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
     traj_pred = np.cumsum(traj_pred, axis = 2)
     traj_gt = np.cumsum(traj_gt, axis = 1)
     hp_traj_pred = traj_pred[np.arange(total_samples), hp_mode]
-    index_array = np.repeat(np.arange(total_samples),K).reshape(total_samples, K)
-    #print(mode_prob)
-    #print(hp_mode)
-    #print(kbest_modes)
-    #print(kbest_modes[0])
-    #print(index_array[0])
-    kbest_traj_pred = traj_pred[index_array, kbest_modes]
-    kbest_modes_probs = mode_prob[index_array, kbest_modes]
-    kbest_modes_probs = np.divide(kbest_modes_probs, np.sum(kbest_modes_probs, axis = 1).reshape(total_samples,1)) 
-    kbest_man_preds = man_preds[index_array, kbest_modes]
-    #print(kbest_modes_probs)
-    #print(np.sum(kbest_modes_probs, axis = 1))
-    #exit()
-    minACC = calc_man_acc(p, kbest_man_preds, man_gt)
-    sm_metrics_df, rmse = calc_sm_metric_df(p, hp_traj_pred, traj_gt)
     
-    minFDE, p_minFDE, brier_minFDE, MR = calc_minFDE(kbest_traj_pred, kbest_modes_probs, traj_gt)
-    minADE, p_minADE, brier_minADE = calc_minADE(kbest_traj_pred, kbest_modes_probs, traj_gt)
+    minFDE = {}
+    minRMSE = {}
+    minMR = {}
+    minACC = {}
+    rmse = {}
+    for K in range(1,min(6,mode_prob.shape[1])):
+        if K>1 and p.MULTI_MODAL_EVAL == False:
+            break
+        key = 'K={}'.format(K)
+        kbest_modes = np.argpartition(mode_prob, -1*K, axis = 1)[:,-1*K:]
+        index_array = np.repeat(np.arange(total_samples),K).reshape(total_samples, K)
+        
+
+        kbest_traj_pred = traj_pred[index_array, kbest_modes]
+        kbest_modes_probs = mode_prob[index_array, kbest_modes]
+        kbest_modes_probs = np.divide(kbest_modes_probs, np.sum(kbest_modes_probs, axis = 1).reshape(total_samples,1)) 
+        kbest_man_preds = man_preds[index_array, kbest_modes]
+        #print(kbest_modes_probs)
+        #print(np.sum(kbest_modes_probs, axis = 1))
+        #exit()
+        minACC[key] = calc_man_acc(p, kbest_man_preds, man_gt)
+        #sm_metrics_df, rmse = calc_sm_metric_df(p, hp_traj_pred, traj_gt)
+    
+        minFDE[key] = calc_minFDE(p,kbest_traj_pred, kbest_modes_probs, traj_gt)
+        minRMSE[key], rmse[key] = calc_minRMSE(p,kbest_traj_pred, kbest_modes_probs, traj_gt)
+        
     
     return {
         'activated modes group': unique_modes,
         'activated modes percentage group': 100*mode_freq/sum(mode_freq),
         'high prob mode histogram':hp_mode,
-        'single modal metric group:\n': sm_metrics_df,
         'minACC': minACC,
         'minFDE': minFDE, 
-        'p_minFDE':p_minFDE,
-        'brier_minFDE':brier_minFDE,
-        'missrate': MR,
-        'minADE': minADE,
-        'p_minADE': p_minADE, 
-        'brier_min_ADE':brier_minADE,
-        'rmse': rmse
+        'minRMSE': minRMSE,
+        'rmse': rmse['K=1'] # minRMSE K=1 max pred horizon
     }
 
 
@@ -151,7 +153,7 @@ def XMTP_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
     kbest_modes = np.argpartition(mode_prob, -1*K, axis = 1)[:,-1*K:]
     traj_gt = np.concatenate(kpi_input_dict['traj_gt'], axis = 0)
     
-    traj_pred = np.concatenate(kpi_input_dict['traj_dist_pred'], axis = 0)
+    traj_pred = np.concatenate(kpi_input_dict['traj_dist_preds'], axis = 0)
     traj_pred = traj_pred[:,:,:,:2]
     traj_max = kpi_input_dict['traj_max'][0]
     traj_min = kpi_input_dict['traj_min'][0]
@@ -197,6 +199,7 @@ def XMTP_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
 
 
 def calc_man_acc(p, man_pred, man_gt):
+    # takes maneouvre vector as input
     total_samples = man_pred.shape[0]
     n_mode = man_pred.shape[1]
     tgt_seq_len = man_pred.shape[2]
@@ -207,16 +210,46 @@ def calc_man_acc(p, man_pred, man_gt):
     acc = acc[np.arange(total_samples), best_mode]
     minACC = np.sum(acc)/total_samples
     return minACC
-def calc_sm_metric_df(p,traj_pred, traj_gt):
-    # fde, rmse table
+def calc_rmse_vs_time(p,traj_pred, traj_gt):
     
     total_samples = traj_gt.shape[0]
     prediction_ts = int(p.TGT_SEQ_LEN/p.FPS)
     if (p.TGT_SEQ_LEN/p.FPS) % 1 != 0:
         raise(ValueError('Target sequence length not dividable by FPS'))
     columns = ['<{} sec'.format(ts+1) for ts in range(prediction_ts)]
-    index = ['FDE_lat', 'FDE_long', 'FDE', 'RMSE_lat', 'RMSE_long', 'RMSE']
-    data = np.zeros((6, prediction_ts))
+    index = ['RMSE_lat', 'RMSE_long', 'RMSE']
+    data = np.zeros((3, prediction_ts))
+    for ts in range(prediction_ts):
+        
+        ts_index = (ts+1)*p.FPS
+        current_total_samples = total_samples * ts_index
+        #rmse
+        data[0,ts] = np.sqrt(
+            np.sum((traj_pred[:,:ts_index,0]-traj_gt[:,:ts_index,0])**2)/current_total_samples
+            )
+        data[1,ts] = np.sqrt(
+            np.sum((traj_pred[:,:ts_index,1]-traj_gt[:,:ts_index,1])**2)/current_total_samples
+            )
+        data[2,ts] = np.sqrt(
+            np.sum((traj_pred[:,:ts_index,:]-traj_gt[:,:ts_index,:])**2)/current_total_samples
+            )
+    #FDE_table = ''.join(['{}:{:.4f}'.format(columns[ts], data[2,ts]) for ts in range(prediction_ts)])
+    #RMSE_table = ''.join(['{}:{:.4f}'.format(columns[ts], data[5,ts]) for ts in range(prediction_ts)])
+    rmse = data[2,prediction_ts-1]
+    rmse_df = pd.DataFrame(data= data, columns = columns, index = index)
+    
+    return rmse_df, rmse
+
+def calc_fde_vs_time(p,traj_pred, traj_gt, mr_thr):
+    # fde table
+    
+    total_samples = traj_gt.shape[0]
+    prediction_ts = int(p.TGT_SEQ_LEN/p.FPS)
+    if (p.TGT_SEQ_LEN/p.FPS) % 1 != 0:
+        raise(ValueError('Target sequence length not dividable by FPS'))
+    columns = ['<{} sec'.format(ts+1) for ts in range(prediction_ts)]
+    index = ['FDE_lat', 'FDE_long', 'FDE', 'MR']
+    data = np.zeros((4, prediction_ts))
     for ts in range(prediction_ts):
         
         ts_index = (ts+1)*p.FPS
@@ -225,284 +258,41 @@ def calc_sm_metric_df(p,traj_pred, traj_gt):
         data[0,ts] = np.sum(np.absolute(traj_pred[:,ts_index-1,0]-traj_gt[:,ts_index-1,0]))/total_samples # 0 is laterel, 1 is longitudinal
         data[1,ts] = np.sum(np.absolute(traj_pred[:,ts_index-1,1]-traj_gt[:,ts_index-1,1]))/total_samples # 0 is laterel, 1 is longitudinal
         data[2,ts] = np.sum(np.absolute(traj_pred[:,ts_index-1,:]-traj_gt[:,ts_index-1,:]))/total_samples # 0 is laterel, 1 is longitudinal
-        #rmse
-        data[3,ts] = np.sqrt(
-            np.sum((traj_pred[:,:ts_index,0]-traj_gt[:,:ts_index,0])**2)/current_total_samples
-            )
-        data[4,ts] = np.sqrt(
-            np.sum((traj_pred[:,:ts_index,1]-traj_gt[:,:ts_index,1])**2)/current_total_samples
-            )
-        data[5,ts] = np.sqrt(
-            np.sum((traj_pred[:,:ts_index,:]-traj_gt[:,:ts_index,:])**2)/current_total_samples
-            )
-    #FDE_table = ''.join(['{}:{:.4f}'.format(columns[ts], data[2,ts]) for ts in range(prediction_ts)])
-    #RMSE_table = ''.join(['{}:{:.4f}'.format(columns[ts], data[5,ts]) for ts in range(prediction_ts)])
-    rmse = data[5,prediction_ts-1]
-    result_df = pd.DataFrame(data= data, columns = columns, index = index)
+        data[3,ts] = np.sum(np.absolute(traj_pred[:,ts_index-1,:]-traj_gt[:,ts_index-1,:])>mr_thr)/total_samples  
+    fde_df = pd.DataFrame(data= data, columns = columns, index = index)
     
-    return result_df, rmse
+    return fde_df
 
-def calc_minFDE(traj_pred, mode_prob, traj_gt, mr_thr = 2):
+
+def calc_minFDE(p, traj_pred, mode_prob, traj_gt, mr_thr = 2):
     total_samples = traj_pred.shape[0]
     n_mode = traj_pred.shape[1]
     fde = np.zeros((total_samples, n_mode))
     for i in range(n_mode):
         fde[:,i] = np.sum(np.absolute(traj_pred[:,i,-1,:]-traj_gt[:,-1,:]), axis=-1)
-    
     best_mode = np.argmin(fde, axis = 1)
-    best_mode_prob = mode_prob[np.arange(total_samples), best_mode]
-    b_fde_prob = np.power((1-best_mode_prob),2)
-    p_fde_prob = -1*np.log(best_mode_prob)
-    p_fde_prob[p_fde_prob<-1*np.log(0.05)] = -1*np.log(0.05) 
+    
     fde = fde[np.arange(total_samples), best_mode]
-    minFDE = np.sum(fde)/total_samples
-    p_minFDE = np.sum(p_fde_prob*fde)/total_samples
-    brier_minFDE = np.sum(b_fde_prob*fde)/total_samples
-    MR = np.sum(fde>mr_thr)/total_samples
-    return minFDE, p_minFDE, brier_minFDE, MR
+    minFDE = calc_fde_vs_time(p,traj_pred[np.arange(total_samples), best_mode], traj_gt, mr_thr)
+    
+    return minFDE
 
-def calc_minADE(traj_pred, mode_prob, traj_gt):
+def calc_minRMSE(p, traj_pred, mode_prob, traj_gt):
     total_samples = traj_pred.shape[0]
     seq_len = traj_pred.shape[2]
     n_mode = traj_pred.shape[1]
-    ade = np.zeros((total_samples, n_mode))
+    rmse = np.zeros((total_samples, n_mode))
     for i in range(n_mode):
-        ade[:,i] = np.sum(np.sum(np.absolute(traj_pred[:,i,:,:]-traj_gt[:,:,:]), axis=-1), axis = -1)
+        rmse[:,i] = np.sqrt(np.sum(np.sum((traj_pred[:,i,:,:]-traj_gt[:,:,:])**2, axis=-1), axis = -1)/seq_len)
     
-    best_mode = np.argmin(ade, axis = 1)
-    best_mode_prob = mode_prob[np.arange(total_samples), best_mode]
-    b_ade_prob = np.power((1-best_mode_prob),2)
-    p_ade_prob = -1*np.log(best_mode_prob)
-    p_ade_prob[p_ade_prob<-1*np.log(0.05)] = -1*np.log(0.05) 
-    ade = ade[np.arange(total_samples), best_mode]
-    minADE = np.sum(ade)/(total_samples*seq_len)
-    p_minADE = np.sum(p_ade_prob*ade)/(total_samples*seq_len)
-    brier_minADE = np.sum(b_ade_prob*ade)/(total_samples*seq_len)
-    return minADE, p_minADE, brier_minADE
+    best_mode = np.argmin(rmse, axis = 1)
+    minRMSE, rmse = calc_rmse_vs_time(p,traj_pred[np.arange(total_samples), best_mode], traj_gt)
+    
+    return minRMSE, rmse
 
 
 
    
-
-def calc_roc_n_prc(p, all_lc_preds, all_labels, num_samples, figure_name, thr_type, eval_type):
-    if thr_type == 'thr':
-        
-        thr_range = np.arange(0,101,1)/100
-        precision_vs_thr = np.zeros_like(thr_range)
-        recall_vs_thr = np.zeros_like(thr_range)
-        fpr_vs_thr = np.zeros_like(thr_range)
-        for i,thr in enumerate(thr_range):
-
-            all_lc_preds_thr = all_lc_preds>=thr
-            all_lc_preds_thr[:,:,0] = np.logical_not(np.logical_or(all_lc_preds_thr[:,:,1],all_lc_preds_thr[:,:,2]))
-            all_pred = []
-            all_pred.append(all_lc_preds_thr[:,:,0] * all_lc_preds[:,:,0]+ np.logical_not(all_lc_preds_thr[:,:,0]) * -1)# -1 is to make sure when thr is 0 non of lc is selected in argemax
-            all_pred.append(all_lc_preds_thr[:,:,1] * all_lc_preds[:,:,1])
-            all_pred.append(all_lc_preds_thr[:,:,2] * all_lc_preds[:,:,2])
-            all_pred = np.stack(all_pred, axis = -1)
-            all_pred = np.argmax(all_pred, axis =-1)
-            precision_vs_thr[i], recall_vs_thr[i], fpr_vs_thr[i] = calc_prec_recall_fpr(p, all_pred, all_labels, prediction_seq, num_samples)
-    else:
-        raise('Unknown thr type')
-
-    recall_vs_thr = np.flip(recall_vs_thr, axis = 0)
-    fpr_vs_thr = np.flip(fpr_vs_thr, axis = 0)
-    precision_vs_thr = np.flip(precision_vs_thr, axis = 0)
-
-    if eval_type == 'Test':
-        # Creating dirs
-        figure_dir = os.path.join(p.FIGS_DIR, 'roc')
-        if not os.path.exists(figure_dir):
-            os.mkdir(figure_dir)
-        plot_dir = os.path.join(figure_dir, figure_name +p.unblanaced_ext+ '.png')
-        fig_obs_dir = os.path.join(figure_dir, figure_name +p.unblanaced_ext+  '.pickle')
-
-        recall_ax = plt.figure()
-
-        # Creating Figs
-        plt.plot(fpr_vs_thr, recall_vs_thr)
-        plt.ylim(0, 1)
-        plt.xlim(0, 1)
-        plt.xlabel('False Positive Rate (FPR)')
-        plt.ylabel('True Positive Rate (TPR)')
-        plt.grid()
-        recall_ax.savefig(plot_dir)
-        with open(fig_obs_dir, 'wb') as fid:
-            pickle.dump(recall_ax, fid)
-
-        # Creating dirs
-        figure_dir = os.path.join(p.FIGS_DIR, 'prec_recall_curv')
-        if not os.path.exists(figure_dir):
-            os.mkdir(figure_dir)
-        plot_dir = os.path.join(figure_dir, figure_name +p.unblanaced_ext+ '.png')
-        fig_obs_dir = os.path.join(figure_dir, figure_name +p.unblanaced_ext+  '.pickle')
-
-        recall_ax = plt.figure()
-
-        # Creating Figs
-        plt.plot(recall_vs_thr, precision_vs_thr)
-        plt.ylim(0, 1)
-        plt.xlim(0, 1)
-        plt.xlabel('Recall')
-        plt.ylabel('Precision')
-        plt.grid()
-        recall_ax.savefig(plot_dir)
-        with open(fig_obs_dir, 'wb') as fid:
-            pickle.dump(recall_ax, fid)
-        
-    auc = metrics.auc(fpr_vs_thr, recall_vs_thr)
-    #auc = 0
-    max_j = max(recall_vs_thr-fpr_vs_thr)
-
-    return auc, max_j
-
-def calc_prec_recall_fpr(p, all_preds, all_labels, prediction_seq, num_samples):
-    # metrics with thr
-    all_hits = np.zeros_like(all_preds)
-    
-    recall_vs_TTLC = np.zeros((prediction_seq))
-    
-    acc_vs_SEQ = np.zeros((prediction_seq))
-    precision_vs_SEQ = np.zeros((prediction_seq))
-    FPR_vs_SEQ = np.zeros((prediction_seq))
-    FN_vs_TTLC = np.zeros((prediction_seq))
-    
-    TP_vs_TTLC = np.zeros((prediction_seq))
-    FP_vs_SEQ = np.zeros((prediction_seq))
-    TN_vs_SEQ = np.zeros((prediction_seq))
-
-    for t in range(prediction_seq):
-        all_hits[:,t] = (all_preds[:,t] == all_labels)
-        TP_vs_TTLC[t] = np.sum(np.logical_and(all_hits[:,t], (all_labels!=0)))/num_samples
-        FN_vs_TTLC[t] = np.sum(np.logical_and((all_hits[:,t]==False), (all_labels!=0)))/num_samples
-        FP_vs_SEQ[t] = np.sum(
-            np.logical_or(
-                np.logical_and((all_hits[:,t]==False), (all_labels==0)), 
-                np.logical_and(
-                    np.logical_and((all_hits[:,t]==False), (all_labels!=0)), 
-                    all_preds[:,t]!=0)
-                    )
-                    )/num_samples
-        TN_vs_SEQ[t] = np.sum(np.logical_and((all_hits[:,t]==True), (all_labels==0)))/num_samples
-        recall_vs_TTLC[t] = TP_vs_TTLC[t]/(TP_vs_TTLC[t] + FN_vs_TTLC[t])
-        precision_vs_SEQ[t] = (TP_vs_TTLC[t] + 1e-14)/(TP_vs_TTLC[t] + FP_vs_SEQ[t] + 1e-14)
-        FPR_vs_SEQ[t] = FP_vs_SEQ[t]/(FP_vs_SEQ[t] + TN_vs_SEQ[t])
-        
-    
-    
-    precision = np.mean(precision_vs_SEQ)
-    FPR = np.mean(FPR_vs_SEQ)
-    recall = np.mean(recall_vs_TTLC)
-    return precision, recall,FPR
-def calc_classification_metrics(p, all_preds, all_labels, prediction_seq, num_samples, eval_type, figure_name):
-    # metrics with thr
-    all_hits = np.zeros_like(all_preds)
-    all_TPs = np.zeros_like(all_preds)
-    FP_index = np.zeros_like(all_preds, dtype= np.bool)
-    
-    FP_TTLC = np.zeros((all_preds.size))
-    cur_FP_index = 0
-    recall_vs_TTLC = np.zeros((prediction_seq))
-    
-    acc_vs_SEQ = np.zeros((prediction_seq))
-    precision_vs_SEQ = np.zeros((prediction_seq))
-    FPR_vs_SEQ = np.zeros((prediction_seq))
-    FN_vs_TTLC = np.zeros((prediction_seq))
-    
-    TP_vs_TTLC = np.zeros((prediction_seq))
-    FP_vs_SEQ = np.zeros((prediction_seq))
-    TN_vs_SEQ = np.zeros((prediction_seq))
-
-    for t in range(prediction_seq):
-        all_hits[:,t] = (all_preds[:,t] == all_labels)
-        all_TPs[:,t] = np.logical_and(all_hits[:,t], (all_labels!=0))
-        TP_vs_TTLC[t] = np.sum(np.logical_and(all_hits[:,t], (all_labels!=0)))/num_samples
-        FN_vs_TTLC[t] = np.sum(np.logical_and((all_hits[:,t]==False), (all_labels!=0)))/num_samples
-        FP_vs_SEQ[t] = np.sum(
-            np.logical_or(
-                np.logical_and((all_hits[:,t]==False), (all_labels==0)), 
-                np.logical_and(
-                    np.logical_and((all_hits[:,t]==False), (all_labels!=0)), 
-                    all_preds[:,t]!=0)
-                    )
-                    )/num_samples
-        TN_vs_SEQ[t] = np.sum(np.logical_and((all_hits[:,t]==True), (all_labels==0)))/num_samples
-        prev_FP_index = cur_FP_index
-        FP_index[:,t] =np.logical_or(
-                np.logical_and((all_hits[:,t]==False), (all_labels==0)), 
-                np.logical_and(
-                    np.logical_and((all_hits[:,t]==False), (all_labels!=0)), 
-                    all_preds[:,t]!=0)
-                    )
-        cur_FP_index += np.sum(FP_index[:,t])
-        
-
-        recall_vs_TTLC[t] = TP_vs_TTLC[t]/(TP_vs_TTLC[t] + FN_vs_TTLC[t])
-        precision_vs_SEQ[t] = TP_vs_TTLC[t]/(TP_vs_TTLC[t] + FP_vs_SEQ[t])
-        FPR_vs_SEQ[t] = FP_vs_SEQ[t]/(FP_vs_SEQ[t] + TN_vs_SEQ[t])
-        
-        acc_vs_SEQ[t] = sum(all_hits[:,t])/num_samples
-    
-    
-    #print(recall_vs_TTLC)
-    accuracy = np.mean(acc_vs_SEQ)
-    precision = np.mean(precision_vs_SEQ)
-    FPR = np.mean(FPR_vs_SEQ)
-    recall = np.mean(recall_vs_TTLC)
-    f1 = 2*(precision*recall)/(precision+recall)
-    #cumul_FP_TTLC = 0
-    if eval_type == 'Test':
-        # Creating dirs
-        figure_dir = os.path.join(p.FIGS_DIR, 'recall_vs_TTLC')
-        if not os.path.exists(figure_dir):
-            os.mkdir(figure_dir)
-        plot_dir = os.path.join(figure_dir, figure_name +p.unblanaced_ext+ '.png')
-        fig_obs_dir = os.path.join(figure_dir, figure_name +p.unblanaced_ext+  '.pickle')
-
-        recall_ax = plt.figure()
-        ttlc_seq = (prediction_seq-np.arange(prediction_seq))/p.FPS
-
-        # Creating Figs
-        plt.plot(ttlc_seq, recall_vs_TTLC*100)
-        plt.ylim(0,100)
-        plt.xlim(ttlc_seq[0], ttlc_seq[-1])
-        plt.xlabel('Time to lane change (TTLC) (s)')
-        plt.ylabel('Recall (%)')
-        plt.grid()
-        recall_ax.savefig(plot_dir)
-        with open(fig_obs_dir, 'wb') as fid:
-            pickle.dump(recall_ax, fid)
-        
-        
-
-    
-
-    return accuracy, precision, recall, f1, FPR, all_TPs
-
-
-def calc_avg_pred_time(p, all_TPs, all_labels, prediction_seq, num_samples):
-    all_TPs_LC = all_TPs[all_labels!=0,:]
-    num_lc = all_TPs_LC.shape[0]
-    seq_len = all_TPs_LC.shape[1]
-    all_TPs_LC_r = np.flip(all_TPs_LC, 1)
-
-    first_false_preds = np.ones((num_lc))*prediction_seq
-    last_true_preds = np.zeros((num_lc))
-    for i in range(num_lc):
-        if np.any(all_TPs_LC_r[i]) == True:
-            last_true_preds[i] = np.nonzero(all_TPs_LC_r[i])[0][-1] + 1
-        for seq_itr in range(seq_len):
-            end_lim = min(seq_len, seq_itr + p.ACCEPTED_GAP+1)
-            if np.any(all_TPs_LC_r[i, seq_itr:end_lim]) == False:
-                first_false_preds[i] = seq_itr
-                break
-        
-
-    robust_pred_time = np.sum(first_false_preds)/(p.FPS*num_lc)
-    pred_time = np.sum(last_true_preds)/(p.FPS*num_lc)
-    
-    return robust_pred_time, pred_time
-
 
 def NLL_loss(y_pred, y_gt):
         #print_shape('y_pred', y_pred)

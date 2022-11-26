@@ -34,7 +34,8 @@ class MMnTP(nn.Module):
         self.in_seq_len = parameters.IN_SEQ_LEN
         self.tgt_seq_len = parameters.TGT_SEQ_LEN
         self.decoder_in_dim = 2
-        self.man_output_dim = (1+3*self.man_per_mode + self.tgt_seq_len)*self.n_mode
+        #(mode_prob(1) + number of manoeuvre classes(3)* (number of change periods+1(self.man_per_mode)) +  timing classification tgt_seq_len )*n_mode
+        self.man_output_dim = (1+3*self.man_per_mode + self.tgt_seq_len)*self.n_mode 
         if self.man_dec_in:
             self.decoder_in_dim += 3
         
@@ -67,7 +68,9 @@ class MMnTP(nn.Module):
         self.llc_transformer_decoder = nn.TransformerDecoder(llc_decoder_layers, self.layers_num)
         
         ''' 5. Trajectory Output '''
+        
         self.lk_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
+        
         self.rlc_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
         self.llc_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
         ''' 6. Manouvre Output '''
@@ -107,11 +110,11 @@ class MMnTP(nn.Module):
         if self.multi_modal: #if single modal lk represents the single modal not the lane keeping man anymore
             rlc_y = self.decoder_embedding(y[:,1,:,:self.decoder_in_dim])
             rlc_y = self.positional_encoder(rlc_y)
-            rlc_decoder_out = self.rlc_transformer_decoder(rlc_y, encoder_out, tgt_mask = y_mask)
+            rlc_decoder_out = self.lk_transformer_decoder(rlc_y, encoder_out, tgt_mask = y_mask) #TODO: LK transformer is being used for all three modes
             
             llc_y = self.decoder_embedding(y[:,2,:,:self.decoder_in_dim])
             llc_y = self.positional_encoder(llc_y)
-            llc_decoder_out = self.llc_transformer_decoder(llc_y, encoder_out, tgt_mask = y_mask)
+            llc_decoder_out = self.lk_transformer_decoder(llc_y, encoder_out, tgt_mask = y_mask) #TODO: LK transformer is being used for all three modes
 
         #traj decoder linear layer
         

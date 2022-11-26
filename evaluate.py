@@ -90,13 +90,14 @@ if __name__ == '__main__':
     p = params.ParametersHandler('MMnTP.yaml', 'highD.yaml', './config')
     # Do Not import experiment file for constant parameter models
     #experiment_file = 'experiments/MTPMTT_highD_2022-08-22 15:47:03.709155'#MTPMTT_highD_2022-08-22 15:47:03.709155' #MMnTP_highD_2022-10-26 17:52:20.822886' #MMnTP_highD_2022-10-20 18:26:31.377915'
-    
-    experiment_file = 'experiments/DMTP_highD_2022-10-30 15:56:20.089368'#DMTP_highD_2022-10-30 15:56:20.089368'
+    #experiment_file = 'experiments/DMTP_highD_2022-10-30 15:56:20.089368'
+    #experiment_file = 'experiments/MMnTP_highD_2022-11-03 11:22:06.670845'#MMnTP_highD_2022-11-02 01:47:35.849718'#'experiments/MMnTP_highD_2022-11-01 13:35:55.866717'#DMTP_highD_2022-10-30 15:56:20.089368'
     # Changes w.r.t. Training Hyperparameters
+    experiment_file = 'experiments/MMnTP_highD_2022-11-14 15:11:03.691339'
     p.import_experiment(experiment_file)
     p.hyperparams['experiment']['debug_mode'] = False
     p.hyperparams['dataset']['balanced'] = True
-    p.hyperparams['training']['batch_size'] = 3
+    p.hyperparams['training']['batch_size'] = 64
     p.hyperparams['experiment']['multi_modal_eval'] = True
     # make sure to use following function to update hyperparameters
     p.match_parameters()

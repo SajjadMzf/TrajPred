@@ -4,7 +4,7 @@ dataset:
 
 experiment:
   cuda: True
-  debug_mode: True
+  debug_mode: False
   multi_modal_eval: False
 
 training:
@@ -17,7 +17,7 @@ training:
   lr_decay: 1
   lr_decay_epoch: 10
   num_epochs: 200
-  patience: 10
+  patience: 50
   tr_jump_step: 1 
 
 
@@ -31,5 +31,5 @@ model:
 problem:
   FPS: 5
   IN_SEQ_LEN: 15
-  TGT_SEQ_LEN: 35
-  SKIP_SEQ_LEN: 5
+  TGT_SEQ_LEN: 25
+  SKIP_SEQ_LEN: 5 # This is to skip final X frame of a track because manouvre labelling depends on future trajectory of a vehicle
