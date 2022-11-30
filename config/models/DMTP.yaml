@@ -7,7 +7,7 @@ hyperparams:
   classifier dim: 256
   head number: 8
   probabilistic output: True
-  number of modes: 10
+  number of modes: 3
   manouvre per mode: 3
 
 optimizer: torch.optim.Adam

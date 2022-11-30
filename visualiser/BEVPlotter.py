@@ -60,7 +60,7 @@ class BEVPlotter:
         with open(self.result_file, 'rb') as handle:
             self.scenarios = pickle.load(handle)
 
-    def sort_scenarios(self, force_sort = False):
+    def sort_scenarios(self, force_sort = True):
         sorted_scenarios_path = self.result_file.split('.pickle')[0] + '_sorted' + '.pickle'
         if os.path.exists(sorted_scenarios_path) and force_sort == False:
             print('loading: {}'.format(sorted_scenarios_path))
@@ -90,12 +90,13 @@ class BEVPlotter:
                                                     'frames':[],
                                                     })
                     in_seq_len = self.scenarios['input_features'][batch_grp][batch_itr].shape[0]
-                    tgt_seq_len = self.scenarios['man_gt'][batch_grp][batch_itr].shape[0]
+                    tgt_seq_len = self.scenarios['traj_dist_preds'][batch_grp][batch_itr].shape[-2]
                     
                     sorted_index = tv_id_file_list.index(((data_file,tv_id)))
                     sorted_scenarios_dict[sorted_index]['times'].append(self.scenarios['frames'][batch_grp][batch_itr][in_seq_len])
-                    sorted_scenarios_dict[sorted_index]['man_labels'].append(self.scenarios['man_gt'][batch_grp][batch_itr]) 
-                    sorted_scenarios_dict[sorted_index]['man_preds'].append(self.scenarios['man_preds'][batch_grp][batch_itr])
+                    if p.PLOT_MAN:
+                        sorted_scenarios_dict[sorted_index]['man_labels'].append(self.scenarios['man_gt'][batch_grp][batch_itr]) 
+                        sorted_scenarios_dict[sorted_index]['man_preds'].append(self.scenarios['man_preds'][batch_grp][batch_itr])
                     sorted_scenarios_dict[sorted_index]['mode_prob'].append(self.scenarios['mode_prob'][batch_grp][batch_itr])
                     sorted_scenarios_dict[sorted_index]['traj_labels'].append(self.scenarios['traj_track_gt'][batch_grp][batch_itr])
                     sorted_scenarios_dict[sorted_index]['traj_dist_preds'].append(self.scenarios['traj_dist_preds'][batch_grp][batch_itr])
@@ -108,8 +109,9 @@ class BEVPlotter:
                 times_array = np.array(sorted_scenarios_dict[i]['times'])
                 sorted_indxs = np.argsort(times_array).astype(int)
                 sorted_scenarios_dict[i]['times'] = [sorted_scenarios_dict[i]['times'][indx] for indx in sorted_indxs]
-                sorted_scenarios_dict[i]['man_labels'] = [sorted_scenarios_dict[i]['man_labels'][indx] for indx in sorted_indxs]
-                sorted_scenarios_dict[i]['man_preds'] = [sorted_scenarios_dict[i]['man_preds'][indx] for indx in sorted_indxs]
+                if p.PLOT_MAN:
+                    sorted_scenarios_dict[i]['man_labels'] = [sorted_scenarios_dict[i]['man_labels'][indx] for indx in sorted_indxs]
+                    sorted_scenarios_dict[i]['man_preds'] = [sorted_scenarios_dict[i]['man_preds'][indx] for indx in sorted_indxs]
                 sorted_scenarios_dict[i]['mode_prob'] = [sorted_scenarios_dict[i]['mode_prob'][indx] for indx in sorted_indxs]
                 sorted_scenarios_dict[i]['traj_labels'] = [sorted_scenarios_dict[i]['traj_labels'][indx] for indx in sorted_indxs]
                 sorted_scenarios_dict[i]['traj_dist_preds'] = [sorted_scenarios_dict[i]['traj_dist_preds'][indx] for indx in sorted_indxs]
@@ -153,8 +155,12 @@ class BEVPlotter:
         traj_min = sorted_dict[scenario_number]['traj_min']
         traj_max = sorted_dict[scenario_number]['traj_max']
         for j,time in enumerate(sorted_dict[scenario_number]['times']):
-            man_labels = sorted_dict[scenario_number]['man_labels'][j]
-            man_preds = sorted_dict[scenario_number]['man_preds'][j]
+            if p.PLOT_MAN:
+                man_labels = sorted_dict[scenario_number]['man_labels'][j]
+                man_preds = sorted_dict[scenario_number]['man_preds'][j]
+            else:
+                man_labels = []
+                man_preds = []
             mode_prob = sorted_dict[scenario_number]['mode_prob'][j]
             traj_labels = sorted_dict[scenario_number]['traj_labels'][j]
             
@@ -197,8 +203,13 @@ class BEVPlotter:
             
             # for each time-step
             for j,time in enumerate(sorted_dict[i]['times']):
-                man_labels = sorted_dict[i]['man_labels'][j]
-                man_preds = sorted_dict[i]['man_preds'][j]
+                
+                if p.PLOT_MAN== False:
+                    man_preds = []
+                    man_labels = []
+                else:
+                    man_preds = sorted_dict[i]['man_preds'][j]
+                    man_labels = sorted_dict[i]['man_labels'][j]
                 mode_prob = sorted_dict[i]['mode_prob'][j]
                 traj_labels = sorted_dict[i]['traj_labels'][j]
                 
@@ -224,8 +235,12 @@ class BEVPlotter:
             traj_min = scenario['traj_min']
             traj_max = scenario['traj_max']
             for batch_itr, tv_id in enumerate(scenario['tv']):
-                man_labels = scenario['man_labels'][batch_itr]
-                man_preds = scenario['man_preds'][batch_itr]
+                if p.PLOT_MAN== False:
+                    man_preds = []
+                    man_labels = []
+                else:
+                    man_labels = scenario['man_labels'][batch_itr]
+                    man_preds = scenario['man_preds'][batch_itr]
                 mode_prob = scenario['mode_prob'][batch_itr]
                 traj_labels = scenario['traj_labels'][batch_itr]
                 
@@ -250,7 +265,7 @@ class BEVPlotter:
         (traj_min, traj_max, man_labels, man_preds, mode_prob, traj_labels, traj_preds, frames, data_file) = scenario_tuple
         
         in_seq_len = self.in_seq_len
-        tgt_seq_len = man_preds.shape[-1]
+        tgt_seq_len = traj_preds.shape[-2]
         
         track_path = p.track_paths[data_file-1]
         static_path = p.static_paths[data_file-1]
@@ -310,7 +325,7 @@ class BEVPlotter:
         (traj_min, traj_max, man_labels, man_preds, mode_prob, traj_labels, traj_preds, frames, data_file) = scenario_tuple
         
         in_seq_len = self.in_seq_len
-        tgt_seq_len = man_preds.shape[-1]
+        tgt_seq_len = traj_preds.shape[-2]
         
         track_path = p.track_paths[data_file-1]
         static_path = p.static_paths[data_file-1]

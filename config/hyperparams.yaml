@@ -5,7 +5,7 @@ dataset:
 experiment:
   cuda: True
   debug_mode: False
-  multi_modal_eval: False
+  multi_modal_eval: True
 
 training:
   batch_size: 32
@@ -16,8 +16,8 @@ training:
   traj2class_loss_ratio: 1
   lr_decay: 1
   lr_decay_epoch: 10
-  num_epochs: 200
-  patience: 50
+  num_epochs: 50
+  patience: 10
   tr_jump_step: 1 
 
 

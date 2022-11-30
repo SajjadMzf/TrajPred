@@ -61,6 +61,7 @@ def find_winning_mode(loss_value, thr=0):
     return ml_index[0,:]
 
 def divide_prediction_window(seq_len, man_per_mode):
+    
     num_window = man_per_mode-1
     window_length = int(seq_len/num_window)
     w_ind = np.zeros((num_window, 2), dtype= np.int32)
@@ -69,8 +70,6 @@ def divide_prediction_window(seq_len, man_per_mode):
         w_ind[i,1] = (i+1)*window_length
     w_ind[num_window-1,0] = (num_window-1)*window_length
     w_ind[num_window-1,1] = seq_len
-    #print(w_ind)
-    #exit()
     return w_ind
 
 def man_vector2man_n_timing(man_vector, man_per_mode, w_ind):
@@ -93,16 +92,15 @@ def man_vector2man_n_timing(man_vector, man_per_mode, w_ind):
     #exit()
     return mans, times
 
-def man_n_timing2man_vector(mans, times, tgt_seq_len, w_ind, prediction = False):
+def man_n_timing2man_vector(mans, times, tgt_seq_len, w_ind, device = torch.device("cpu")):
     batch_size = mans.shape[0]
     man_per_mode = mans.shape[1]
     #print(batch_size)
     #print(times.shape)
     #print(w_ind)
-    if prediction:
-        man_vector = torch.zeros((batch_size,tgt_seq_len,3))
-    else:
-        man_vector = torch.zeros((batch_size,tgt_seq_len))
+
+    
+    man_vector = torch.zeros((batch_size,tgt_seq_len), device = device)
     for i in range(man_per_mode-1):
         for batch_itr in range(batch_size):
             man_vector[batch_itr,w_ind[i,0]:w_ind[i,0]+times[i][batch_itr]] = mans[batch_itr,i]

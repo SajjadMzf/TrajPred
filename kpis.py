@@ -81,7 +81,7 @@ def MMnTP_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
     minMR = {}
     minACC = {}
     rmse = {}
-    for K in range(1,min(6,mode_prob.shape[1])):
+    for K in range(1,min(10,mode_prob.shape[1])+1):
         if K>1 and p.MULTI_MODAL_EVAL == False:
             break
         key = 'K={}'.format(K)
@@ -144,13 +144,13 @@ def XMTP_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
     
     mode_prob = np.concatenate(kpi_input_dict['mode_prob'], axis = 0)
     total_samples = mode_prob.shape[0]
-    K = min(6, mode_prob.shape[1])
     hp_mode = np.argmax(mode_prob, axis = 1)
     (unique_modes, mode_freq) = np.unique(hp_mode, return_counts = True)
     sorted_args = np.argsort(unique_modes)
     unique_modes = unique_modes[sorted_args]
     mode_freq = mode_freq[sorted_args]
-    kbest_modes = np.argpartition(mode_prob, -1*K, axis = 1)[:,-1*K:]
+    
+
     traj_gt = np.concatenate(kpi_input_dict['traj_gt'], axis = 0)
     
     traj_pred = np.concatenate(kpi_input_dict['traj_dist_preds'], axis = 0)
@@ -165,41 +165,47 @@ def XMTP_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
     traj_pred = np.cumsum(traj_pred, axis = 2)
     traj_gt = np.cumsum(traj_gt, axis = 1)
     hp_traj_pred = traj_pred[np.arange(total_samples), hp_mode]
-    index_array = np.repeat(np.arange(total_samples),K).reshape(total_samples, K)
-    #print(mode_prob)
-    #print(hp_mode)
-    #print(kbest_modes)
-    #print(kbest_modes[0])
-    #print(index_array[0])
-    kbest_traj_pred = traj_pred[index_array, kbest_modes]
-    kbest_modes_probs = mode_prob[index_array, kbest_modes]
-    kbest_modes_probs = np.divide(kbest_modes_probs, np.sum(kbest_modes_probs, axis = 1).reshape(total_samples,1)) 
-    #print(kbest_modes_probs)
-    #print(np.sum(kbest_modes_probs, axis = 1))
-    #exit()
-    sm_metrics_df, rmse = calc_sm_metric_df(p, hp_traj_pred, traj_gt)
+
+
+    minFDE = {}
+    minRMSE = {}
+    minMR = {}
+    rmse = {}
+
+    for K in range(1,min(10,mode_prob.shape[1])+1):
     
-    minFDE, p_minFDE, brier_minFDE, MR = calc_minFDE(kbest_traj_pred, kbest_modes_probs, traj_gt)
-    minADE, p_minADE, brier_minADE = calc_minADE(kbest_traj_pred, kbest_modes_probs, traj_gt)
-    
+        if K>1 and p.MULTI_MODAL_EVAL == False:
+            break
+        key = 'K={}'.format(K)
+        
+        kbest_modes = np.argpartition(mode_prob, -1*K, axis = 1)[:,-1*K:]
+        index_array = np.repeat(np.arange(total_samples),K).reshape(total_samples, K)
+        
+        kbest_traj_pred = traj_pred[index_array, kbest_modes]
+        kbest_modes_probs = mode_prob[index_array, kbest_modes]
+        kbest_modes_probs = np.divide(kbest_modes_probs, np.sum(kbest_modes_probs, axis = 1).reshape(total_samples,1)) 
+        
+        kbest_modes = np.argpartition(mode_prob, -1*K, axis = 1)[:,-1*K:]
+        index_array = np.repeat(np.arange(total_samples),K).reshape(total_samples, K)
+            
+        minFDE[key] = calc_minFDE(p,kbest_traj_pred, kbest_modes_probs, traj_gt)
+        minRMSE[key], rmse[key] = calc_minRMSE(p,kbest_traj_pred, kbest_modes_probs, traj_gt)
+
+
+
     return {
         'activated modes group': unique_modes,
         'activated modes percentage group': 100*mode_freq/sum(mode_freq),
         'high prob mode histogram':hp_mode,
-        'single modal metric group:\n': sm_metrics_df,
         'minFDE': minFDE, 
-        'p_minFDE':p_minFDE,
-        'brier_minFDE':brier_minFDE,
-        'missrate': MR,
-        'minADE': minADE,
-        'p_minADE': p_minADE, 
-        'brier_min_ADE':brier_minADE,
-        'rmse': rmse
+        'minRMSE': minRMSE,
+        'rmse': rmse['K=1'] # minRMSE K=1 max pred horizon
     }
 
 
-def calc_man_acc(p, man_pred, man_gt):
+def calc_man_acc(p, man_pred, man_gt ):
     # takes maneouvre vector as input
+    
     total_samples = man_pred.shape[0]
     n_mode = man_pred.shape[1]
     tgt_seq_len = man_pred.shape[2]
@@ -209,7 +215,18 @@ def calc_man_acc(p, man_pred, man_gt):
     best_mode = np.argmax(acc, axis = 1)
     acc = acc[np.arange(total_samples), best_mode]
     minACC = np.sum(acc)/total_samples
+    
+        
     return minACC
+
+def calc_man_acc_torch( man_pred, man_gt, device = torch.device("cpu")):
+    total_samples = man_pred.shape[0]
+    n_mode = man_pred.shape[1]
+    tgt_seq_len = man_pred.shape[2]
+    acc = torch.zeros((total_samples, n_mode), device = device)
+    for i in range(n_mode):
+        acc[:,i] = torch.sum(man_pred[:,i] == man_gt, dim = -1)/tgt_seq_len
+    return acc
 def calc_rmse_vs_time(p,traj_pred, traj_gt):
     
     total_samples = traj_gt.shape[0]
@@ -343,6 +360,8 @@ def MTPM_loss(man_pred, man_vec_gt, n_mode, man_per_mode, device, alpha = 1, bet
     
 
     man_pr = man_pr.reshape(batch_size, n_mode, man_per_mode, 3)
+    man_pr_class = torch.argmax(man_pr, dim = -1)
+    man_pr = torch.permute(man_pr,(0,1,3,2))
     time_pr = time_pr.reshape(batch_size, n_mode, tgt_seq_len)
     
     time_pr_list = []
@@ -364,30 +383,28 @@ def MTPM_loss(man_pred, man_vec_gt, n_mode, man_per_mode, device, alpha = 1, bet
     man_losses = torch.stack(man_loss_list, dim = 1)
     time_losses = torch.stack(time_loss_list, dim = 1)
     
+    man_pr = torch.permute(man_pr, (0,1,3,2))
     man_pr = man_pr.reshape(batch_size*n_mode, man_per_mode,3)
+    man_pr_argmax = torch.argmax(man_pr, dim = -1)
     time_pr = time_pr.reshape(batch_size*n_mode, tgt_seq_len)
-    ''' # Un comment for man vec loss calculation
+    # Un comment for man acc loss calculation
+    '''
     time_pr_arg_list = []
     for i in range(len(w_ind)):
         time_pr_arg_list.append(torch.argmax(time_pr[:,w_ind[i,0]:w_ind[i,1]], dim = -1))
     
-    man_vec_pr = mf.man_n_timing2man_vector(man_pr, time_pr_arg_list, tgt_seq_len, w_ind, prediction = True)
-    man_vec_pr = man_vec_pr.reshape(batch_size, n_mode, tgt_seq_len, 3)
-    man_vec_loss = []
+    man_vec_pr = mf.man_n_timing2man_vector(man_pr_argmax, time_pr_arg_list, tgt_seq_len, w_ind, device)
+    man_vec_pr = man_vec_pr.reshape(batch_size, n_mode, tgt_seq_len)
     #print(man_vec_pr[:,0].shape)
-    man_vec_pr = man_vec_pr.to(device)
-    for mode_itr in range(n_mode):
-        man_vec_loss_mode = loss_func_no_r(man_vec_pr[:,mode_itr].reshape(-1,3), man_vec_gt.reshape(-1))
-        man_vec_loss.append(torch.sum(man_vec_loss_mode.reshape(batch_size, tgt_seq_len), dim = 1))
-        
-    man_vec_loss = torch.stack(man_vec_loss, dim = 1)
+    man_acc = calc_man_acc_torch( man_vec_pr, man_vec_gt, device)
     '''
     if test_phase:
         winning_mode = torch.argmax(mode_pr, dim=1)
     else:
         #winning_mode = torch.argmin(man_vec_loss, dim = 1)
         winning_mode = torch.argmin(man_losses, dim = 1)
-    
+        #winning_mode = torch.argmin(man_acc, dim = 1)
+
     mode_loss = loss_func(mode_pr, winning_mode)
     man_loss = torch.mean(man_losses[np.arange(batch_size), winning_mode])
     time_loss = torch.mean(time_losses[np.arange(batch_size), winning_mode])

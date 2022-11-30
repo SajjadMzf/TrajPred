@@ -87,13 +87,13 @@ if __name__ == '__main__':
    
     #torch.cuda.empty_cache()
     #p = params.ParametersHandler('Constant_Parameter.yaml', 'highD.yaml', './config')
-    p = params.ParametersHandler('MMnTP.yaml', 'highD.yaml', './config')
+    p = params.ParametersHandler('SMTP.yaml', 'highD.yaml', './config')
     # Do Not import experiment file for constant parameter models
     #experiment_file = 'experiments/MTPMTT_highD_2022-08-22 15:47:03.709155'#MTPMTT_highD_2022-08-22 15:47:03.709155' #MMnTP_highD_2022-10-26 17:52:20.822886' #MMnTP_highD_2022-10-20 18:26:31.377915'
     #experiment_file = 'experiments/DMTP_highD_2022-10-30 15:56:20.089368'
     #experiment_file = 'experiments/MMnTP_highD_2022-11-03 11:22:06.670845'#MMnTP_highD_2022-11-02 01:47:35.849718'#'experiments/MMnTP_highD_2022-11-01 13:35:55.866717'#DMTP_highD_2022-10-30 15:56:20.089368'
     # Changes w.r.t. Training Hyperparameters
-    experiment_file = 'experiments/MMnTP_highD_2022-11-14 15:11:03.691339'
+    experiment_file = 'experiments/SMTP_highD_2022-11-29 09:07:25.977406' # experiments/DMTP_highD_2022-11-29 13:21:03.655754'#'experiments/DMTP_highD_2022-11-29 13:21:03.655754'
     p.import_experiment(experiment_file)
     p.hyperparams['experiment']['debug_mode'] = False
     p.hyperparams['dataset']['balanced'] = True

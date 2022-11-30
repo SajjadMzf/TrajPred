@@ -257,7 +257,7 @@ def DMTP_evaluation(p, data_tuple, plot_info, dataset, label_tuple, model, loss_
     traj_data = data_tuple[-1]
     traj_initial_input = traj_data[:,(p.IN_SEQ_LEN-1):p.IN_SEQ_LEN] 
     traj_gt = traj_data[:,p.IN_SEQ_LEN:(p.IN_SEQ_LEN+p.TGT_SEQ_LEN)]
-
+    traj_track_gt = traj_data[:,:(p.IN_SEQ_LEN+p.TGT_SEQ_LEN)]
     feature_data = data_tuple[0]
     with torch.no_grad():
         encoder_out = model.encoder_forward(x = feature_data)
@@ -306,6 +306,7 @@ def DMTP_evaluation(p, data_tuple, plot_info, dataset, label_tuple, model, loss_
         'traj_min': dataset.output_states_min,
         'traj_max': dataset.output_states_max,  
         'input_features': feature_data.cpu().data.numpy(),
+        'traj_track_gt': traj_track_gt.cpu().data.numpy(),
         'traj_gt': traj_gt.cpu().data.numpy(),
         'traj_dist_preds': data_dist_preds.cpu().data.numpy(),
         'mode_prob': mode_prob_pred.detach().cpu().data.numpy(),
@@ -371,7 +372,7 @@ def SMTP_evaluation(p, data_tuple, plot_info, dataset, label_tuple, model, loss_
     mode_loss = mode_loss_func(mode_prob, mode_gt)
     
     mode_prob = F.softmax(mode_prob,dim = 1) #softmax should be after applying loss function
-    hp_mode = torch.argmax(mode_prob, dim = 1)
+    hp_mode = np.argmax(mode_prob.cpu().detach().numpy(), axis = 1)
     
     BM_predicted_data_dist, BM_traj_pred = DMT_trajectory_inference(p, model, device, traj_initial_input, encoder_out, hp_mode)
 
