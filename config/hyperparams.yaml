@@ -3,22 +3,23 @@ dataset:
   ablation: False
 
 experiment:
+  group: 'miscellaneous'
   cuda: True
   debug_mode: False
   multi_modal_eval: True
 
 training:
   batch_size: 32
-  lr: 0.00001
-  lr_wu: False
-  lr_wu_batches: 400
+  lr: 0.001 #0.0015 #0.000001 0.01#0.00001
+  lr_wu: True
+  lr_wu_batches: 75000
   lr_wu_current_batch: 0
   traj2class_loss_ratio: 1
-  lr_decay: 1
-  lr_decay_epoch: 10
-  num_epochs: 50
-  patience: 10
-  tr_jump_step: 1 
+  lr_decay: 'none' # 'inv-sqrt' or 'none'
+  num_epochs: 300
+  patience: 300
+  skip_validation_epoch: 100
+  tr_jump_step: 1  
 
 
 model:

@@ -73,6 +73,7 @@ class ParametersHandler:
         self.UNBALANCED = not self.hyperparams['dataset']['balanced']
         self.ABLATION = self.hyperparams['dataset']['ablation']
         self.DEBUG_MODE = self.hyperparams['experiment']['debug_mode']
+        self.experiment_group = self.hyperparams['experiment']['group']
         self.MULTI_MODAL_EVAL = self.hyperparams['experiment']['multi_modal_eval']
         self.MAN_DEC_IN = self.hyperparams['model']['man_dec_in']
         self.MAN_DEC_OUT = self.hyperparams['model']['man_dec_out']
@@ -110,17 +111,17 @@ class ParametersHandler:
         self.LR_WU_CURRENT_BATCH = self.hyperparams['training']['lr_wu_current_batch']
         self.TRAJ2CLASS_LOSS_RATIO = self.hyperparams['training']['traj2class_loss_ratio']
         self.LR_DECAY = self.hyperparams['training']['lr_decay']
-        self.LR_DECAY_EPOCH = self.hyperparams['training']['lr_decay_epoch']
         self.NUM_EPOCHS = self.hyperparams['training']['num_epochs']
         self.PATIENCE = self.hyperparams['training']['patience']
         self.TR_JUMP_STEP = self.hyperparams['training']['tr_jump_step']
+        self.SKIP_VAL_EPOCHS = self.hyperparams['training']['skip_validation_epoch']
 
         if self.UNBALANCED:
             self.unblanaced_ext = self.constants['DIRS']['UNBALANCED_EXT']
         else:
             self.unblanaced_ext = ''
-        self.TRAIN_DATASET_DIR = self.constants['DIRS']['TRAIN_DATASET_DIR']
-        self.TEST_DATASET_DIR = self.constants['DIRS']['TEST_DATASET_DIR']
+        self.TRAIN_DATASET_DIR = self.dataset['TRAIN_DATASET_DIR']
+        self.TEST_DATASET_DIR = self.dataset['TEST_DATASET_DIR']
         
 
         self.MODELS_DIR = self.constants['DIRS']['MODELS_DIR']

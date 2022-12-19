@@ -83,15 +83,15 @@ def read_track_csv(input_path, pickle_path, reload = True, group_by = 'frames', 
     if reload == False and os.path.exists(pickle_path):
             pickle_in = open(pickle_path, "rb")
             #print('Record read from pickle file:', pickle_path)
-            [frames, highway_length] = pickle.load(pickle_in)
-            return frames, highway_length 
+            frames = pickle.load(pickle_in)
+            
+            return frames 
     # Read the csv file, convert it into a useful data structure
     df = pandas.read_csv(input_path)
     selected_frames = (df.frame%fr_div == 0).real.tolist()
     df = df.loc[selected_frames]#.to_frame()
     #frame_group = df.groupby([FRAME], sort = False)
 
-    highway_length = np.max(df[X])
     # Use groupby to aggregate track info. Less error prone than iterating over the data.
     if group_by == 'frames':
         grouped = df.groupby([FRAME], sort=True)    
@@ -106,8 +106,8 @@ def read_track_csv(input_path, pickle_path, reload = True, group_by = 'frames', 
                                                 rows[Y].values,
                                                 rows[WIDTH].values,
                                                 rows[HEIGHT].values]))
-        groups[current_group] = {TRACK_ID: rows[TRACK_ID].values if group_by=='frames' else np.int64(group_id),  # for compatibility, int would be more space efficient
-                                 FRAME: rows[FRAME].values if group_by=='tracks' else np.int64(group_id),
+        groups[current_group] = {TRACK_ID: rows[TRACK_ID].values, 
+                                 FRAME: rows[FRAME].values,
                                  BBOX: bounding_boxes,
                                  X: rows[X].values,
                                  Y: rows[Y].values,
@@ -129,9 +129,9 @@ def read_track_csv(input_path, pickle_path, reload = True, group_by = 'frames', 
                                  }
         current_group = current_group + 1
     pickle_out = open(pickle_path, "wb")
-    pickle.dump([groups, highway_length], pickle_out)
+    pickle.dump(groups, pickle_out)
     pickle_out.close()
-    return groups, highway_length
+    return groups
 
 
 def read_static_info(input_static_path):

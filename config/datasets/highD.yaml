@@ -7,3 +7,5 @@ val_ind: range(47,52)
 te_ind:  range(52,57)
 image_width: 200
 image_height: 80
+TRAIN_DATASET_DIR: '../../Dataset/Processed_highD/RenderedDataset/'
+TEST_DATASET_DIR: '../../Dataset/Processed_highD/RenderedDataset/'

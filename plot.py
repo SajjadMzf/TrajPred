@@ -7,10 +7,30 @@ import params
 from matplotlib.backends.backend_pdf import PdfPages
 font = {'size'   : 24}
 matplotlib.rcParams['figure.figsize'] = (16, 12)
-p = params.Parameters(SELECTED_MODEL = 'VLSTM', SELECTED_DATASET = 'HIGHD', UNBALANCED = False, ABLATION = False)
-prediction_seq = p.SEQ_LEN - p.IN_SEQ_LEN + 1
+#p = params.Parameters(SELECTED_MODEL = 'VLSTM', SELECTED_DATASET = 'HIGHD', UNBALANCED = False, ABLATION = False)
+#prediction_seq = p.SEQ_LEN - p.IN_SEQ_LEN + 1
 matplotlib.rc('font', **font)
 
+
+
+
+import matplotlib.pyplot as plt
+import numpy as np
+import math
+lr = 0.002
+lr_array = np.ones((300*9735))*lr
+lr_wu = 100000
+batch = np.arange(1,300*9735 + 1)
+lr_decay = 1/np.sqrt(batch[lr_wu:]-lr_wu)
+lr_array[:lr_wu] = lr*batch[:lr_wu]/lr_wu
+lr_array[lr_wu:] = lr*lr_decay
+
+plt.plot(batch[lr_wu:], lr_decay)
+#plt.plot(batch, lr_array)
+plt.grid()
+plt.show()
+
+exit()
 # CL figure
 with PdfPages('cl.pdf') as export_pdf:
     fig = plt.figure()

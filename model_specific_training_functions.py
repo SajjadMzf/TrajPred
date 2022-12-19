@@ -1,10 +1,23 @@
 import torch
 import torch.nn.functional as F
 import numpy as np
-
+from time import time
 import models_functions as mf
 
 def MMnTP_training(p, data_tuple, label_tuple, model, loss_func_tuple, device):
+    '''
+    start_all = torch.cuda.Event(enable_timing=True)
+    end_all = torch.cuda.Event(enable_timing=True)
+
+    start_model = torch.cuda.Event(enable_timing=True)
+    end_model = torch.cuda.Event(enable_timing=True)
+
+    start_loss = torch.cuda.Event(enable_timing=True)
+    end_loss = torch.cuda.Event(enable_timing=True)
+
+
+    start_all.record()
+    '''
     traj_loss_func = loss_func_tuple[0]
     man_loss_func = loss_func_tuple[1]
     man_data = label_tuple[0]
@@ -20,33 +33,44 @@ def MMnTP_training(p, data_tuple, label_tuple, model, loss_func_tuple, device):
     decoder_input = torch.stack([decoder_input, decoder_input, decoder_input], dim =1 )
     feature_data = data_tuple[0]
     
+    #start_model.record()
     output_dict = model(x = feature_data, y = decoder_input, y_mask = mf.get_y_mask(p.TGT_SEQ_LEN).to(device))
     traj_pred = output_dict['traj_pred']
     man_pred = output_dict['man_pred']
+    #end_model.record()
+    #torch.cuda.synchronize()
+    #model_time = start_model.elapsed_time(end_model)
+
     if p.MULTI_MODAL == True:
-        manouvre_index = man_gt
-        for i in range(p.TGT_SEQ_LEN):
-            current_selected_traj = traj_pred[np.arange(traj_pred.shape[0]), manouvre_index[:,i],i,:]
-            current_selected_traj = torch.unsqueeze(current_selected_traj, dim = 1)
-            
-            if i == 0:
-                selected_traj_pred = current_selected_traj
-            else:
-                selected_traj_pred =  torch.cat((selected_traj_pred, current_selected_traj), dim=1)
-        traj_pred = selected_traj_pred
-        
+        manouvre_index = man_gt # [batch_size, tgt_seq_len]
+        batch_sweep = np.arange(model.batch_size).reshape(-1,1)
+        batch_sweep = np.tile(batch_sweep, (1, p.TGT_SEQ_LEN))
+        seq_sweep = np.arange(p.TGT_SEQ_LEN).reshape(1,-1)
+        seq_sweep = np.tile(seq_sweep, (model.batch_size, 1))
+        traj_pred = traj_pred[batch_sweep,manouvre_index, seq_sweep]     
     else:
         traj_pred = traj_pred[:,0]
     
+    
+
+    #start_loss.record()
     traj_loss = traj_loss_func(traj_pred, traj_gt)
     
     if p.MAN_DEC_OUT:
-        man_loss, mode_ploss, man_ploss, time_ploss = man_loss_func(man_pred, man_gt, n_mode = model.n_mode, man_per_mode = model.man_per_mode, device = device)
+        man_loss, mode_ploss, man_ploss, time_ploss, time_bar_pred = man_loss_func(p, man_pred, man_gt, n_mode = model.n_mode, man_per_mode = model.man_per_mode, device = device)
     else:
         man_loss = 0
     
     training_loss = man_loss + p.TRAJ2CLASS_LOSS_RATIO*traj_loss 
+    #end_all.record()
+    #end_loss.record()
+    #torch.cuda.synchronize()
+    #total_time = start_all.elapsed_time(end_all)
+    #loss_time = start_loss.elapsed_time(end_loss)
     batch_print_info_dict = {
+        #'Total time':total_time,
+        #'Model time':model_time,
+        #'Loss Time': loss_time,
         'Total Loss': training_loss.cpu().data.numpy()/model.batch_size,
         'Traj Loss': traj_loss.cpu().data.numpy()/model.batch_size,
         'Man Loss': man_loss.cpu().data.numpy()/model.batch_size if p.MAN_DEC_OUT else 0,
@@ -65,6 +89,11 @@ def MMnTP_evaluation(p, data_tuple, plot_info, dataset, label_tuple, model, loss
     man_data = label_tuple[0]
     man_gt = man_data[:, p.IN_SEQ_LEN:(p.IN_SEQ_LEN+p.TGT_SEQ_LEN)]
     
+    w_ind = mf.divide_prediction_window(p.TGT_SEQ_LEN, model.man_per_mode)
+
+    _, time_bar_gt = mf.man_vector2man_n_timing(man_gt, model.man_per_mode, w_ind)
+    #man_bar_gt = man_bar_gt.to(device).type(torch.long)
+
     traj_data = data_tuple[-1]
     traj_initial_input = traj_data[:,(p.IN_SEQ_LEN-1):p.IN_SEQ_LEN] 
     traj_gt = traj_data[:,p.IN_SEQ_LEN:(p.IN_SEQ_LEN+p.TGT_SEQ_LEN)]
@@ -83,16 +112,17 @@ def MMnTP_evaluation(p, data_tuple, plot_info, dataset, label_tuple, model, loss
 
     traj_loss = traj_loss_func(BM_predicted_data_dist, traj_gt)
     if p.MAN_DEC_OUT:
-        man_loss, mode_ploss, man_ploss,time_ploss = man_loss_func(man_pred, man_gt, n_mode = model.n_mode, man_per_mode = model.man_per_mode, device = device, test_phase = True)
+        man_loss, mode_ploss, man_ploss,time_ploss, time_bar_pred = man_loss_func(p, man_pred, man_gt, n_mode = model.n_mode, man_per_mode = model.man_per_mode, device = device, test_phase = True)
     else:
         man_loss = 0
         mode_ploss = 0
         man_ploss = 0
         time_ploss = 0
+        time_bar_pred = torch.zeros((model.batch_size, model.n_mode, model.man_per_mode-1))
     evaluation_loss =  man_loss + p.TRAJ2CLASS_LOSS_RATIO*traj_loss 
     
     # Trajectory inference for all modes!
-    if eval_type == 'Test' and p.MULTI_MODAL_EVAL == True:
+    if p.MULTI_MODAL_EVAL == True:
         traj_preds = []
         data_dist_preds = []
         for mode_itr in range(model.n_mode):
@@ -119,7 +149,7 @@ def MMnTP_evaluation(p, data_tuple, plot_info, dataset, label_tuple, model, loss
         'Man Partial Loss': man_ploss.cpu().data.numpy()/model.batch_size if p.MAN_DEC_OUT else 0,
         'Time Partial Loss': time_ploss.cpu().data.numpy()/model.batch_size if p.MAN_DEC_OUT else 0,
     }
-
+   
     batch_kpi_input_dict = {    
         'data_file': data_file,
         'tv': tv_id.numpy(),
@@ -132,6 +162,8 @@ def MMnTP_evaluation(p, data_tuple, plot_info, dataset, label_tuple, model, loss
         'traj_dist_preds': data_dist_preds.cpu().data.numpy(),
         'man_gt': man_gt.cpu().data.numpy(),
         'man_preds': man_vectors.cpu().data.numpy(),
+        'time_bar_gt': time_bar_gt.cpu().data.numpy(),
+        'time_bar_preds': time_bar_pred.cpu().data.numpy(),
         'mode_prob': mode_prob.detach().cpu().data.numpy(),
     }
     return batch_print_info_dict, batch_kpi_input_dict

@@ -24,25 +24,24 @@ class ExtractScenarios:
         meta_path:'Path to meta file',
         dataset_name:'Dataset Name'):
 
-        self.obs_frames = p.OBS_LEN
-        self.pred_frames = p.PRED_LEN
-        self.pre_lc_len = p.PRE_LC_LEN
-        self.post_lc_len = p.POST_LC_LEN
+        
+        
         self.metas = rc.read_meta_info(meta_path)
-        self.fr_div = self.metas[rc.FRAME_RATE]/p.FPS
+        self.fr_div = int(self.metas[rc.FRAME_RATE]/p.FPS)
+        if self.fr_div<=0:
+            raise(ValueError('non integer fr_div'))
         self.track_path = track_path
 
-        self.file_num = file_num
+        self.file_num = file_num       
         
-        
-        self.LC_states_dir = "../../Dataset/"+ dataset_name +"/Scenarios"+ p.dir_ext
+        self.LC_states_dir = "../../Dataset/"+ dataset_name +"/Scenarios"
         if not os.path.exists(self.LC_states_dir):
             os.makedirs(self.LC_states_dir)
-        self.data_tracks, _ = rc.read_track_csv(track_path, track_pickle_path, group_by = 'tracks', reload = False, fr_div = self.fr_div)
-        self.data_frames, _ = rc.read_track_csv(track_path, frame_pickle_path, group_by = 'frames', reload = False, fr_div = self.fr_div)
-        
+        self.data_tracks = rc.read_track_csv(track_path, track_pickle_path, group_by = 'tracks', reload = False, fr_div = self.fr_div)
+        self.data_frames = rc.read_track_csv(track_path, frame_pickle_path, group_by = 'frames', reload = False, fr_div = self.fr_div)
+        self.track_list = [data_track[rc.TRACK_ID][0] for data_track in self.data_tracks]
+        self.frame_list = [data_frame[rc.FRAME][0] for data_frame in self.data_frames]
         self.statics = rc.read_static_info(static_path)
-        
 
     def extract_and_save(self): 
         
@@ -52,7 +51,6 @@ class ExtractScenarios:
         with open(file_dir, 'wb') as handle:
             pickle.dump(scenarios, handle, protocol= pickle.HIGHEST_PROTOCOL)
         return len(scenarios)
-        
 
     def get_scenarios(
         self
@@ -61,11 +59,14 @@ class ExtractScenarios:
         scenarios = []
         for tv_idx, tv_data in enumerate(self.data_tracks):
             #print('tv idx: {}'.format(tv_idx))
+            
             if tv_idx%500 == 0:
                 print('Scenario {} out of: {}'.format(tv_idx, len(self.data_tracks)))
             
-            driving_dir = self.statics[tv_idx+1][rc.DRIVING_DIRECTION] # statics is 1-based array
-            tv_id = tv_data[rc.TRACK_ID] 
+            driving_dir = self.statics[tv_data[rc.TRACK_ID][0]][rc.DRIVING_DIRECTION] # statics is based on id
+            tv_id = tv_data[rc.TRACK_ID][0]
+            #if tv_id == 284:
+            #    a = 2
             total_frames = len(tv_data[rc.FRAME])
             if total_frames<= p.LINFIT_WINDOW:
                 print('{} has short length({})'.format(tv_idx, total_frames))
@@ -73,7 +74,7 @@ class ExtractScenarios:
             grid_data = np.zeros((total_frames, 3*13))
             for fr_indx in range(total_frames):
                 frame = tv_data[rc.FRAME][fr_indx]
-                frame_data = self.data_frames[int(frame/self.fr_div -1)]
+                frame_data = self.data_frames[self.frame_list.index(frame)]
                 grid_data[fr_indx] = self.get_grid_data(tv_id, frame_data, driving_dir)
             
             label_array =  self.get_label(tv_idx, tv_data, driving_dir)
@@ -96,8 +97,7 @@ class ExtractScenarios:
             scenarios.append(scenario)
         
         return scenarios
-
-    
+   
     
     def get_label(self, tv_idx, tv_data, driving_dir):
         tv_lane = tv_data[rc.LANE_ID]
@@ -163,7 +163,6 @@ class ExtractScenarios:
         for last_idx in last_idxs:
             label_array_y[last_idx] *= -1
             
-            
         if p.PLOT_LABELS:
             
             plt.subplot(3,1,1)
@@ -209,6 +208,7 @@ class ExtractScenarios:
         tv_first_idx:'First frame index of the scenario', 
         tv_last_idx:'Last frame index of the scenario'
         )-> 'Dict containing each svs id and visibility status (None for now)':
+        # Transition from right/left following, alongside and preceding to 3 closest vehicles on the right/left lane
         tv_x = tv_data[rc.X][tv_first_idx:tv_last_idx]
 
         pv_id = tv_data[rc.PRECEDING_ID][tv_first_idx:tv_last_idx]
@@ -225,8 +225,9 @@ class ExtractScenarios:
             if tv_data[rc.RIGHT_ALONGSIDE_ID][tv_idx] == 0:
                 rv_cand1_id = int(tv_data[rc.RIGHT_PRECEDING_ID][tv_idx])
                 rv_cand2_id = int(tv_data[rc.RIGHT_FOLLOWING_ID][tv_idx])
-                rv_cand1_data = self.data_tracks[rv_cand1_id -1]
-                rv_cand2_data = self.data_tracks[rv_cand2_id -1]
+                
+                rv_cand1_data = self.data_tracks[self.track_list.index(rv_cand1_id)] if rv_cand1_id != 0 else []
+                rv_cand2_data = self.data_tracks[self.track_list.index(rv_cand2_id)] if rv_cand2_id != 0 else []
                 if rv_cand1_id == rv_cand2_id == 0:
                     continue
                 elif rv_cand1_id == 0:
@@ -255,8 +256,8 @@ class ExtractScenarios:
             if tv_data[rc.LEFT_ALONGSIDE_ID][tv_idx] == 0:
                 lv_cand1_id = int(tv_data[rc.LEFT_PRECEDING_ID][tv_idx])
                 lv_cand2_id = int(tv_data[rc.LEFT_FOLLOWING_ID][tv_idx])
-                lv_cand1_data = self.data_tracks[lv_cand1_id -1]
-                lv_cand2_data = self.data_tracks[lv_cand2_id -1]
+                lv_cand1_data = self.data_tracks[self.track_list.index(lv_cand1_id)] if lv_cand1_id != 0 else []
+                lv_cand2_data = self.data_tracks[self.track_list.index(lv_cand2_id)] if lv_cand2_id != 0 else []
                 if lv_cand1_id == lv_cand2_id == 0:
                     continue
                 elif lv_cand1_id == 0:

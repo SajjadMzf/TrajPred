@@ -106,7 +106,11 @@ def train_model_dict(p):
     #print(te_dataset.__len__())
     #exit()
     # Train/Evaluate:
-    tb = SummaryWriter()
+    if p.DEBUG_MODE:
+        tb_log_dir = "runs(debugging)/{}/{}".format(p.experiment_group,p.experiment_file)
+    else:
+        tb_log_dir = "runs/{}/{}".format(p.experiment_group,p.experiment_file)
+    tb = SummaryWriter(log_dir= tb_log_dir)
     val_result_dic = training_functions.train_top_func(p,model_train_func, model_eval_func, model_kpi_func, model, (traj_loss_func, man_loss_func), optimizer, tr_dataset, val_dataset,device, tensorboard = tb)    
     #kpi_dic = training_functions.eval_top_func(p, model_eval_func, model_kpi_func, model, (traj_loss_func, man_loss_func), te_dataset, device,  tensorboard = tb)
     #print('x')
@@ -135,10 +139,14 @@ if __name__ == '__main__':
     #1
     train_model_dict(p)
     '''
+    
     p = params.ParametersHandler('MMnTP.yaml', 'highD.yaml', './config')
+    p.hyperparams['experiment']['group'] = 'lrwub32'
+    p.hyperparams['experiment']['batch_size'] = 32
     p.hyperparams['experiment']['debug_mode'] = False
-    p.hyperparams['dataset']['ablation'] = True
-    p.hyperparams['experiment']['multi_modal_eval'] = True
+    p.hyperparams['dataset']['ablation'] = False
+    p.hyperparams['experiment']['multi_modal_eval'] = False
+    
     p.match_parameters()
     #1
     train_model_dict(p)

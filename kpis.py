@@ -50,6 +50,8 @@ def MMnTP_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
         'mode_prob': mode_prob.detach().cpu().data.numpy(),
     }
     '''
+    time_bar_gt = np.concatenate(kpi_input_dict['time_bar_gt'], axis = 0)
+    time_bar_preds = np.concatenate(kpi_input_dict['time_bar_preds'], axis = 0)
     
     man_gt = np.concatenate(kpi_input_dict['man_gt'], axis = 0)
     man_preds = np.concatenate(kpi_input_dict['man_preds'], axis = 0)
@@ -61,25 +63,30 @@ def MMnTP_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
     unique_modes = unique_modes[sorted_args]
     mode_freq = mode_freq[sorted_args]
     
-    traj_gt = np.concatenate(kpi_input_dict['traj_gt'], axis = 0)
+    dtraj_gt = np.concatenate(kpi_input_dict['traj_gt'], axis = 0)
     
-    traj_pred = np.concatenate(kpi_input_dict['traj_dist_preds'], axis = 0)
-    traj_pred = traj_pred[:,:,:,:2]
+    dtraj_pred = np.concatenate(kpi_input_dict['traj_dist_preds'], axis = 0)
+    
     traj_max = kpi_input_dict['traj_max'][0]
     traj_min = kpi_input_dict['traj_min'][0]
     
     #denormalise
-    traj_pred = traj_pred*(traj_max-traj_min) + traj_min
-    traj_gt = traj_gt*(traj_max-traj_min) + traj_min
+    dtraj_pred[:,:,:,:2] = dtraj_pred[:,:,:,:2]*(traj_max-traj_min) + traj_min
+    dtraj_pred[:,:,:,2:4] = dtraj_pred[:,:,:,2:4]*(traj_max-traj_min)
+    
+    dtraj_gt = dtraj_gt*(traj_max-traj_min) + traj_min
     #from diff to actual
-    traj_pred = np.cumsum(traj_pred, axis = 2)
-    traj_gt = np.cumsum(traj_gt, axis = 1)
+    traj_pred = np.cumsum(dtraj_pred[:,:,:,:2], axis = 2)
+    traj_gt = np.cumsum(dtraj_gt, axis = 1)
     hp_traj_pred = traj_pred[np.arange(total_samples), hp_mode]
     
+    mnll = calc_meanNLL(p, dtraj_pred, dtraj_gt, mode_prob)
     minFDE = {}
     minRMSE = {}
     minMR = {}
     minACC = {}
+    minTimeACC = {}
+    minTimeMAE = {}
     rmse = {}
     for K in range(1,min(10,mode_prob.shape[1])+1):
         if K>1 and p.MULTI_MODAL_EVAL == False:
@@ -93,10 +100,13 @@ def MMnTP_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
         kbest_modes_probs = mode_prob[index_array, kbest_modes]
         kbest_modes_probs = np.divide(kbest_modes_probs, np.sum(kbest_modes_probs, axis = 1).reshape(total_samples,1)) 
         kbest_man_preds = man_preds[index_array, kbest_modes]
+        kbest_time_bar_preds = time_bar_preds[index_array, kbest_modes]
         #print(kbest_modes_probs)
         #print(np.sum(kbest_modes_probs, axis = 1))
         #exit()
         minACC[key] = calc_man_acc(p, kbest_man_preds, man_gt)
+        minTimeACC[key], minTimeACC['min'] = calc_time_acc(p, kbest_time_bar_preds, time_bar_gt)
+        minTimeMAE[key], minTimeMAE['random'] = calc_time_mae(p, kbest_time_bar_preds, time_bar_gt)
         #sm_metrics_df, rmse = calc_sm_metric_df(p, hp_traj_pred, traj_gt)
     
         minFDE[key] = calc_minFDE(p,kbest_traj_pred, kbest_modes_probs, traj_gt)
@@ -107,9 +117,14 @@ def MMnTP_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
         'activated modes group': unique_modes,
         'activated modes percentage group': 100*mode_freq/sum(mode_freq),
         'high prob mode histogram':hp_mode,
+        'time pr histogram': time_bar_preds[:,:,0],
+        'time gt histogram': time_bar_gt[:,0],
         'minACC': minACC,
+        'minTimeACC': minTimeACC,
+        'minTimeMAE': minTimeMAE,
         'minFDE': minFDE, 
         'minRMSE': minRMSE,
+        'mnll': mnll,
         'rmse': rmse['K=1'] # minRMSE K=1 max pred horizon
     }
 
@@ -203,9 +218,46 @@ def XMTP_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
     }
 
 
-def calc_man_acc(p, man_pred, man_gt ):
+
+def calc_time_acc(p, time_pred, time_gt ):
     # takes maneouvre vector as input
     
+    total_samples = time_pred.shape[0]
+    n_mode = time_pred.shape[1]
+    change_times = time_pred.shape[2] +1
+    acc = np.zeros((total_samples, n_mode))
+    #n_invalid_times = np.sum(time_gt==-1)
+    for i in range(n_mode):
+        acc[:,i] = np.sum(np.logical_or(np.around(time_pred[:,i]) == time_gt, time_gt==-1), axis = -1)
+    best_mode = np.argmax(acc, axis = 1)
+    acc = acc[np.arange(total_samples), best_mode]
+    minACC = np.sum(acc)/(total_samples*change_times)
+    zeroPredACC = np.sum(time_gt==-1)/(total_samples*change_times)
+        
+    return minACC, zeroPredACC
+
+def calc_time_mae(p,time_pred, time_gt):
+    total_samples = time_pred.shape[0]
+    n_mode = time_pred.shape[1]
+    change_times = time_pred.shape[2]
+    mae = np.zeros((total_samples, n_mode))
+    n_valid_times = np.sum(time_gt!=-1)
+    random_time = np.random.randint(8, size = (total_samples, change_times))
+    for i in range(n_mode):
+        mae[:,i] = np.sum(np.multiply(np.abs(time_pred[:,i]- time_gt), time_gt!=-1), axis=-1)
+    random_mae = np.sum(np.multiply(np.abs(random_time- time_gt), time_gt!=-1), axis=-1)
+    best_mode = np.argmin(mae, axis = 1)
+    
+    mae = mae[np.arange(total_samples), best_mode]
+    minMAE = np.sum(mae)/n_valid_times
+    randomMAE = np.sum(random_mae)/n_valid_times
+
+    return minMAE, randomMAE
+
+
+
+def calc_man_acc(p, man_pred, man_gt ):
+    # takes maneouvre vector as input
     total_samples = man_pred.shape[0]
     n_mode = man_pred.shape[1]
     tgt_seq_len = man_pred.shape[2]
@@ -227,8 +279,8 @@ def calc_man_acc_torch( man_pred, man_gt, device = torch.device("cpu")):
     for i in range(n_mode):
         acc[:,i] = torch.sum(man_pred[:,i] == man_gt, dim = -1)/tgt_seq_len
     return acc
+
 def calc_rmse_vs_time(p,traj_pred, traj_gt):
-    
     total_samples = traj_gt.shape[0]
     prediction_ts = int(p.TGT_SEQ_LEN/p.FPS)
     if (p.TGT_SEQ_LEN/p.FPS) % 1 != 0:
@@ -270,12 +322,13 @@ def calc_fde_vs_time(p,traj_pred, traj_gt, mr_thr):
     for ts in range(prediction_ts):
         
         ts_index = (ts+1)*p.FPS
-        current_total_samples = total_samples * ts_index
         #fde
         data[0,ts] = np.sum(np.absolute(traj_pred[:,ts_index-1,0]-traj_gt[:,ts_index-1,0]))/total_samples # 0 is laterel, 1 is longitudinal
         data[1,ts] = np.sum(np.absolute(traj_pred[:,ts_index-1,1]-traj_gt[:,ts_index-1,1]))/total_samples # 0 is laterel, 1 is longitudinal
-        data[2,ts] = np.sum(np.absolute(traj_pred[:,ts_index-1,:]-traj_gt[:,ts_index-1,:]))/total_samples # 0 is laterel, 1 is longitudinal
-        data[3,ts] = np.sum(np.absolute(traj_pred[:,ts_index-1,:]-traj_gt[:,ts_index-1,:])>mr_thr)/total_samples  
+        data[2,ts] = np.sum(
+            np.sqrt(np.sum((traj_pred[:,ts_index-1,:]-traj_gt[:,ts_index-1,:])**2, axis = -1))
+        )/total_samples # 0 is laterel, 1 is longitudinal
+        data[3,ts] = np.sum(np.sqrt(np.sum((traj_pred[:,ts_index-1,:]-traj_gt[:,ts_index-1,:])**2, axis = -1))>mr_thr)/total_samples  
     fde_df = pd.DataFrame(data= data, columns = columns, index = index)
     
     return fde_df
@@ -308,8 +361,55 @@ def calc_minRMSE(p, traj_pred, mode_prob, traj_gt):
     return minRMSE, rmse
 
 
+def calc_meanNLL(p, y_pred, y_gt, mode_prob):
+    n_mode = y_pred.shape[1]
+    n_sample = y_pred.shape[0]
+    prediction_ts = int(p.TGT_SEQ_LEN/p.FPS)
+    if (p.TGT_SEQ_LEN/p.FPS) % 1 != 0:
+            raise(ValueError('Target sequence length not dividable by FPS'))
+    columns = ['<{} sec'.format(ts+1) for ts in range(prediction_ts)]
+    index = ['RMSE_lat', 'RMSE_long', 'RMSE']
+    if n_mode ==1:
+        mnll = -1*log_likelihood_numpy(p, y_pred[:,0], y_gt)
+        mnll = np.sum(mnll, axis = 0)/n_sample
+    else:
+        likelihood_per_mode = np.zeros((n_sample,n_mode , prediction_ts))
+        for i in range(n_mode):
+            log_likelihood = log_likelihood_numpy(p, y_pred[:,i], y_gt)
+            for j in range(prediction_ts):
+                likelihood_per_mode[:,i,j] = np.multiply(mode_prob[:,i], np.exp(log_likelihood[:,j]))
+        mnll = -1*np.log(np.sum(likelihood_per_mode, axis = 1))
+        mnll = np.sum(mnll, axis = 0)/n_sample
+    mnll = mnll.reshape(1,5)
+    mnll_df = pd.DataFrame(data= mnll, columns = columns, index = ['Mean_NLL'])
+    return mnll_df
 
-   
+
+def log_likelihood_numpy(p,y_pred, y_gt):
+        #print_shape('y_pred', y_pred)
+        muY = y_pred[:,:,0]
+        muX = y_pred[:,:,1]
+        sigY = y_pred[:,:,2] # sigY = standard deviation of y
+        sigX = y_pred[:,:,3] # sigX = standard deviation of x
+        rho = y_pred[:,:,4]
+        ohr = np.power(1-np.power(rho,2),-0.5)
+        y = y_gt[:,:, 0]
+        x = y_gt[:,:, 1]
+       
+        z = np.power(sigX,-2)*np.power(x-muX,2) + np.power(sigY,-2)*np.power(y-muY,2) - 2*rho*np.power(sigX,-1)*np.power(sigY, -1)*(x-muX)*(y-muY)
+        
+        denom = np.log((1/(2*math.pi))*np.power(sigX,-1)*np.power(sigY,-1)*ohr)
+        
+        ll = (denom - 0.5*np.power(ohr,2)*z)
+        #print(nll)
+        prediction_ts = int(p.TGT_SEQ_LEN/p.FPS)
+        n_sample = y_pred.shape[0]
+        ll_seq = np.zeros((n_sample, prediction_ts))
+        for ts in range(prediction_ts):
+            ts_index = (ts+1)*p.FPS
+            ll_seq[:, ts] = np.sum(ll[:, :ts_index], axis = 1)/ts_index
+        return ll_seq
+    
 
 def NLL_loss(y_pred, y_gt):
         #print_shape('y_pred', y_pred)
@@ -335,13 +435,14 @@ def NLL_loss(y_pred, y_gt):
         nll = -1*(denom - 0.5*torch.pow(ohr,2)*z)
         #print(nll)
         lossVal = torch.sum(nll)/np.prod(y.shape)
+       
         #print_value('lossval',lossVal)
         #exit()
         return lossVal
     
 
 
-def MTPM_loss(man_pred, man_vec_gt, n_mode, man_per_mode, device, alpha = 1, beta = 1, test_phase = False):
+def MTPM_loss(p, man_pred, man_vec_gt, n_mode, man_per_mode, device, test_phase = False, time_reg = True):
     # man pred: [batch_size, (1+3*man_per_mode + tgt_seq_len)*modes]
     # man_gt: [batch_size, tgt_seq_len]
     
@@ -362,23 +463,34 @@ def MTPM_loss(man_pred, man_vec_gt, n_mode, man_per_mode, device, alpha = 1, bet
     man_pr = man_pr.reshape(batch_size, n_mode, man_per_mode, 3)
     man_pr_class = torch.argmax(man_pr, dim = -1)
     man_pr = torch.permute(man_pr,(0,1,3,2))
-    time_pr = time_pr.reshape(batch_size, n_mode, tgt_seq_len)
+    if time_reg:
+        time_pr = time_pr.reshape(batch_size, n_mode, man_per_mode-1).clone()
+        for i in range(man_per_mode-1):
+            time_pr[:,:,i] = (time_pr[:,:,i]/2 + 0.5)*(w_ind[i,1]-w_ind[i,0]) 
+        time_bar_pred = time_pr
+        
+    else:
+        time_pr = time_pr.reshape(batch_size, n_mode, tgt_seq_len)
     
-    time_pr_list = []
-    for i in range(len(w_ind)):
-        time_pr_list.append(time_pr[:,:,w_ind[i,0]:w_ind[i,1]])
+        time_pr_list = []
+        for i in range(len(w_ind)):
+            time_pr_list.append(time_pr[:,:,w_ind[i,0]:w_ind[i,1]])
         
     
     loss_func = torch.nn.CrossEntropyLoss(ignore_index = -1)
     loss_func_no_r = torch.nn.CrossEntropyLoss(ignore_index = -1, reduction = 'none')
-
+    reg_loss_func_no_r = torch.nn.MSELoss(reduction = 'none')
     man_loss_list = []
     time_loss_list = []
     for mode_itr in range(n_mode):
+        
         man_loss_list.append(torch.sum(loss_func_no_r(man_pr[:,mode_itr], man_gt), dim = 1)) 
-        mode_time_loss = 0
-        for i, mode_time_pr in enumerate(time_pr_list):
-            mode_time_loss += loss_func_no_r(mode_time_pr[:,mode_itr], time_gt[:,i])
+        if time_reg:
+            mode_time_loss = torch.sum(torch.mul(reg_loss_func_no_r(time_pr[:,mode_itr], time_gt.float()), (time_gt!=-1).float()), dim = -1)
+        else:
+            mode_time_loss = 0
+            for i, mode_time_pr in enumerate(time_pr_list):
+                mode_time_loss += loss_func_no_r(mode_time_pr[:,mode_itr], time_gt[:,i])
         time_loss_list.append(mode_time_loss)
     man_losses = torch.stack(man_loss_list, dim = 1)
     time_losses = torch.stack(time_loss_list, dim = 1)
@@ -386,7 +498,7 @@ def MTPM_loss(man_pred, man_vec_gt, n_mode, man_per_mode, device, alpha = 1, bet
     man_pr = torch.permute(man_pr, (0,1,3,2))
     man_pr = man_pr.reshape(batch_size*n_mode, man_per_mode,3)
     man_pr_argmax = torch.argmax(man_pr, dim = -1)
-    time_pr = time_pr.reshape(batch_size*n_mode, tgt_seq_len)
+    #time_pr = time_pr.reshape(batch_size*n_mode, tgt_seq_len)
     # Un comment for man acc loss calculation
     '''
     time_pr_arg_list = []
@@ -408,8 +520,8 @@ def MTPM_loss(man_pred, man_vec_gt, n_mode, man_per_mode, device, alpha = 1, bet
     mode_loss = loss_func(mode_pr, winning_mode)
     man_loss = torch.mean(man_losses[np.arange(batch_size), winning_mode])
     time_loss = torch.mean(time_losses[np.arange(batch_size), winning_mode])
-    lossVal = mode_loss + alpha*man_loss + beta*time_loss 
-    return lossVal, mode_loss, man_loss, time_loss
+    lossVal = mode_loss + man_loss + time_loss 
+    return lossVal, mode_loss, man_loss, time_loss, time_bar_pred
 
 
 

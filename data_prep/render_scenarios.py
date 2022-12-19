@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import read_csv as rc
 import param as p
 from utils import rendering_funcs as rf
+import pandas
 
 class RenderScenarios:
     """This class is for rendering extracted scenarios from HighD dataset recording files (needs to be called seperately for each scenario).
@@ -15,13 +16,12 @@ class RenderScenarios:
         self,
         file_num:'Number of recording file being rendered',
         track_path:'Path to track file', 
-        pickle_path:'Path to pickle file', 
+        track_pickle_path:'Path to track pickle file', 
+        frame_pickle_path:'Path to frame pickle file',
         static_path:'Path to static file',
         meta_path:'Path to meta file',
         dataset_name: 'Dataset  Name'):
-        self.state_only = p.STATE_ONLY
-        self.pre_lc_len = p.PRE_LC_LEN
-        self.post_lc_len = p.POST_LC_LEN
+       
         self.metas = rc.read_meta_info(meta_path)
         self.fr_div = self.metas[rc.FRAME_RATE]/p.FPS
         self.track_path = track_path
@@ -48,15 +48,22 @@ class RenderScenarios:
         # 1.3 Others
         self.mid_barrier = False
         
-        self.LC_whole_imgs_rdir = "../../Dataset/" + dataset_name + "/WholeImages" + p.dir_ext
-        self.LC_cropped_imgs_rdir = "../../Dataset/" + dataset_name + "/CroppedImages" + p.dir_ext
+        self.LC_whole_imgs_rdir = "../../Dataset/" + dataset_name + "/WholeImages" 
+        self.LC_cropped_imgs_rdir = "../../Dataset/" + dataset_name + "/CroppedImages" 
         
-        self.LC_states_dir = "../../Dataset/" + dataset_name + "/Scenarios" + p.dir_ext 
-        self.LC_image_dataset_rdir = "../../Dataset/" + dataset_name + "/RenderedDataset" + p.dir_ext
+        self.LC_states_dir = "../../Dataset/" + dataset_name + "/Scenarios"  
+        self.LC_image_dataset_rdir = "../../Dataset/" + dataset_name + "/RenderedDataset" 
          
-        self.frames_data, image_width = rc.read_track_csv(track_path, pickle_path, group_by = 'frames', fr_div = self.fr_div)
-        self.statics = rc.read_static_info(static_path)
+        self.frames_data = rc.read_track_csv(track_path, frame_pickle_path, group_by = 'frames', fr_div = self.fr_div)
+        self.data_tracks = rc.read_track_csv(track_path, track_pickle_path, group_by = 'tracks', reload = False, fr_div = self.fr_div)
+        self.track_list = [data_track[rc.TRACK_ID][0] for data_track in self.data_tracks]
         
+        self.statics = rc.read_static_info(static_path)
+        df = pandas.read_csv(track_path)
+        selected_frames = (df.frame%self.fr_div == 0).real.tolist()
+        df = df.loc[selected_frames]
+        image_width = df[rc.X].max() 
+        self.frame_list = [data_frame[rc.FRAME][0] for data_frame in self.frames_data]
         self.image_width = int(image_width * self.image_scaleW)
         self.image_height = int((self.metas[rc.LOWER_LANE_MARKINGS][-1])*self.image_scaleH + self.highway_top_margin + self.highway_bottom_margin)
         self.update_dirs()
@@ -150,7 +157,7 @@ class RenderScenarios:
                 svs_ids = scenario['svs']['id'][:,fr]
                 
                 invalid_state , state_wirth, state_shou,state_ours, state_9svs, output_state, tv_lane_ind = self.calc_states(
-                    self.frames_data[int(frame/self.fr_div -1)],
+                    self.frames_data[self.frame_list.index(frame)],
                     tv_id, 
                     svs_ids,
                     driving_dir,
@@ -168,7 +175,7 @@ class RenderScenarios:
                 
                 if p.GENERATE_IMAGE_DATA:
                     cropped_img, whole_img, valid = self.plot_frame(
-                        self.frames_data[int(frame/self.fr_div -1)],
+                        self.frames_data[self.frame_list.index(frame)],
                         tv_id, 
                         svs_ids,
                         driving_dir,
@@ -223,7 +230,7 @@ class RenderScenarios:
         tv_lane_ind:'tv lane index'):
         
         veh_channel, lane_channel, obs_channel = rf.initialize_representation(self.image_width, self.image_height, rep_dtype = self.dtype, filled_value = self.filled, occlusion= False)
-        assert(frame_data[rc.FRAME]==frame)   
+        assert(frame_data[rc.FRAME][0]==frame)   
         tv_itr = np.nonzero(frame_data[rc.TRACK_ID] == tv_id)[0][0]
         svs_itr = np.array([np.nonzero(frame_data[rc.TRACK_ID] == sv_id)[0][0] if sv_id!=0 else None for sv_id in svs_ids])
         
@@ -304,7 +311,7 @@ class RenderScenarios:
         tv_lane_ind:'TV lane index',
         post_lc_only:'A flag for only producing output state'):
         
-        assert(frame_data[rc.FRAME]==frame)   
+        assert(frame_data[rc.FRAME][0]==frame)   
         invalid_data = False
         tv_itr = np.nonzero(frame_data[rc.TRACK_ID] == tv_id)[0][0]
         
@@ -338,6 +345,7 @@ class RenderScenarios:
         else:
             tv_lane_ind = frame_data[rc.LANE_ID][tv_itr]-len(self.metas[rc.UPPER_LANE_MARKINGS])-2
         
+        tv_lane_ind = int(tv_lane_ind)
         tv_left_lane_ind = tv_lane_ind + 1 if driving_dir==1 else tv_lane_ind
         if tv_lane_ind+1 >=len(tv_lane_markings):
             return True, 0, 0, 0, 0, 0, 0
@@ -351,7 +359,7 @@ class RenderScenarios:
         output_state[1] = fix_sign(frame_data[rc.X][tv_itr])
         
         
-        svs_itr = np.array([np.nonzero(frame_data[rc.TRACK_ID] == sv_id)[0][0] if sv_id!=0 else None for sv_id in svs_ids])
+        svs_itr = np.array([np.nonzero(frame_data[rc.TRACK_ID] == sv_id)[0][0] if sv_id!=0 and sv_id!=-1 else None for sv_id in svs_ids])
         # svs : [pv_id, fv_id, rv_id, rpv_id, rfv_id, lv_id, lpv_id, lfv_id]
         pv_itr = svs_itr[0]
         fv_itr = svs_itr[1]

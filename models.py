@@ -28,14 +28,19 @@ class MMnTP(nn.Module):
         self.n_mode = hyperparams_dict['number of modes']
         self.man_per_mode = hyperparams_dict['manouvre per mode']
         self.multi_modal = parameters.MULTI_MODAL
-        
+        self.time_prediction = hyperparams_dict['time prediction']
         self.prob_output = hyperparams_dict['probabilistic output']
         self.man_dec_in = parameters.MAN_DEC_IN
         self.in_seq_len = parameters.IN_SEQ_LEN
         self.tgt_seq_len = parameters.TGT_SEQ_LEN
         self.decoder_in_dim = 2
         #(mode_prob(1) + number of manoeuvre classes(3)* (number of change periods+1(self.man_per_mode)) +  timing classification tgt_seq_len )*n_mode
-        self.man_output_dim = (1+3*self.man_per_mode + self.tgt_seq_len)*self.n_mode 
+        if self.time_prediction == 'regression':
+            self.man_output_dim = (1+3*self.man_per_mode + self.man_per_mode-1)*self.n_mode 
+        elif self.time_prediction == 'classification':
+            self.man_output_dim = (1+3*self.man_per_mode + self.tgt_seq_len)*self.n_mode 
+        else:
+            raise(ValueError('Undefined time prediction method'))
         if self.man_dec_in:
             self.decoder_in_dim += 3
         
@@ -59,20 +64,28 @@ class MMnTP(nn.Module):
         ''' 3. Transformer Decoder: '''
         self.decoder_embedding = nn.Linear(self.decoder_in_dim, self.model_dim)
         self.man_decoder_embedding = nn.Linear(2, self.model_dim)
-        lk_decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
-        rlc_decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
-        llc_decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
+        decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
+        #rlc_decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
+        #llc_decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
         
-        self.lk_transformer_decoder = nn.TransformerDecoder(lk_decoder_layers, self.layers_num)
-        self.rlc_transformer_decoder = nn.TransformerDecoder(rlc_decoder_layers, self.layers_num)
-        self.llc_transformer_decoder = nn.TransformerDecoder(llc_decoder_layers, self.layers_num)
+        self.transformer_decoder = nn.TransformerDecoder(decoder_layers, self.layers_num)
+        #self.rlc_transformer_decoder = nn.TransformerDecoder(rlc_decoder_layers, self.layers_num)
+        #self.llc_transformer_decoder = nn.TransformerDecoder(llc_decoder_layers, self.layers_num)
         
         ''' 5. Trajectory Output '''
         
-        self.lk_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
+        self.lk_trajectory_fc_1 = nn.Linear(self.model_dim, self.classifier_dim)
+        self.rlc_trajectory_fc_1 = nn.Linear(self.model_dim, self.classifier_dim)
+        self.llc_trajectory_fc_1 = nn.Linear(self.model_dim, self.classifier_dim)
         
+        self.lk_trajectory_fc_2 = nn.Linear(self.classifier_dim, self.output_dim)       
+        self.rlc_trajectory_fc_2 = nn.Linear(self.classifier_dim, self.output_dim)
+        self.llc_trajectory_fc_2 = nn.Linear(self.classifier_dim, self.output_dim)
+
+        self.lk_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)       
         self.rlc_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
         self.llc_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
+        
         ''' 6. Manouvre Output '''
         
         self.dec_man_fc1 = nn.Linear(self.in_seq_len*self.model_dim, self.classifier_dim)
@@ -103,10 +116,10 @@ class MMnTP(nn.Module):
         encoder_out_flattened = encoder_out.reshape(self.batch_size, self.in_seq_len*self.model_dim)
         
         #traj decoder
-        lk_y = self.decoder_embedding(y[:,0,:,:self.decoder_in_dim])
-        lk_y = self.positional_encoder(lk_y)
-        lk_decoder_out = self.lk_transformer_decoder(lk_y, encoder_out, tgt_mask = y_mask)
-        
+        y = self.decoder_embedding(y[:,0,:,:self.decoder_in_dim])
+        y = self.positional_encoder(y)
+        decoder_out = self.transformer_decoder(y, encoder_out, tgt_mask = y_mask)
+        ''' 
         if self.multi_modal: #if single modal lk represents the single modal not the lane keeping man anymore
             rlc_y = self.decoder_embedding(y[:,1,:,:self.decoder_in_dim])
             rlc_y = self.positional_encoder(rlc_y)
@@ -115,13 +128,16 @@ class MMnTP(nn.Module):
             llc_y = self.decoder_embedding(y[:,2,:,:self.decoder_in_dim])
             llc_y = self.positional_encoder(llc_y)
             llc_decoder_out = self.lk_transformer_decoder(llc_y, encoder_out, tgt_mask = y_mask) #TODO: LK transformer is being used for all three modes
-
+        '''
         #traj decoder linear layer
         
-        lk_traj_pred = self.lk_trajectory_fc(lk_decoder_out)
+        lk_traj_pred = self.lk_trajectory_fc(decoder_out)
+        #lk_traj_pred = self.lk_trajectory_fc_2(F.relu(self.lk_trajectory_fc_1(decoder_out)))
         if self.multi_modal:
-            rlc_traj_pred = self.rlc_trajectory_fc(rlc_decoder_out)
-            llc_traj_pred = self.llc_trajectory_fc(llc_decoder_out)
+            #rlc_traj_pred = self.rlc_trajectory_fc_2(F.relu(self.rlc_trajectory_fc_1(decoder_out)))
+            #llc_traj_pred = self.llc_trajectory_fc_2(F.relu(self.llc_trajectory_fc_1(decoder_out)))
+            rlc_traj_pred = self.rlc_trajectory_fc(decoder_out)
+            llc_traj_pred = self.llc_trajectory_fc(decoder_out)
         if self.prob_output:
             lk_traj_pred = mf.prob_activation_func(lk_traj_pred)
             if self.multi_modal:

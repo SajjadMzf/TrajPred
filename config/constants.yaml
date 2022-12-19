@@ -5,8 +5,6 @@ TASKS:
   TRAJECTORYPRED: 3
 
 DIRS:
-  TRAIN_DATASET_DIR: '../../Dataset/Processed_highD/RenderedDataset/'
-  TEST_DATASET_DIR: '../../Dataset/Processed_highD/RenderedDataset/'
   MODELS_DIR: 'models/'
   RESULTS_DIR: 'results/'
   TABLES_DIR: 'results/tables/'

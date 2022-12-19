@@ -4,6 +4,7 @@ import os
 import numpy as np 
 import h5py
 import matplotlib.pyplot as plt
+import sys
 from debugging_utils import *
 class LCDataset(Dataset):
     def __init__(self, 
@@ -70,7 +71,9 @@ class LCDataset(Dataset):
 
             for i in range(len(self.states_min)):
                 if self.states_min[i] == self.states_max[i]:
-                    self.states_max[i] += np.finfo('float').eps
+                    print('Warning! Feature {} min and max values are equal!'.format(i))
+                    self.states_max[i] += 1
+                   
             
 
 

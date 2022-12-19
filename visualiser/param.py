@@ -2,7 +2,7 @@ import cv2
 DATASET = 'HIGHD'
 FPS = 5
 OCCLUSION = False
-model_name =  'MMnTP_highD_2022-11-28 14:40:30.412355'#'DMTP_highD_2022-11-29 13:21:03.655754'#'MTPMTT_highD_2022-08-22 15:47:03.709155'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-06-27 14:46:40.899317'#'ManouvreTransformerTraj_highD_2022-06-14 15:14:02.050065'
+model_name =  'MMnTP_highD_2022-12-13 00:04:36.044430'#'MMnTP_highD_2022-12-07 18:26:29.329486'#'DMTP_highD_2022-11-29 13:21:03.655754'#'MTPMTT_highD_2022-08-22 15:47:03.709155'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-06-27 14:46:40.899317'#'ManouvreTransformerTraj_highD_2022-06-14 15:14:02.050065'
 RESULT_FILE = "../results/vis_data/"+ model_name +".pickle"
 WHAT_IF_RENDERING = False
 ITERATIVE_RENDERING = True
@@ -10,8 +10,8 @@ ITERATIVE_RENDERING = True
 
 NUM_OUTPUT = 1000
 CUT_OFF_SIGMA_RATIO = 3
-N_PLOTTED_MODES = 3
-N_PLOTTED_TRAJS = 3
+N_PLOTTED_MODES = 4
+N_PLOTTED_TRAJS = 4
 MODE_PROB_THR = 0.2
 # Actual image
 

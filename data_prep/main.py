@@ -35,6 +35,7 @@ def render(core_num, file_numbers):
         renderer = RenderScenarios(
             file_number,
             p.track_paths[file_number], 
+            p.track_pickle_paths[file_number],
             p.frame_pickle_paths[file_number], 
             p.static_paths[file_number],
             p.meta_paths[file_number],
@@ -57,8 +58,8 @@ if __name__ =="__main__":
     
     # Single Core (For Debugging purposes)
     
-    i = [1]#np.arange(1,61)
-    #extract(1, i)    
+    i = np.arange(1,7)#np.arange(1,61)
+    extract(1, i)    
     render(1, i)
     exit()
     

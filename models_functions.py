@@ -3,50 +3,76 @@ import numpy as np
 import torch
 from scipy import stats
 
-def calc_man_vectors(man_pred, n_mode, man_per_mode, tgt_seq_len, device):
+def calc_man_vectors(man_pred, n_mode, man_per_mode, tgt_seq_len, device, time_reg = True):
     batch_size = man_pred.shape[0]
     #mode probabilities
     mode_pr = man_pred[:, 0:n_mode]
     man_pr = man_pred[:,n_mode:n_mode+ n_mode*3*man_per_mode]
     time_pr = man_pred[:,n_mode+ n_mode*3*man_per_mode:]
     man_pr = man_pr.reshape(batch_size, n_mode, man_per_mode, 3)
-    time_pr = time_pr.reshape(batch_size, n_mode, tgt_seq_len)
-    man_pr = torch.argmax(man_pr, dim = -1)
-    
     w_ind = divide_prediction_window(tgt_seq_len, man_per_mode)
+    
+    if time_reg:
+        time_pr = time_pr.reshape(batch_size, n_mode, man_per_mode-1).clone()
+        for i in range(man_per_mode-1):
+            time_pr[:,:,i] = (time_pr[:,:,i]/2 + 0.5)*(w_ind[i,1]-w_ind[i,0]) 
+        time_bar_pr = torch.round(time_pr).int()
+       
+    else:
+        time_pr = time_pr.reshape(batch_size, n_mode, tgt_seq_len)
+        time_bar_pr = torch.zeros((batch_size, n_mode, man_per_mode-1), device = device).int()
+        
+        for mode_itr in range(n_mode):
+            for i in range(len(w_ind)):
+                time_bar_pr[:,mode_itr,i] = torch.argmax(time_pr[:,mode_itr,w_ind[i,0]:w_ind[i,1]], dim=-1)
+    
+    man_pr = torch.argmax(man_pr, dim = -1)
+    '''
     time_pr_list = []
     for j in range(n_mode):
         time_pr_list.append([])
         for i in range(len(w_ind)):
             time_pr_list[j].append(torch.argmax(time_pr[:,j,w_ind[i,0]:w_ind[i,1]], dim=-1))
+    '''
     man_vectors = []
     for i in range(n_mode):
-        man_vectors.append(man_n_timing2man_vector(man_pr[:,i], time_pr_list[i], tgt_seq_len, w_ind))
+        man_vectors.append(man_n_timing2man_vector(man_pr[:,i], time_bar_pr[:,i], tgt_seq_len, w_ind))
     man_vectors = torch.stack(man_vectors, dim=1)
     man_vectors = man_vectors.to(device).type(torch.long)
 
     return mode_pr,man_vectors 
 
-def sel_high_prob_man( man_pred, n_mode, man_per_mode, tgt_seq_len, device):
+def sel_high_prob_man( man_pred, n_mode, man_per_mode, tgt_seq_len, device, time_reg = True):
     batch_size = man_pred.shape[0]
     #mode probabilities
     mode_pr = man_pred[:, 0:n_mode]
     man_pr = man_pred[:,n_mode:n_mode+ n_mode*3*man_per_mode]
     time_pr = man_pred[:,n_mode+ n_mode*3*man_per_mode:]
     man_pr = man_pr.reshape(batch_size, n_mode, man_per_mode, 3)
-    time_pr = time_pr.reshape(batch_size, n_mode, tgt_seq_len)
-    
-    
-    man_pr = torch.argmax(man_pr, dim = -1)
-    high_prob_mode = torch.argmax(mode_pr, dim=1)
-    
-    time_pr = time_pr[np.arange(batch_size),high_prob_mode]
     w_ind = divide_prediction_window(tgt_seq_len, man_per_mode)
-    time_pr_list = []
-    for i in range(len(w_ind)):
-        time_pr_list.append(torch.argmax(time_pr[:,w_ind[i,0]:w_ind[i,1]], dim=-1))
+    if time_reg:
+        time_pr = time_pr.reshape(batch_size, n_mode, man_per_mode-1).clone()
+        for i in range(man_per_mode-1):
+            time_pr[:,:,i] = (time_pr[:,:,i]/2 + 0.5)*(w_ind[i,1]-w_ind[i,0])
+      
+    else:
+        time_pr = time_pr.reshape(batch_size, n_mode, tgt_seq_len)
+    high_prob_mode = torch.argmax(mode_pr, dim=1)
+    time_pr = time_pr[np.arange(batch_size),high_prob_mode]
     
-    man_vector = man_n_timing2man_vector(man_pr[np.arange(batch_size),high_prob_mode], time_pr_list, tgt_seq_len, w_ind)
+    
+    if time_reg:
+        #for i in range(man_per_mode-1):
+        #    time_pr[:,:,i] = time_pr[:,:,i]*(w_ind[i,1]-w_ind[i,0])
+        time_bar_pr = torch.round(time_pr).int()
+    else:
+        time_bar_pr = torch.zeros((batch_size, man_per_mode-1), device = device).int()
+        for i in range(len(w_ind)):
+            time_bar_pr[:,i] = torch.argmax(time_pr[:,w_ind[i,0]:w_ind[i,1]], dim=-1)
+        
+    man_pr = torch.argmax(man_pr, dim = -1)
+    
+    man_vector = man_n_timing2man_vector(man_pr[np.arange(batch_size),high_prob_mode], time_bar_pr, tgt_seq_len, w_ind)
     #print(man_vector)
     #exit()
     man_vector = man_vector.to(device).type(torch.long)
@@ -99,12 +125,12 @@ def man_n_timing2man_vector(mans, times, tgt_seq_len, w_ind, device = torch.devi
     #print(times.shape)
     #print(w_ind)
 
-    
     man_vector = torch.zeros((batch_size,tgt_seq_len), device = device)
     for i in range(man_per_mode-1):
+        times[:,i] = torch.clamp(times[:,i], min = 0, max = (w_ind[i,1]-w_ind[i,0]))
         for batch_itr in range(batch_size):
-            man_vector[batch_itr,w_ind[i,0]:w_ind[i,0]+times[i][batch_itr]] = mans[batch_itr,i]
-            man_vector[batch_itr,w_ind[i,0]+times[i][batch_itr]:w_ind[i,1]] = mans[batch_itr,i+1]     
+            man_vector[batch_itr,w_ind[i,0]:w_ind[i,0]+times[batch_itr, i]] = mans[batch_itr,i]
+            man_vector[batch_itr,w_ind[i,0]+times[batch_itr, i]:w_ind[i,1]] = mans[batch_itr,i+1]     
     return man_vector
 
 def prob_activation_func(x):

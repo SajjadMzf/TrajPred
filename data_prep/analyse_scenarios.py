@@ -44,7 +44,7 @@ def get_last_idxs(
     
 def get_data_list(dataset_name, file_numbers):
     LC_states_dir = "../../Dataset/" + dataset_name + "/Scenarios" + p.dir_ext
-    fr_div = 25/p.FPS
+    fr_div = p.DATASET_FPS/p.FPS
     
     feature_list = []
     left_lane_pos_list = []
@@ -110,7 +110,7 @@ def get_data_list(dataset_name, file_numbers):
     return  feature_list, left_lane_pos_list, right_lane_pos_list, lc_indx_list, driving_dir_list, lc_type_list     
 
 def plot_all(parameter, dataset_name, file_numbers):
-    fr_div = 25/p.FPS
+    fr_div = p.DATASET_FPS/p.FPS
     # lateral_pos_list: [Number of scenarios, number of frames in each scenario (variable)]
     feature_list, left_lane_pos_list, right_lane_pos_list, lc_indx_list, driving_dir_list, lc_type_list = get_data_list(dataset_name, file_numbers)
     
