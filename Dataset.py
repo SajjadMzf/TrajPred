@@ -6,39 +6,44 @@ import h5py
 import matplotlib.pyplot as plt
 import sys
 from debugging_utils import *
+from random import shuffle
+import pdb
 class LCDataset(Dataset):
     def __init__(self, 
     dataset_dir, 
     data_files, 
     data_type, 
-    in_seq_len,
-    out_seq_len,
-    end_of_seq_skip_len,
-    state_type = '', 
+    index_file,#'in_seq_len, out_seq_len, skip_seq_len, _B for balanced(_U for unbalanced),tr_ratio,abb_val_ratio,val_ratio,test_ratio,  
+    state_type = '',
+
     keep_plot_info = True, 
     states_min = 0, 
     states_max = 0, 
-    unbalanced = False,
     force_recalc_start_indexes = False,
     import_states = False, # import min-max of states
     output_states_min = 0, 
     output_states_max = 0,
     deploy_data = False):
-
+        '''
+        Index File Format: IndexGroup_InSeqLen_OutSeqLen_SkipSeqLen_BalancedIndex_TrRatio_AbbValRatio_ValRatio_TeRatio.npy
+        IndexGroup Option: Tr, Val, Te, AbbTr, AbbVal, AbbTe
+        BalancedIndex Option: B for balanced, U for unbalanced.
+        '''
         super(LCDataset, self).__init__()
         self.data_files = data_files
         #print(data_files)
         #exit()
+        self.index_file = index_file
+        print(index_file)
+        self.main_dir = dataset_dir
         self.dataset_dirs = [os.path.join(dataset_dir, data_file) for data_file in data_files]
+        self.index_file_dirs = os.path.join(dataset_dir, self.index_file)
         self.file_size = []
         self.dataset_size = 0
         self.state_data_name = 'state_'+ state_type + '_data'
         self.data_type= data_type
-        self.in_seq_len = in_seq_len
-        self.out_seq_len = out_seq_len
-        self.end_of_seq_skip_len = end_of_seq_skip_len
-        self.total_seq_len = self.in_seq_len + self.out_seq_len
-        self.unbalanced = unbalanced
+        self.parse_index_file()
+        
         if data_type == 'image':
             self.image_only = True
             self.state_only = False
@@ -48,20 +53,11 @@ class LCDataset(Dataset):
         
         self.keep_plot_info = keep_plot_info
         
+        self.start_indexes = self.get_samples_start_index(force_recalc_start_indexes)
         
-        self.start_indexes = []
-        for data_file in self.dataset_dirs:
-            start_indexes = self.get_samples_start_index(in_seq_len, out_seq_len, end_of_seq_skip_len, data_file, force_recalc = force_recalc_start_indexes)
-            self.start_indexes.append(start_indexes)
-        
-        if unbalanced == False:
-            self.balance_dataset(force_recalc_start_indexes)
-        
-        for start_index in self.start_indexes:
-            self.dataset_size += len(start_index)
-            self.file_size.append(self.dataset_size) #Cumulative Number of samples
-        self.file_size = np.array(self.file_size)
-        print_value('dataset_size', self.dataset_size)
+        self.dataset_size = len(self.start_indexes)
+        print('{}: {}'.format(self.index_group, self.dataset_size))
+       
         if data_type == 'state':
             if import_states == True:
                 self.states_min = states_min
@@ -73,15 +69,9 @@ class LCDataset(Dataset):
                 if self.states_min[i] == self.states_max[i]:
                     print('Warning! Feature {} min and max values are equal!'.format(i))
                     self.states_max[i] += 1
-                   
-            
-
-
         else:
             self.states_min = 0
-            self.states_max = 1
-        
-        
+            self.states_max = 1  
         
         if import_states == True:
             self.output_states_min = output_states_min
@@ -96,12 +86,33 @@ class LCDataset(Dataset):
     def __len__(self):
         return self.dataset_size
 
+    def parse_index_file(self):
+        index_data = self.index_file.split('_')
+        try:
+            self.index_group = index_data[0]
+            self.in_seq_len = int(index_data[1])
+            self.out_seq_len = int(index_data[2])
+            self.end_of_seq_skip_len = int(index_data[3])
+            self.total_seq_len = self.in_seq_len + self.out_seq_len
+            self.unbalanced_status = index_data[4]
+            if index_data[4] == 'B':
+                self.unbalanced = False
+            elif index_data[4] == 'U':
+                self.unbalanced = True
+            else: 
+                raise(ValueError('wrong dataset format'))
+            self.tr_ratio = float(index_data[5])
+            self.abb_val_ratio = float(index_data[6])
+            self.val_ratio = float(index_data[7]) 
+            self.te_ratio = float(index_data[8]) 
+        except:
+            print('Wrong index file fame format.')
+
     def get_features_range(self , feature_name):
         for dataset_dir in self.dataset_dirs:
             states_min = []
             states_max = []
             with h5py.File(dataset_dir, 'r') as f:
-                
                 state_data = f[feature_name]
                 #state_data = state_data.reshape((state_data.shape[0]*state_data.shape[1],state_data.shape[2]))
                 states_min.append(np.min(state_data, axis = 0))
@@ -122,84 +133,105 @@ class LCDataset(Dataset):
         #print('states_max_all:{}'.format(np.all(states_max)))
         return states_min, states_max
                 
-    def get_samples_start_index(self, in_seq_len, out_seq_len, end_of_seq_skip_len, data_file, force_recalc = False):
-        sample_start_indx_file = data_file.replace('.h5', '_start_indx_{}_{}_{}.npy'.format(in_seq_len, out_seq_len, end_of_seq_skip_len))
-        if force_recalc or (not os.path.exists(sample_start_indx_file)):
+    def get_samples_start_index(self,force_recalc = False):
+        
+        if force_recalc or (not os.path.exists(self.index_file_dirs)):
+            print('Extracing start indexes for all index groups')
             samples_start_index = []
-            with h5py.File(data_file, 'r') as f:
-                tv_ids = f['tv_data']
-                len_scenario = tv_ids.shape[0]
-                for itr, tv_id in enumerate(tv_ids):
-                    if (itr+in_seq_len+out_seq_len+end_of_seq_skip_len) <= len_scenario:
-                        if np.all(tv_ids[itr:(itr+in_seq_len+out_seq_len+end_of_seq_skip_len)] == tv_id):
-                            samples_start_index.append(itr)         
-            samples_start_index = np.array(samples_start_index)
-            np.save(sample_start_indx_file, samples_start_index)
-            print('Saving file: {}'.format(sample_start_indx_file))
-        else:
-            #print('loading {}'.format(sample_start_indx_file))
-            samples_start_index = np.load(sample_start_indx_file)
+            valid_tv = -1
+            for file_itr, data_file in enumerate(self.dataset_dirs):
+                #if file_itr>1:
+                #    break
+                print('File: {}'.format(data_file))
+                with h5py.File(data_file, 'r') as f:
+                    tv_ids = f['tv_data']
+                    len_scenario = tv_ids.shape[0]
+                    current_tv = -1
+                    for itr, tv_id in enumerate(tv_ids):
+                        print('{}/{}'.format(itr, len(tv_ids)), end = '\r')
+                        if (itr+self.in_seq_len+self.out_seq_len+self.end_of_seq_skip_len) <= len_scenario:
+                            if np.all(tv_ids[itr:(itr+self.in_seq_len+self.out_seq_len+self.end_of_seq_skip_len)] == tv_id):
+                                if tv_id != current_tv:
+                                    samples_start_index.append([])
+                                    valid_tv+=1
+                                    current_tv = tv_id
+                                samples_start_index[valid_tv].append([file_itr, itr])
+            samples_start_index = [np.array(samples_start_index[itr]) for itr in range(len(samples_start_index))]
+            shuffle(samples_start_index)
+            
 
+            n_tracks = len(samples_start_index)
+            tr_samples = int(n_tracks*self.tr_ratio)
+            abbVal_samples = int(n_tracks*self.abb_val_ratio)
+            val_samples = int(n_tracks*self.val_ratio)
+            te_samples = int(n_tracks*self.te_ratio)
+            index_groups = ['Tr', 'Val', 'AbbTe', 'Te', 'AbbTr', 'AbbVal']
+            unbalanced_inds = ['U', 'B']
+            
+            start_indexes = {}
+            start_indexes['B'] = {}
+            start_indexes['U'] = {}
+            
+            start_indexes['U']['Tr'] = samples_start_index[:tr_samples]
+            start_indexes['U']['Val'] = samples_start_index[tr_samples:(tr_samples + abbVal_samples)]
+            start_indexes['U']['AbbTe'] = samples_start_index[tr_samples:(tr_samples + abbVal_samples)]
+            start_indexes['U']['Te'] = samples_start_index[(tr_samples+ abbVal_samples):(tr_samples + abbVal_samples+te_samples)]
+            start_indexes['U']['AbbTr'] = samples_start_index[abbVal_samples:tr_samples]
+            start_indexes['U']['AbbVal'] = samples_start_index[:abbVal_samples]
+            for index_group in index_groups: 
+                print('Balancing {} dataset...'.format(index_group))
+                start_indexes['U'][index_group] = np.concatenate(start_indexes['U'][index_group] , axis = 0)
+                start_indexes['B'][index_group] = self.balance_dataset(start_indexes['U'][index_group])
+            
+            for ub_ind in unbalanced_inds:
+                index_file = modify_index_file(self.index_file, unbalanced_ind = ub_ind)
+                for index_group in index_groups:
+                    index_file = modify_index_file(index_file, index_group = index_group)
+                    
+                    index_file_dir = os.path.join(self.main_dir, index_file)
+                    #samples_start_index = np.concatenate(start_indexes['B'][index_group] , axis = 0)
+                    random_itrs = np.random.permutation(len(start_indexes[ub_ind][index_group]))
+                    start_indexes[ub_ind][index_group] = start_indexes[ub_ind][index_group][random_itrs]
+                    print('{}-{}: {}'.format(index_group, ub_ind, len(start_indexes[ub_ind][index_group])))
+                    np.save(index_file_dir, start_indexes[ub_ind][index_group])
+            
+            samples_start_index = start_indexes[self.unbalanced_status][self.index_group]
+                
+        else:
+            samples_start_index = np.load(self.index_file_dirs)
+       
         return samples_start_index
     
-    def balance_dataset(self, force_recalc = False):
+    def balance_dataset(self, start_index):
         #force_recalc = True
-        unbalanced_indexes = self.start_indexes
-        self.start_indexes = []
-        for itr, data_file in enumerate(self.dataset_dirs):
-            sample_start_indx_file = data_file.replace('.h5', '_start_indx_{}_{}_{}_B.npy'.format(self.in_seq_len, self.out_seq_len, self.end_of_seq_skip_len))
-            if force_recalc or (not os.path.exists(sample_start_indx_file)):
-                print('Balancing dataset file: {}'.format(sample_start_indx_file))
-                with h5py.File(data_file, 'r') as f:
-                    labels_data = f['labels']
-                    balanced_scenarios = np.zeros_like(unbalanced_indexes[itr])
-                    
-                    lc_count_in_lc_scenarios = 0
-                    lk_count_in_lc_scenarios = 0
-                    
-                    for start_index_itr, start_index in enumerate(unbalanced_indexes[itr]):
-                        label = abs(labels_data[(start_index+self.in_seq_len):(start_index+self.total_seq_len)])
-                        #lc_count += np.count_nonzero(label>0)
-                        #lk_count += np.count_nonzero(label==0)
-                        
-                        balanced_scenarios[start_index_itr] = np.any(label)*2 # 2 is lc scenario
-                        if np.any(label):
-                            lc_count_in_lc_scenarios += np.count_nonzero(label>0)
-                            lk_count_in_lc_scenarios += np.count_nonzero(label==0)
-                     
-                    #print_value('lc_count_in_lc_scenarios',lc_count_in_lc_scenarios)
-                    #print_value('lk_count_in_lc_scenarios',lk_count_in_lc_scenarios)
-                    if lc_count_in_lc_scenarios> lk_count_in_lc_scenarios + self.out_seq_len:
-                        lk_balanced_count = int((lc_count_in_lc_scenarios-lk_count_in_lc_scenarios)/self.out_seq_len)
-                        lk_args = np.argwhere(balanced_scenarios == 0)
-                        #print(lk_args.shape)
-                        lk_balanced_args = np.random.permutation(lk_args[:,0])[:lk_balanced_count]
-                        #print(balanced_scenarios.shape)
-                        #exit()
-                        print_value('lk_balanced_count', lk_balanced_count)
-                        balanced_scenarios[lk_balanced_args] = 1 # 1 is lk scenario
 
-                balanced_start_indexes = unbalanced_indexes[itr][balanced_scenarios>0]
-                np.save(sample_start_indx_file, balanced_start_indexes)
-            else:
-                #print('loading {}'.format(sample_start_indx_file))
-                balanced_start_indexes = np.load(sample_start_indx_file)
-            self.start_indexes.append(balanced_start_indexes)
-        self.start_indexes = np.array(self.start_indexes)
+        lc_count_in_lc_scenarios = 0
+        lk_count_in_lc_scenarios = 0
+        balanced_scenarios = np.zeros((len(start_index)))
+        for itr in range(len(start_index)):
+            print('{}/{}'.format(itr, len(start_index)), end = '\r')
+            file_itr = start_index[itr, 0]
+            with h5py.File(self.dataset_dirs[file_itr], 'r') as f: #TODO you may save all labels in an array before this loop
+                labels_data = f['labels']
+                start_itr = start_index[itr,1]
+                label = abs(labels_data[(start_itr+self.in_seq_len):(start_itr+self.total_seq_len)])    
+                balanced_scenarios[itr] = np.any(label)*2 # 2 is lc scenario, if there is a lc man at any time-step of sample, considered it in balanced dataset
+                if np.any(label):
+                    lc_count_in_lc_scenarios += np.count_nonzero(label>0)
+                    lk_count_in_lc_scenarios += np.count_nonzero(label==0)
+                  
+        if lc_count_in_lc_scenarios> lk_count_in_lc_scenarios + self.out_seq_len:
+            lk_balanced_count = int((lc_count_in_lc_scenarios-lk_count_in_lc_scenarios)/self.out_seq_len)
+            lk_args = np.argwhere(balanced_scenarios == 0)
+            lk_balanced_args = np.random.permutation(lk_args[:,0])[:lk_balanced_count]
+            balanced_scenarios[lk_balanced_args] = 1 # 1 is balanced lk scenario
+        
+
+        return start_index[balanced_scenarios>0]
 
     def __getitem__(self, idx):
-        assert(idx != self.dataset_size)
-        if torch.is_tensor(idx):
-            idx = idx.tolist()       
-        file_itr = np.argmax(self.file_size>idx)
-        if file_itr>0:
-            sample_itr = idx - self.file_size[file_itr-1]
-        else:
-            sample_itr = idx
-        
-    
-        start_index = self.start_indexes[file_itr][sample_itr]
-        
+        file_itr = self.start_indexes[idx,0]
+        start_index = self.start_indexes[idx,1]
         with h5py.File(self.dataset_dirs[file_itr], 'r') as f:
             
             if self.data_type == 'state':
@@ -246,3 +278,29 @@ class LCDataset(Dataset):
             label = np.absolute(labels_data[(start_index):(start_index+self.total_seq_len)].astype(np.long))
             ttlc_status = ttlc_available[start_index].astype(np.long)  # constant number for all frames of same scenario        
         return data_output, label, plot_output, ttlc_status
+
+def get_index_file(p, index_group):
+    '''
+        Index File Format: IndexGroup_InSeqLen_OutSeqLen_SkipSeqLen_BalancedIndex_TrRatio_AbbValRatio_ValRatio_TeRatio.npy
+        IndexGroup Option: Tr, Val, Te, AbbTr, AbbVal, AbbTe
+        BalancedIndex Option: B for balanced, U for unbalanced.
+    '''
+    if p.ABLATION:
+        index_group = 'Abb' + index_group
+    if p.UNBALANCED:
+        unbalanced_ind = 'U'
+    else:
+        unbalanced_ind = 'B'
+    index_file = '{}_{}_{}_{}_{}_{}_{}_{}_{}_.npy'.format(index_group, p.IN_SEQ_LEN, p.TGT_SEQ_LEN, p.SKIP_SEQ_LEN, unbalanced_ind, p.TR_RATIO, p.ABBVAL_RATIO, p.VAL_RATIO, p.TE_RATIO)
+    return index_file
+
+def modify_index_file(index_file,index_group = None, unbalanced_ind = None):
+    
+    index_list = index_file.split('_')
+    if index_group is not None:
+        index_list[0] = index_group
+    if unbalanced_ind is not None:
+        index_list[4] = unbalanced_ind
+    index_file = '_'.join(index_list)
+    return index_file
+                

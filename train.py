@@ -46,7 +46,7 @@ def train_model_dict(p):
     random.seed(1)
 
     # Instantiate Model:
-    #print('x')
+   
     model = p.model_dictionary['ref'](p.BATCH_SIZE, device, p.model_dictionary['hyperparams'], p)
     model = model.to(device)
     optimizer = p.model_dictionary['optimizer'](params = model.parameters(), lr = p.LR)
@@ -59,52 +59,37 @@ def train_model_dict(p):
     model_eval_func = p.model_dictionary['model evaluation function']
     model_kpi_func = p.model_dictionary['model kpi function']
     
-    tr_dataset = Dataset.LCDataset(p.TRAIN_DATASET_DIR, p.TR_DATA_FILES,
-        in_seq_len = p.IN_SEQ_LEN,
-        out_seq_len = p.TGT_SEQ_LEN,
-        end_of_seq_skip_len = p.SKIP_SEQ_LEN, 
+    tr_dataset = Dataset.LCDataset(p.DATASET_DIR, p.DATA_FILES,
+        index_file = Dataset.get_index_file(p,  'Tr'),
         data_type = p.model_dictionary['data type'], 
         state_type = p.model_dictionary['state type'], 
         keep_plot_info= False, 
-        unbalanced = p.UNBALANCED,
         force_recalc_start_indexes = False)
-    #print(tr_dataset.states_max-tr_dataset.states_min)
-    #assert np.all((tr_dataset.states_max-tr_dataset.states_min)>0)
-    #print('output state min: {}, output state max: {}'.format(tr_dataset.output_states_min, tr_dataset.output_states_max))
-    #exit()
-    #print('x')
-    val_dataset = Dataset.LCDataset(p.TRAIN_DATASET_DIR, p.VAL_DATA_FILES,
-        in_seq_len = p.IN_SEQ_LEN,
-        out_seq_len = p.TGT_SEQ_LEN,
-        end_of_seq_skip_len = p.SKIP_SEQ_LEN,
+  
+    val_dataset = Dataset.LCDataset(p.DATASET_DIR, p.DATA_FILES,
+        index_file = Dataset.get_index_file(p,  'Val'),
         data_type = p.model_dictionary['data type'], 
         state_type = p.model_dictionary['state type'], 
         keep_plot_info= True, 
         import_states = True,
-        unbalanced = p.UNBALANCED,
         force_recalc_start_indexes = False,
         states_min = tr_dataset.states_min, 
         states_max = tr_dataset.states_max, 
         output_states_min = tr_dataset.output_states_min,
         output_states_max = tr_dataset.output_states_max)
-    te_dataset = Dataset.LCDataset(p.TEST_DATASET_DIR, p.TE_DATA_FILES,
-        in_seq_len = p.IN_SEQ_LEN,
-        out_seq_len = p.TGT_SEQ_LEN,
-        end_of_seq_skip_len = p.SKIP_SEQ_LEN,  
+    
+    te_dataset = Dataset.LCDataset(p.DATASET_DIR, p.DATA_FILES,
+        index_file = Dataset.get_index_file(p,  'Te'),
         data_type = p.model_dictionary['data type'],
         state_type = p.model_dictionary['state type'], 
         keep_plot_info= True, 
         import_states = True,
-        unbalanced = p.UNBALANCED,
         force_recalc_start_indexes = False,
         states_min = tr_dataset.states_min, 
         states_max = tr_dataset.states_max, 
         output_states_min = tr_dataset.output_states_min, 
         output_states_max = tr_dataset.output_states_max)
-    #print(tr_dataset.__len__())
-    #print(val_dataset.__len__())
-    #print(te_dataset.__len__())
-    #exit()
+    
     # Train/Evaluate:
     if p.DEBUG_MODE:
         tb_log_dir = "runs(debugging)/{}/{}".format(p.experiment_group,p.experiment_file)
@@ -142,7 +127,7 @@ if __name__ == '__main__':
     
     p = params.ParametersHandler('MMnTP.yaml', 'highD.yaml', './config')
     p.hyperparams['experiment']['group'] = 'lrwub32'
-    p.hyperparams['experiment']['batch_size'] = 32
+    p.hyperparams['training']['batch_size'] = 32
     p.hyperparams['experiment']['debug_mode'] = False
     p.hyperparams['dataset']['ablation'] = False
     p.hyperparams['experiment']['multi_modal_eval'] = False

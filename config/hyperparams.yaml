@@ -10,14 +10,14 @@ experiment:
 
 training:
   batch_size: 32
-  lr: 0.001 #0.0015 #0.000001 0.01#0.00001
-  lr_wu: True
+  lr: 0.001 # 0.001 #0.0015 #0.000001 0.01#0.00001
+  lr_wu: True #True
   lr_wu_batches: 75000
   lr_wu_current_batch: 0
   traj2class_loss_ratio: 1
   lr_decay: 'none' # 'inv-sqrt' or 'none'
-  num_epochs: 300
-  patience: 300
+  num_epochs: 150 #300
+  patience: 150 #300
   skip_validation_epoch: 100
   tr_jump_step: 1  
 

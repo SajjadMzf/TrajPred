@@ -231,7 +231,7 @@ def eval_model(p, tb, model_eval_func, model_kpi_func, model, loss_func_tuple, t
     #model.eval()
     for batch_idx, (data_tuple, labels, plot_info, _) in enumerate(test_loader):
         if p.DEBUG_MODE == True:
-            if batch_idx >3: 
+            if batch_idx >2: 
                 break
         
         

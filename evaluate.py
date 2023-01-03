@@ -51,27 +51,21 @@ def test_model_dict(p):
     else:
         traj_loss_func = p.model_dictionary['traj loss function']()
     # Instantiate Dataset: 
-    tr_dataset = Dataset.LCDataset(p.TRAIN_DATASET_DIR, p.TR_DATA_FILES, 
-        in_seq_len = p.IN_SEQ_LEN,
-        out_seq_len = p.TGT_SEQ_LEN,
-        end_of_seq_skip_len = p.SKIP_SEQ_LEN,
+    tr_dataset = Dataset.LCDataset(p.DATASET_DIR, p.DATA_FILES,
+        index_file = Dataset.get_index_file(p,  'Tr'),
         data_type = p.model_dictionary['data type'], 
         state_type = p.model_dictionary['state type'], 
         keep_plot_info= False, 
-        unbalanced = p.UNBALANCED,
         force_recalc_start_indexes = False)
     #val_dataset = Dataset.LCDataset(p.TRAIN_DATASET_DIR, p.VAL_DATA_FILES,  data_type = p.model_dictionary['data type'], state_type = p.model_dictionary['state type'], keep_plot_info= False, states_min = tr_dataset.states_min, states_max = tr_dataset.states_max, output_states_min = tr_dataset.output_states_min, output_states_max = tr_dataset.output_states_max)
-    print(p.TE_DATA_FILES)
+    
     #exit()
-    te_dataset = Dataset.LCDataset(p.TEST_DATASET_DIR, p.TE_DATA_FILES,
-        in_seq_len = p.IN_SEQ_LEN,
-        out_seq_len = p.TGT_SEQ_LEN,
-        end_of_seq_skip_len = p.SKIP_SEQ_LEN,
+    te_dataset = Dataset.LCDataset(p.DATASET_DIR, p.DATA_FILES,
+        index_file = Dataset.get_index_file(p,  'Te'),
         data_type = p.model_dictionary['data type'], 
         state_type = p.model_dictionary['state type'], 
         keep_plot_info= True, 
         import_states = True,
-        unbalanced = p.UNBALANCED,
         force_recalc_start_indexes = False,
         states_min = tr_dataset.states_min, 
         states_max = tr_dataset.states_max,
@@ -96,12 +90,19 @@ if __name__ == '__main__':
     # best single modal:  MMnTP_highD_2022-12-15 17:14:00.945749
     # best multimodal lrwu: MMnTP_highD_2022-12-18 12:52:02.746369
     # best multimodal: MMnTP_highD_2022-12-15 02:32:37.645562
-    experiment_file = 'experiments/MMnTP_highD_2022-12-15 17:14:00.945749' # MMnTP_highD_2022-12-15 17:14:00.945749' #MMnTP_highD_2022-12-13 21:56:41.942975'#MMnTP_highD_2022-12-13 21:56:41.942975' # experiments/DMTP_highD_2022-11-29 13:21:03.655754'#'experiments/DMTP_highD_2022-11-29 13:21:03.655754'
+    experiment_file = 'experiments/MMnTP_highD_2022-12-28 14:36:51.131489'
+    #experiment_file = 'experiments/MMnTP_highD_2022-12-26 12:04:28.815518' # MMnTP_highD_2022-12-22 14:49:45.748493 # MMnTP_highD_2022-12-15 17:14:00.945749' #MMnTP_highD_2022-12-13 21:56:41.942975'#MMnTP_highD_2022-12-13 21:56:41.942975' # experiments/DMTP_highD_2022-11-29 13:21:03.655754'#'experiments/DMTP_highD_2022-11-29 13:21:03.655754'
+    #experiment_file = 'experiments/MMnTP_highD_2022-12-25 21:11:40.447451' # mode 6
+    #experiment_file = 'experiments/MMnTP_highD_2022-12-25 15:00:08.599420' # mode 3
+    #experiment_file = 'experiments/MMnTP_highD_2022-12-25 10:42:47.268866' # mode 1
+
     p.import_experiment(experiment_file)
     p.hyperparams['experiment']['debug_mode'] = False
-    p.hyperparams['dataset']['balanced'] = True
+    p.hyperparams['dataset']['balanced'] = False
     p.hyperparams['training']['batch_size'] = 64
-    p.hyperparams['experiment']['multi_modal_eval'] = False
+    p.hyperparams['experiment']['multi_modal_eval'] = True
+    if p.hyperparams['model']['multi_modal'] == False:
+        p.hyperparams['experiment']['multi_modal_eval'] = False
     # make sure to use following function to update hyperparameters
     p.match_parameters()
     test_model_dict(p)

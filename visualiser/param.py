@@ -1,18 +1,23 @@
 import cv2
+import numpy as np
 DATASET = 'HIGHD'
 FPS = 5
 OCCLUSION = False
-model_name =  'MMnTP_highD_2022-12-13 00:04:36.044430'#'MMnTP_highD_2022-12-07 18:26:29.329486'#'DMTP_highD_2022-11-29 13:21:03.655754'#'MTPMTT_highD_2022-08-22 15:47:03.709155'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-06-27 14:46:40.899317'#'ManouvreTransformerTraj_highD_2022-06-14 15:14:02.050065'
+model_name =  'MMnTP_highD_2022-12-25 21:11:40.447451'#'MMnTP_highD_2022-12-07 18:26:29.329486'#'DMTP_highD_2022-11-29 13:21:03.655754'#'MTPMTT_highD_2022-08-22 15:47:03.709155'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-06-27 14:46:40.899317'#'ManouvreTransformerTraj_highD_2022-06-14 15:14:02.050065'
 RESULT_FILE = "../results/vis_data/"+ model_name +".pickle"
 WHAT_IF_RENDERING = False
 ITERATIVE_RENDERING = True
 
+# SPECIFIC VIS:
+SPECIFIC_VIS = False
+SPECIFIC_PAIRS = [(14, 237)]
 
-NUM_OUTPUT = 1000
+
+NUM_OUTPUT = 10000
 CUT_OFF_SIGMA_RATIO = 3
-N_PLOTTED_MODES = 4
-N_PLOTTED_TRAJS = 4
-MODE_PROB_THR = 0.2
+N_PLOTTED_MODES = 3
+N_PLOTTED_TRAJS = 3
+MODE_PROB_THR = 0.1
 # Actual image
 
 # TAGS:
@@ -29,7 +34,8 @@ FONT = cv2.FONT_HERSHEY_SIMPLEX
 FSCALE = 1
 FCOLOR = (0,0,0)
 LINETYPE = 1
-CLASS = ['LK', 'RLC', 'LLC']
+CLASS = np.array(['LK', 'RLC', 'LLC'])
+HATCHS = ['--','\\\\','//']
 CLASS2NUM = {'LK':0, 'RLC':1, 'LLC':2}
 
 LINE_BREAK = 20

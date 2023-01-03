@@ -81,19 +81,15 @@ class ParametersHandler:
         self.VAL_SCORE = self.hyperparams['model']['validation_score']
         self.LOWER_BETTER_VAL_SCORE = self.hyperparams['model']['lower_better_val_score']
         
-        
+        self.DATASET_DIR = self.dataset['dataset_dir']
         self.IMAGE_HEIGHT = self.dataset['image_height']
         self.IMAGE_WIDTH = self.dataset['image_width']
-        
-        if self.ABLATION:
-            self.TR_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in eval(self.dataset['abb_tr_ind'])]
-            self.VAL_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in eval(self.dataset['abb_val_ind'])]
-            self.TE_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in eval(self.dataset['abb_te_ind'])]
-        else:
-            self.TR_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in eval(self.dataset['tr_ind'])]
-            self.VAL_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in eval(self.dataset['val_ind'])]
-            self.TE_DATA_FILES = [ str(i).zfill(2)+'.h5' for i in eval(self.dataset['te_ind'])]
-        #print(self.TR_DATA_FILES)
+        self.TR_RATIO = self.dataset['train']
+        self.VAL_RATIO = self.dataset['val']
+        self.TE_RATIO = self.dataset['test']
+        self.ABBVAL_RATIO = self.dataset['abblation_val']
+        self.DATA_FILES = [ str(i).zfill(2)+'.h5' for i in eval(self.dataset['dataset_ind'])]
+            
         #exit()
         # Prediction Problem Hyperparameters:
         self.FPS = self.hyperparams['problem']['FPS']
@@ -120,8 +116,7 @@ class ParametersHandler:
             self.unblanaced_ext = self.constants['DIRS']['UNBALANCED_EXT']
         else:
             self.unblanaced_ext = ''
-        self.TRAIN_DATASET_DIR = self.dataset['TRAIN_DATASET_DIR']
-        self.TEST_DATASET_DIR = self.dataset['TEST_DATASET_DIR']
+        
         
 
         self.MODELS_DIR = self.constants['DIRS']['MODELS_DIR']

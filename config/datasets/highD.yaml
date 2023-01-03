@@ -1,11 +1,9 @@
 name: highD
-abb_tr_ind: range(1,42)
-abb_val_ind: range(42,47)
-abb_te_ind: range(47,52)
-tr_ind: range(1,47)
-val_ind: range(47,52)
-te_ind:  range(52,57)
+train: 0.7
+abblation_val: 0.1
+val: 0.1
+test: 0.2
 image_width: 200
 image_height: 80
-TRAIN_DATASET_DIR: '../../Dataset/Processed_highD/RenderedDataset/'
-TEST_DATASET_DIR: '../../Dataset/Processed_highD/RenderedDataset/'
+dataset_dir: '../../Dataset/Processed_highD/RenderedDataset/'
+dataset_ind: range(1,60)
