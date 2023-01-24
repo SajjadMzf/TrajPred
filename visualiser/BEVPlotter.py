@@ -185,6 +185,7 @@ class BEVPlotter:
         end = time_func.time()
         print('sorting ends in {}s.'.format(end-start))
         if p.SPECIFIC_VIS:
+            spec_vis_counter = len(p.SPECIFIC_PAIRS)
             print('Looking for specific data...')
         plotted_data_number = 0
         # for each scenario
@@ -197,9 +198,8 @@ class BEVPlotter:
             self.statics = rc.read_static_info(static_path)
             driving_dir = self.statics[tv_id][rc.DRIVING_DIRECTION]
             file_tv_pair = (data_file, tv_id)
-            if p.SPECIFIC_VIS:
-                if file_tv_pair not in p.SPECIFIC_PAIRS:
-                    continue
+            if p.SPECIFIC_VIS and (file_tv_pair not in p.SPECIFIC_PAIRS):
+                continue
             print('TV ID: {}, List of Available Frames: {}, dd:{}'.format(tv_id, sorted_dict[i]['times'], driving_dir ))
             if driving_dir !=2: #TODO: rotate driving_dir=1 data
                 continue
@@ -231,7 +231,9 @@ class BEVPlotter:
                 print("Scene Number: {}".format(plotted_data_number))
                 if plotted_data_number >= self.num_output:
                     break
-            if plotted_data_number >= self.num_output or p.SPECIFIC_VIS:
+            if p.SPECIFIC_VIS:
+                spec_vis_counter-=1
+            if plotted_data_number >= self.num_output or spec_vis_counter==0:
                 break 
         return plotted_data_number
 
@@ -566,22 +568,40 @@ class BEVPlotter:
        
         if p.PLOT_MAN and seq_fr == in_seq_len -1:
             
-            fig = plt.figure(figsize=(16, 5))
-            gs = gridspec.GridSpec(p.N_PLOTTED_MODES+1, 1) 
-            axes = []
-            for i in range(p.N_PLOTTED_MODES+1):
-                axes.append(fig.add_subplot(gs[i]))
+            #fig = plt.figure(figsize=(10, 4))
+            #gs = gridspec.GridSpec(p.N_PLOTTED_MODES+1, 1) 
+            #axes = []
+            #for i in range(p.N_PLOTTED_MODES+1):
+            #    axes.append(fig.add_subplot(gs[i]))
+            #fig, ax = plt.subplots(figsize=(10, 4))
+            fig, ax = plt.subplots(figsize=(16, 4))
+            
+            ax.grid(axis = 'x')
+            ax.set_axisbelow(True)
             mode_prob = self.softmax(mode_prob)
             for i in range(p.N_PLOTTED_MODES):
-                prob = mode_prob[sorted_modes[i]]
+                #print(i)
                 msv = man_preds[sorted_modes[i]]
                 if i == p.N_PLOTTED_MODES-1:
                     plot_xlabel = True
                 else:
                     plot_xlabel = False
-                pf.hbar(axes[i+1],'Mode#{} (P={}%)'.format(i+1, int(prob*100)),pf.msv2hbar(msv),p.COLOR_NAMES[i],plot_xlabel)
-            pf.hbar(axes[0], 'Ground-Truth', pf.msv2hbar(man_labels), 'black', edgecolor='dimgray')
-            fig.tight_layout(pad=0.5)
+                pf.hbar(ax,(p.N_PLOTTED_MODES-i-1)*0.75,'',pf.msv2hbar(msv),p.COLOR_NAMES[i],plot_xlabel)
+            pf.hbar(ax,(p.N_PLOTTED_MODES)*0.75, 'Ground-Truth', pf.msv2hbar(man_labels), 'black', edgecolor='dimgray')
+            
+            ax.yaxis.set_ticks(np.arange(0, 0.75*(p.N_PLOTTED_MODES+1), 0.75))
+            ylabels = [item.get_text() for item in ax.get_yticklabels()]
+            ylabels[p.N_PLOTTED_MODES] = 'Ground-Truth'
+            #print(ylabels)   
+            for i in range(p.N_PLOTTED_MODES):
+                prob = mode_prob[sorted_modes[i]]
+                ylabels[p.N_PLOTTED_MODES-i-1] = 'Mode#{} (P={}%)'.format(i+1, int(prob*100))
+            
+            ax.set_yticklabels(ylabels)
+            #for tick in ax.get_yticklabels():
+            #    tick.set_rotation(45)
+        
+            fig.tight_layout(pad=1)
             #plt.show()
             #exit()
             man_image = mplfig_to_npimage(fig)

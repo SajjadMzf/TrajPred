@@ -125,13 +125,13 @@ if __name__ == '__main__':
     train_model_dict(p)
     '''
     
-    p = params.ParametersHandler('MMnTP.yaml', 'highD.yaml', './config')
+    p = params.ParametersHandler('MMnTP.yaml', 'NGSIM.yaml', './config')
     p.hyperparams['experiment']['group'] = 'lrwub32'
     p.hyperparams['training']['batch_size'] = 32
     p.hyperparams['experiment']['debug_mode'] = False
     p.hyperparams['dataset']['ablation'] = False
     p.hyperparams['experiment']['multi_modal_eval'] = False
-    
+    p.model['hyperparams']['number of modes'] = 10
     p.match_parameters()
     #1
     train_model_dict(p)
