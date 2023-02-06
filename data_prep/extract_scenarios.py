@@ -20,14 +20,16 @@ class ExtractScenarios:
         track_path:'Path to track file', 
         track_pickle_path:'Path to track pickle file', 
         frame_pickle_path:'Path to frame pickle file',
+        map_path:'path to map file',
         static_path:'Path to static file',
         meta_path:'Path to meta file',
-        dataset_name:'Dataset Name'):
+        dataset_name:'Dataset Name' = None):
 
         
         
-        self.metas = rc.read_meta_info(meta_path)
-        self.fr_div = int(self.metas[rc.FRAME_RATE]/p.FPS)
+        #self.metas = rc.read_meta_info(meta_path)
+        #self.fr_div = int(self.metas[rc.FRAME_RATE]/p.FPS)
+        self.fr_div = int(p.IN_FPS/p.FPS)
         if self.fr_div<=0:
             raise(ValueError('non integer fr_div'))
         self.track_path = track_path
@@ -37,11 +39,13 @@ class ExtractScenarios:
         self.LC_states_dir = "../../Dataset/"+ dataset_name +"/Scenarios"
         if not os.path.exists(self.LC_states_dir):
             os.makedirs(self.LC_states_dir)
-        self.data_tracks = rc.read_track_csv(track_path, track_pickle_path, group_by = 'tracks', reload = False, fr_div = self.fr_div)
-        self.data_frames = rc.read_track_csv(track_path, frame_pickle_path, group_by = 'frames', reload = False, fr_div = self.fr_div)
+        self.data_tracks = rc.read_track_csv(track_path, track_pickle_path, group_by = 'tracks', reload = True, fr_div = self.fr_div)
+        self.data_frames = rc.read_track_csv(track_path, frame_pickle_path, group_by = 'frames', reload = True, fr_div = self.fr_div)
         self.track_list = [data_track[rc.TRACK_ID][0] for data_track in self.data_tracks]
         self.frame_list = [data_frame[rc.FRAME][0] for data_frame in self.data_frames]
-        self.statics = rc.read_static_info(static_path)
+        with open(map_path, 'rb') as f:
+            self.lm =  pickle.load(f)
+        #self.statics = rc.read_static_info(static_path)
 
     def extract_and_save(self): 
         
@@ -63,7 +67,7 @@ class ExtractScenarios:
             if tv_idx%500 == 0:
                 print('Scenario {} out of: {}'.format(tv_idx, len(self.data_tracks)))
             
-            driving_dir = self.statics[tv_data[rc.TRACK_ID][0]][rc.DRIVING_DIRECTION] # statics is based on id
+            driving_dir = p.driving_dir#self.statics[tv_data[rc.TRACK_ID][0]][rc.DRIVING_DIRECTION] # statics is based on id
             tv_id = tv_data[rc.TRACK_ID][0]
             #if tv_id == 284:
             #    a = 2

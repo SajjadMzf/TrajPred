@@ -2,6 +2,10 @@ import pandas
 import numpy as np
 import os
 import pickle
+
+# exid params
+Y2LANE = 'y2lane'
+LANE_WIDTH = 'laneWidth'
 # TRACK FILE
 BBOX = "bbox"
 FRAME = "frame"
@@ -111,6 +115,8 @@ def read_track_csv(input_path, pickle_path, reload = True, group_by = 'frames', 
                                  BBOX: bounding_boxes,
                                  X: rows[X].values,
                                  Y: rows[Y].values,
+                                 Y2LANE: rows[Y2LANE].values,
+                                 LANE_WIDTH: rows[LANE_WIDTH].values,
                                  X_VELOCITY: rows[X_VELOCITY].values,
                                  Y_VELOCITY: rows[Y_VELOCITY].values,
                                  X_ACCELERATION: rows[X_ACCELERATION].values,

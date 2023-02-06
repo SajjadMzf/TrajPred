@@ -8,7 +8,8 @@ import read_csv as rc
 import param as p
 from utils import rendering_funcs as rf
 import pandas
-
+import pdb
+# python -m pdb -c continue 
 class RenderScenarios:
     """This class is for rendering extracted scenarios from HighD dataset recording files (needs to be called seperately for each scenario).
     """
@@ -18,12 +19,13 @@ class RenderScenarios:
         track_path:'Path to track file', 
         track_pickle_path:'Path to track pickle file', 
         frame_pickle_path:'Path to frame pickle file',
+        map_path: 'Path to map file',
         static_path:'Path to static file',
         meta_path:'Path to meta file',
         dataset_name: 'Dataset  Name'):
        
-        self.metas = rc.read_meta_info(meta_path)
-        self.fr_div = self.metas[rc.FRAME_RATE]/p.FPS
+        #self.metas = rc.read_meta_info(meta_path)
+        self.fr_div = p.IN_FPS/p.FPS#self.metas[rc.FRAME_RATE]/p.FPS
         self.track_path = track_path
         self.scenarios = []
         self.file_num = file_num
@@ -43,8 +45,8 @@ class RenderScenarios:
         self.dash_lines = tuple([8,8])
         self.highway_top_margin = int(5 * self.image_scaleH)
         self.highway_bottom_margin = int(5 * self.image_scaleH)
-        self.cropped_height = p.cropped_height
-        self.cropped_width = p.cropped_width
+        self.cropped_height = 0#p.cropped_height
+        self.cropped_width = 0#p.cropped_width
         # 1.3 Others
         self.mid_barrier = False
         
@@ -58,14 +60,14 @@ class RenderScenarios:
         self.data_tracks = rc.read_track_csv(track_path, track_pickle_path, group_by = 'tracks', reload = False, fr_div = self.fr_div)
         self.track_list = [data_track[rc.TRACK_ID][0] for data_track in self.data_tracks]
         
-        self.statics = rc.read_static_info(static_path)
+        #self.statics = rc.read_static_info(static_path)
         df = pandas.read_csv(track_path)
         selected_frames = (df.frame%self.fr_div == 0).real.tolist()
         df = df.loc[selected_frames]
         image_width = df[rc.X].max() 
         self.frame_list = [data_frame[rc.FRAME][0] for data_frame in self.frames_data]
-        self.image_width = int(image_width * self.image_scaleW)
-        self.image_height = int((self.metas[rc.LOWER_LANE_MARKINGS][-1])*self.image_scaleH + self.highway_top_margin + self.highway_bottom_margin)
+        self.image_width = 0#int(image_width * self.image_scaleW)
+        self.image_height = 0#int((self.metas[rc.LOWER_LANE_MARKINGS][-1])*self.image_scaleH + self.highway_top_margin + self.highway_bottom_margin)
         self.update_dirs()
         
     def load_scenarios(self):
@@ -320,13 +322,21 @@ class RenderScenarios:
         # Lambda function for calculating vehicles x,y, width and length
         
         veh_height = lambda itr: frame_data[rc.HEIGHT][itr]
-        center_y = lambda itr: frame_data[rc.Y][itr] + veh_height(itr)/2
         
+        # center_y = lambda itr: frame_data[rc.Y][itr] + veh_height(itr)/2
+        # exid version
+        center_y = lambda itr: frame_data[rc.Y][itr]
+
         fix_sign = lambda x: x if driving_dir == 1 else -1*x
 
-        lateral_pos = lambda itr, lane_ind: abs(frame_data[rc.Y][itr] + frame_data[rc.HEIGHT][itr]/2- tv_lane_markings[lane_ind])
-        lateral_pos_centre_line = lambda itr, lane_ind: fix_sign((frame_data[rc.Y][itr] + (frame_data[rc.HEIGHT][itr]/2))- (tv_lane_markings[lane_ind+1] + tv_lane_markings[lane_ind])/2)
         
+        #lateral_pos = lambda itr, lane_ind: abs(frame_data[rc.Y][itr] + frame_data[rc.HEIGHT][itr]/2- tv_lane_markings[lane_ind])
+        #lateral_pos_centre_line = lambda itr, lane_ind: fix_sign((frame_data[rc.Y][itr] + (frame_data[rc.HEIGHT][itr]/2))- (tv_lane_markings[lane_ind+1] + tv_lane_markings[lane_ind])/2)
+        # exid version
+        lateral_pos = lambda itr, lane_ind: frame_data[rc.Y2LANE][itr]
+        lateral_pos_centre_line = lambda itr, lane_ind: frame_data[rc.Y2LANE][itr]- frame_data[rc.LANE_WIDTH][itr]/2  
+        
+
         rel_distance_x = lambda itr: abs(frame_data[rc.X][itr] - frame_data[rc.X][tv_itr])
         rel_distance_y = lambda itr: abs(frame_data[rc.Y][itr] - frame_data[rc.Y][tv_itr])
         
@@ -337,6 +347,7 @@ class RenderScenarios:
 
 
         # TV lane markings and lane index
+        '''
         tv_lane_markings = (self.metas[rc.UPPER_LANE_MARKINGS]) if driving_dir == 1 else (self.metas[rc.LOWER_LANE_MARKINGS])
         
         
@@ -351,8 +362,9 @@ class RenderScenarios:
             return True, 0, 0, 0, 0, 0, 0
         lane_width = (tv_lane_markings[tv_lane_ind+1]-tv_lane_markings[tv_lane_ind])
         #print('lane width: {}'.format(lane_width))
-       
-
+       '''
+        tv_lane_ind = frame_data[rc.LANE_ID][tv_itr]-2
+        lane_width = frame_data[rc.LANE_WIDTH][tv_itr]
         ## Output States:
         output_state = np.zeros((2))
         output_state[0] = fix_sign(frame_data[rc.Y][tv_itr])
@@ -375,12 +387,12 @@ class RenderScenarios:
         state_wirth = np.zeros((18)) # From Wirthmuller 2021
         
         #(1) Existence of left lane, 
-        if (tv_lane_ind+2==len(tv_lane_markings) and driving_dir == 1) or (tv_lane_ind ==0 and driving_dir==2):
+        if (tv_lane_ind+1== p.N_LANES and driving_dir == 1) or (tv_lane_ind ==0 and driving_dir==2):
             state_wirth[0] = 0
         else:
             state_wirth[0] = 1
         # (2) Existence of right lane, 
-        if (tv_lane_ind+2==len(tv_lane_markings) and driving_dir == 2) or (tv_lane_ind ==0 and driving_dir==1):
+        if (tv_lane_ind+1== p.N_LANES and driving_dir == 2) or (tv_lane_ind ==0 and driving_dir==1):
             state_wirth[1] = 0
         else:
             state_wirth[1] = 1
@@ -393,7 +405,7 @@ class RenderScenarios:
         # (6)Longitudinal distance of TV to FV, 
         state_wirth[5] = rel_distance_x(fv_itr) if fv_itr != None else 400 
         # (7)lateral distance of TV to the left lane marking, 
-        state_wirth[6] = lateral_pos(tv_itr, tv_left_lane_ind)
+        state_wirth[6] = lateral_pos(tv_itr, tv_lane_ind)
         # (8)lateral distance of TV to RV, 
         state_wirth[7] = rel_distance_y(rv_itr) if rv_itr != None else 3*lane_width 
         # (9)lateral distance of TV to RFV, 
@@ -422,16 +434,16 @@ class RenderScenarios:
         ##################### MLP2 ######################### 
         state_shou = np.zeros((18)) # From Shou 2020
         
-        #(1) Existence of left lane, 
-        if (tv_lane_ind+2==len(tv_lane_markings) and driving_dir == 1) or (tv_lane_ind ==0 and driving_dir==2):
-            state_shou[0] = 0
+         #(1) Existence of left lane, 
+        if (tv_lane_ind+1== p.N_LANES and driving_dir == 1) or (tv_lane_ind ==0 and driving_dir==2):
+            state_wirth[0] = 0
         else:
-            state_shou[0] = 1
+            state_wirth[0] = 1
         # (2) Existence of right lane, 
-        if (tv_lane_ind+2==len(tv_lane_markings) and driving_dir == 2) or (tv_lane_ind ==0 and driving_dir==1):
-            state_shou[1] = 0
+        if (tv_lane_ind+1== p.N_LANES and driving_dir == 2) or (tv_lane_ind ==0 and driving_dir==1):
+            state_wirth[1] = 0
         else:
-            state_shou[1] = 1
+            state_wirth[1] = 1
         # (3) Longitudinal distance of TV to RPV, 
         state_shou[2] = rel_distance_x(rpv_itr) if rpv_itr != None else 400 
         # (4) Longitudinal distance of TV to PV, 
@@ -476,7 +488,7 @@ class RenderScenarios:
         # (4) longitudinal acceleration 
         state_ours[3] = fix_sign(frame_data[rc.X_ACCELERATION][tv_itr])
         # (5) lateral distance of TV to the left lane marking 
-        state_ours[4] = lateral_pos(tv_itr, tv_left_lane_ind)
+        state_ours[4] = lateral_pos(tv_itr, tv_lane_ind)
         # (6)Relative longitudinal velocity of the TV w.r.t. PV 
         state_ours[5] = rel_velo_x(pv_itr) if pv_itr != None else 0
         # (7) longitudinal distance of TV to PV 
@@ -498,15 +510,16 @@ class RenderScenarios:
         # (15) longitudinal distance of TV to LFV, 
         state_ours[14] = rel_distance_x(lfv_itr) if lfv_itr != None else 400 
         # (16) Existence of left lane, 
-        if (tv_lane_ind+2==len(tv_lane_markings) and driving_dir == 1) or (tv_lane_ind ==0 and driving_dir==2):
-            state_ours[15] = 0
+         #(1) Existence of left lane, 
+        if (tv_lane_ind+1== p.N_LANES and driving_dir == 1) or (tv_lane_ind ==0 and driving_dir==2):
+            state_wirth[15] = 0
         else:
-            state_ours[15] = 1
-        # (17) Existence of right lane, 
-        if (tv_lane_ind+2==len(tv_lane_markings) and driving_dir == 2) or (tv_lane_ind ==0 and driving_dir==1):
-            state_ours[16] = 0
+            state_wirth[15] = 1
+        # (2) Existence of right lane, 
+        if (tv_lane_ind+1== p.N_LANES and driving_dir == 2) or (tv_lane_ind ==0 and driving_dir==1):
+            state_wirth[16] = 0
         else:
-            state_ours[16] = 1
+            state_wirth[16] = 1
         
         # (18) lane width
         state_ours[17] = lane_width 

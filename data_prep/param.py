@@ -1,5 +1,5 @@
 
-DATASET = "Processed_NGSIM" #Processed_highD
+DATASET = "Processed_exid" #Processed_highD #Processed_NGSIM
 
 
 FPS = 5
@@ -38,6 +38,18 @@ elif DATASET == 'Processed_NGSIM':
     #TODO: Tune parameters for NGSIM image dataset
     cropped_height = int(20 * image_scaleH)
     cropped_width = int(200 * image_scaleW)
+elif DATASET == 'Processed_exid':
+    track_paths = generate_paths('../../Dataset/exid/Tracks/', 39, 40, '_tracks.csv') #start from zero to match with indexes
+    frame_pickle_paths = generate_paths('../../Dataset/exid/Pickles/', 39,  40, '_frames.pickle')
+    track_pickle_paths = generate_paths('../../Dataset/exid/Pickles/', 39,  40, '_tracks.pickle')
+    map_paths = generate_paths('../../Dataset/exid/Maps/', 39,  40, '.pkl')
+    static_paths = [None]
+    meta_paths = [None]
+    IN_FPS = 25
+    driving_dir = 2
+    N_LANES = 3
+    #cropped_height = int(20 * image_scaleH)
+    #cropped_width = int(200 * image_scaleW)
 else:
     raise('undefined dataaset')
 
