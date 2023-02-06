@@ -94,7 +94,7 @@ if __name__ == '__main__':
     #experiment_file = 'experiments/MMnTP_highD_2022-12-26 12:04:28.815518' # MMnTP_highD_2022-12-22 14:49:45.748493 # MMnTP_highD_2022-12-15 17:14:00.945749' #MMnTP_highD_2022-12-13 21:56:41.942975'#MMnTP_highD_2022-12-13 21:56:41.942975' # experiments/DMTP_highD_2022-11-29 13:21:03.655754'#'experiments/DMTP_highD_2022-11-29 13:21:03.655754'
     #experiment_file = 'experiments/MMnTP_highD_2022-12-25 21:11:40.447451' # mode 6
     #experiment_file = 'experiments/MMnTP_highD_2022-12-25 15:00:08.599420' # mode 3
-    experiment_file = 'experiments/MMnTP_highD_2022-12-25 10:42:47.268866' # mode 1
+    experiment_file = 'experiments/MMnTP_exid_2023-02-06 17:36:45.195132' # mode 1
     #experiment_file = 'experiments/MMnTP_NGSIM_2023-01-04 19:07:05.506008'
     p.import_experiment(experiment_file)
     p.hyperparams['experiment']['debug_mode'] = False

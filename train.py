@@ -29,7 +29,7 @@ torch.multiprocessing.set_sharing_strategy('file_system')
 
 import matplotlib.colors as mcolors
 
-
+from evaluate import test_model_dict
 
 def train_model_dict(p):
     # Set Random Seeds:
@@ -125,17 +125,17 @@ if __name__ == '__main__':
     train_model_dict(p)
     '''
     
-    p = params.ParametersHandler('MMnTP.yaml', 'NGSIM.yaml', './config')
+    p = params.ParametersHandler('MMnTP.yaml', 'exid.yaml', './config')
     p.hyperparams['experiment']['group'] = 'lrwub32'
     p.hyperparams['training']['batch_size'] = 32
     p.hyperparams['experiment']['debug_mode'] = False
     p.hyperparams['dataset']['ablation'] = False
     p.hyperparams['experiment']['multi_modal_eval'] = False
-    p.model['hyperparams']['number of modes'] = 10
+    p.model['hyperparams']['number of modes'] = 6
     p.match_parameters()
     #1
     train_model_dict(p)
-    
+    test_model_dict(p)
     
    
 

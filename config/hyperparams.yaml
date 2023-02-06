@@ -1,5 +1,5 @@
 dataset:
-  balanced: True
+  balanced: False
   ablation: False
 
 experiment:
@@ -16,9 +16,9 @@ training:
   lr_wu_current_batch: 0
   traj2class_loss_ratio: 1
   lr_decay: 'none' # 'inv-sqrt' or 'none'
-  num_epochs: 300 #300
-  patience: 300 #300
-  skip_validation_epoch: 150
+  num_epochs: 10 #300
+  patience: 10 #300
+  skip_validation_epoch: 0
   tr_jump_step: 1  
 
 

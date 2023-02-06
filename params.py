@@ -19,7 +19,13 @@ class ParametersHandler:
         self.constants_file = os.path.join(parameters_dir, constants_file)
         self.model_dataset = '{}_{}'.format(model.split('.')[0], dataset.split('.')[0])
         self.experiments_dir = experiments_dir
+        if os.path.exists(self.experiments_dir)== False:
+            os.makedirs(self.experiments_dir)
+        
         self.evaluation_dir = evaluation_dir
+        if os.path.exists(self.evaluation_dir)== False:
+            os.makedirs(self.evaluation_dir)
+        
         now = datetime.now()
         self.experiment_file = '{}_{}'.format(self.model_dataset, now)
         self.latest_experiment_file = os.path.join(self.experiments_dir, self.experiment_file) 
