@@ -2,7 +2,10 @@ import pandas
 import numpy as np
 import os
 import pickle
-import param as p
+
+# exid params
+Y2LANE = 'y2lane'
+LANE_WIDTH = 'laneWidth'
 # TRACK FILE
 BBOX = "bbox"
 FRAME = "frame"
@@ -84,15 +87,15 @@ def read_track_csv(input_path, pickle_path, reload = True, group_by = 'frames', 
     if reload == False and os.path.exists(pickle_path):
             pickle_in = open(pickle_path, "rb")
             #print('Record read from pickle file:', pickle_path)
-            [frames, highway_length] = pickle.load(pickle_in)
-            return frames, highway_length 
+            frames = pickle.load(pickle_in)
+            
+            return frames 
     # Read the csv file, convert it into a useful data structure
     df = pandas.read_csv(input_path)
     selected_frames = (df.frame%fr_div == 0).real.tolist()
     df = df.loc[selected_frames]#.to_frame()
     #frame_group = df.groupby([FRAME], sort = False)
 
-    highway_length = np.max(df[X])
     # Use groupby to aggregate track info. Less error prone than iterating over the data.
     if group_by == 'frames':
         grouped = df.groupby([FRAME], sort=True)    
@@ -107,11 +110,17 @@ def read_track_csv(input_path, pickle_path, reload = True, group_by = 'frames', 
                                                 rows[Y].values,
                                                 rows[WIDTH].values,
                                                 rows[HEIGHT].values]))
-        groups[current_group] = {TRACK_ID: rows[TRACK_ID].values if group_by=='frames' else np.int64(group_id),  # for compatibility, int would be more space efficient
-                                 FRAME: rows[FRAME].values if group_by=='tracks' else np.int64(group_id),
+        groups[current_group] = {TRACK_ID: rows[TRACK_ID].values, 
+                                 FRAME: rows[FRAME].values,
                                  BBOX: bounding_boxes,
                                  X: rows[X].values,
                                  Y: rows[Y].values,
+                                 Y2LANE: rows[Y2LANE].values,
+                                 LANE_WIDTH: rows[LANE_WIDTH].values,
+                                 X_VELOCITY: rows[X_VELOCITY].values,
+                                 Y_VELOCITY: rows[Y_VELOCITY].values,
+                                 X_ACCELERATION: rows[X_ACCELERATION].values,
+                                 Y_ACCELERATION: rows[Y_ACCELERATION].values,
                                  HEIGHT: rows[HEIGHT].values,
                                  WIDTH: rows[WIDTH].values,
                                  PRECEDING_ID: rows[PRECEDING_ID].values,
@@ -123,13 +132,12 @@ def read_track_csv(input_path, pickle_path, reload = True, group_by = 'frames', 
                                  RIGHT_ALONGSIDE_ID: rows[RIGHT_ALONGSIDE_ID].values,
                                  RIGHT_PRECEDING_ID: rows[RIGHT_PRECEDING_ID].values,
                                  LANE_ID: rows[LANE_ID].values
-                                 
                                  }
         current_group = current_group + 1
     pickle_out = open(pickle_path, "wb")
-    pickle.dump([groups, highway_length], pickle_out)
+    pickle.dump(groups, pickle_out)
     pickle_out.close()
-    return groups, highway_length
+    return groups
 
 
 def read_static_info(input_static_path):
@@ -148,22 +156,12 @@ def read_static_info(input_static_path):
     # Iterate over all rows of the csv because we need to create the bounding boxes for each row
     for i_row in range(df.shape[0]):
         track_id = int(df[TRACK_ID][i_row])
-        if p.DATASET == 'HIGHD':
-            static_dictionary[track_id] = {TRACK_ID: track_id,
-                                        INITIAL_FRAME: int(df[INITIAL_FRAME][i_row]),
-                                        FINAL_FRAME: int(df[FINAL_FRAME][i_row]),
-                                        NUM_FRAMES: int(df[NUM_FRAMES][i_row]),
-                                        DRIVING_DIRECTION: float(df[DRIVING_DIRECTION][i_row]),
-                                        CLASS: str(df[CLASS][i_row])
-                                        }
-        else:
-            static_dictionary[track_id] = {TRACK_ID: track_id,
-                                    INITIAL_FRAME: int(df[INITIAL_FRAME][i_row]),
-                                    FINAL_FRAME: int(df[FINAL_FRAME][i_row]),
-                                    NUM_FRAMES: int(df[NUM_FRAMES][i_row]),
-                                    DRIVING_DIRECTION: float(df[DRIVING_DIRECTION][i_row]),
-                                    #CLASS: str(df[CLASS][i_row])
-                                    }
+        static_dictionary[track_id] = {TRACK_ID: track_id,
+                                       INITIAL_FRAME: int(df[INITIAL_FRAME][i_row]),
+                                       FINAL_FRAME: int(df[FINAL_FRAME][i_row]),
+                                       NUM_FRAMES: int(df[NUM_FRAMES][i_row]),
+                                       DRIVING_DIRECTION: float(df[DRIVING_DIRECTION][i_row])
+                                       }
     return static_dictionary
 
 

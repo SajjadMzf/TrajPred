@@ -11,10 +11,11 @@ import model_specific_training_functions as mstf
 import pickle
 
 class ParametersHandler:
-    def __init__(self, model, dataset, parameters_dir, experiments_dir = 'experiments/', evaluation_dir = 'evaluations/', models_dir = 'models/', datasets_dir = 'datasets/', constants_file = 'constants.yaml', hyperparams_file = 'hyperparams.yaml'):
+    def __init__(self, model, dataset, parameters_dir, seperate_test_dataset = None, experiments_dir = 'experiments/', evaluation_dir = 'evaluations/', models_dir = 'models/', datasets_dir = 'datasets/', constants_file = 'constants.yaml', hyperparams_file = 'hyperparams.yaml'):
         self.parameter_tuning_experiment = False 
         self.model_file = os.path.join(os.path.join(parameters_dir, models_dir), model)
-        self.dataset_file = os.path.join(os.path.join(parameters_dir, datasets_dir), dataset)
+        self.train_dataset_file = os.path.join(os.path.join(parameters_dir, datasets_dir), dataset)
+        self.test_dataset_file = os.path.join(os.path.join(parameters_dir, datasets_dir), seperate_test_dataset) if seperate_test_dataset is not None else self.train_dataset_file
         self.hyperparams_file = os.path.join(parameters_dir, hyperparams_file)
         self.constants_file = os.path.join(parameters_dir, constants_file)
         self.model_dataset = '{}_{}'.format(model.split('.')[0], dataset.split('.')[0])
@@ -37,9 +38,13 @@ class ParametersHandler:
         with open(self.constants_file, 'r') as f:
             self.constants = yaml.load(f, Loader = yaml.FullLoader)
         
-        with open(self.dataset_file, 'r') as f:
-            self.dataset = yaml.load(f, Loader = yaml.FullLoader)
+        with open(self.train_dataset_file, 'r') as f:
+            self.tr_dataset = yaml.load(f, Loader = yaml.FullLoader)
         
+        with open(self.test_dataset_file, 'r') as f:
+            self.te_dataset = yaml.load(f, Loader = yaml.FullLoader)
+        
+
         with open(self.model_file, 'r') as f:
             self.model = yaml.load(f, Loader = yaml.FullLoader)
         
@@ -63,6 +68,8 @@ class ParametersHandler:
             os.mkdir(self.constants['DIRS']['FIGS_DIR'])
         if not os.path.exists(self.constants['DIRS']['VIS_DIR']):
             os.mkdir(self.constants['DIRS']['VIS_DIR'])
+        if not os.path.exists(self.constants['DIRS']['VISUALISE_DIR']):
+            os.mkdir(self.constants['DIRS']['VISUALISE_DIR'])
     
     def tune_params(self, tuning_experiment_name, selected_params, selected_metrics):
         self.parameter_tuning_experiment = True
@@ -74,7 +81,6 @@ class ParametersHandler:
     
     def match_parameters(self):
         self.SELECTED_MODEL = self.model['name']#'REGIONATTCNN3'#'VCNN'
-        self.SELECTED_DATASET = self.dataset['name']
         self.experiment_tag = self.experiment_file
         self.UNBALANCED = not self.hyperparams['dataset']['balanced']
         self.ABLATION = self.hyperparams['dataset']['ablation']
@@ -87,14 +93,7 @@ class ParametersHandler:
         self.VAL_SCORE = self.hyperparams['model']['validation_score']
         self.LOWER_BETTER_VAL_SCORE = self.hyperparams['model']['lower_better_val_score']
         
-        self.DATASET_DIR = self.dataset['dataset_dir']
-        self.IMAGE_HEIGHT = self.dataset['image_height']
-        self.IMAGE_WIDTH = self.dataset['image_width']
-        self.TR_RATIO = self.dataset['train']
-        self.VAL_RATIO = self.dataset['val']
-        self.TE_RATIO = self.dataset['test']
-        self.ABBVAL_RATIO = self.dataset['abblation_val']
-        self.DATA_FILES = [ str(i).zfill(2)+'.h5' for i in eval(self.dataset['dataset_ind'])]
+        
             
         #exit()
         # Prediction Problem Hyperparameters:
@@ -130,8 +129,10 @@ class ParametersHandler:
         self.TABLES_DIR = self.constants['DIRS']['TABLES_DIR']
         self.FIGS_DIR = self.constants['DIRS']['FIGS_DIR']
         self.VIS_DIR = self.constants['DIRS']['VIS_DIR']
-        
+        self.VISUALISE_DIR = self.constants['DIRS']['VISUALISE_DIR']
        
+        self.TR = DataClass(self.tr_dataset)
+        self.TE = DataClass(self.te_dataset)
         
         # eval string attributes
         self.model_dictionary = copy.deepcopy(self.model)# we dont modify self.model as we might export/import it to/from YALM files
@@ -154,7 +155,7 @@ class ParametersHandler:
         eval_name_dict = {'eval Time': '{}'.format(datetime.now())}
         name_dict = {'experiment file name': self.latest_experiment_file}
         with open(evaluation_cdir, 'wb') as f:
-            pickle.dump([name_dict, self.hyperparams, self.model, self.dataset, kpis_dict], f) 
+            pickle.dump([name_dict, self.hyperparams, self.model, self.tr_dataset, self.te_dataset, kpis_dict], f) 
     # Export experiment after training a model (Do not export an imported experiment or it will overwrite it!,use export evalution)
     
     def export_experiment(self):
@@ -164,7 +165,7 @@ class ParametersHandler:
         #else:
         print('Experiment file is: ', self.latest_experiment_file)
         with open(self.latest_experiment_file, 'w') as f:
-            experiment = yaml.dump_all([name_dict, self.hyperparams, self.model, self.dataset], f, default_flow_style= False, explicit_start = True ) 
+            experiment = yaml.dump_all([name_dict, self.hyperparams, self.model, self.tr_dataset, self.te_dataset], f, default_flow_style= False, explicit_start = True ) 
         
     # Import an already trained model for evaluation or reproducing the results
     def import_experiment(self, experiment_file):
@@ -176,8 +177,21 @@ class ParametersHandler:
             name_dict = experiment_list[0]
             self.hyperparams = experiment_list[1]
             self.model = experiment_list[2]
-            self.dataset = experiment_list[3]
+            self.tr_dataset = experiment_list[3]
+            self.te_dataset = experiment_list[4]
         self.latest_experiment_file = name_dict['experiment file name']
         self.experiment_file = self.latest_experiment_file.split('/')[-1]
         print('Experiment file is: ', self.latest_experiment_file)
         self.match_parameters()
+
+class DataClass:
+    def __init__(self,dataset):
+        self.SELECTED_DATASET = dataset['name']
+        self.DATASET_DIR = dataset['dataset_dir']
+        self.IMAGE_HEIGHT = dataset['image_height']
+        self.IMAGE_WIDTH = dataset['image_width']
+        self.TR_RATIO = dataset['train']
+        self.VAL_RATIO = dataset['val']
+        self.TE_RATIO = dataset['test']
+        self.ABBVAL_RATIO = dataset['abblation_val']
+        self.DATA_FILES = [ str(i).zfill(2)+'.h5' for i in eval(dataset['dataset_ind'])]

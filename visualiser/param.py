@@ -1,19 +1,23 @@
 import cv2
 import numpy as np
-DATASET = 'HIGHD'
+
+
+# General parameters
+MAX_PLOTS = 1
+PLOT_TEXTS = True
+PLOT_MAN = True
+
+#  Dataset/Model
+DATASET = 'exid'#'HIGHD'
 FPS = 5
-OCCLUSION = False
-model_name =  'MMnTP_highD_2022-12-25 21:11:40.447451'#'MMnTP_highD_2022-12-07 18:26:29.329486'#'DMTP_highD_2022-11-29 13:21:03.655754'#'MTPMTT_highD_2022-08-22 15:47:03.709155'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-06-27 14:46:40.899317'#'ManouvreTransformerTraj_highD_2022-06-14 15:14:02.050065'
+model_name =  'MMnTP_exid_train_2023-02-06 23:28:30.583566'#'MMnTP_highD_2022-12-07 18:26:29.329486'#'DMTP_highD_2022-11-29 13:21:03.655754'#'MTPMTT_highD_2022-08-22 15:47:03.709155'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-06-27 14:46:40.899317'#'ManouvreTransformerTraj_highD_2022-06-14 15:14:02.050065'
 RESULT_FILE = "../results/vis_data/"+ model_name +".pickle"
-WHAT_IF_RENDERING = False
-ITERATIVE_RENDERING = True
-
-# SPECIFIC VIS:
-SPECIFIC_VIS = True
-SPECIFIC_PAIRS = [(4, 476), (14,347), (14,2301)]
 
 
-NUM_OUTPUT = 10000
+# Plot parameters:
+dash_lines = tuple([8,8])
+LINES_WIDTH = 1
+
 CUT_OFF_SIGMA_RATIO = 3
 N_PLOTTED_MODES = 3
 N_PLOTTED_TRAJS = 3
@@ -22,8 +26,6 @@ MODE_PROB_THR = 0.1
 
 # TAGS:
 HIDE_SVS = False
-PLOT_TEXTS = True
-PLOT_MAN = True
 
 Y_IMAGE_SCALE = 8*2
 X_IMAGE_SCALE = 2*2
@@ -41,13 +43,18 @@ CLASS2NUM = {'LK':0, 'RLC':1, 'LLC':2}
 LINE_BREAK = 20
 SECTION_BREAK = 1100
 
-#lane marking
-LINES_WIDTH = 1
+
 # Pathes
 def generate_paths(first_leg, total_num, second_leg):
         path_list = []
         for i in range(total_num):
             path_list.append(first_leg + str(i+1).zfill(2) + second_leg)
+        return path_list
+
+def generate_paths2(first_leg, start_num, end_num, second_leg):
+        path_list = []
+        for i in range(start_num, end_num):
+            path_list.append(first_leg + str(i).zfill(2) + second_leg)
         return path_list
 
 #bgr color codes
@@ -106,6 +113,12 @@ if DATASET == 'HIGHD':
     meta_paths = generate_paths('../../../Dataset/HighD/Metas/', 60, '_recordingMeta.csv')
     static_paths = generate_paths('../../../Dataset/HighD/Statics/', 60, '_tracksMeta.csv')
     #background_paths = generate_paths('./Backgrounds/',60, '_highway.jpg')
+elif DATASET == 'exid':
+    track_paths = generate_paths2('../../../Dataset/exid/Tracks/', 39, 40, '_tracks.csv')
+    frame_pickle_paths = generate_paths2('../../../Dataset/exid/Pickles/', 39, 40, '_frames.pickle')
+    track_pickle_paths = generate_paths2('../../../Dataset/exid/Pickles/', 39, 40, '_tracks.pickle')
+    map_paths = '../../../Dataset/exid/Maps/39-53.pickle'#generate_paths2('../../../Dataset/exid/Maps/', 39, 40, '.pkl')
+    fr_div = 5
 elif DATASET == 'FNGSIM':
     track_paths = ['../../Dataset/FNGSIM/Traj_data/track_trajectories-0400-0415.csv',
                     '../../Dataset/FNGSIM/Traj_data/track_trajectories-0500-0515.csv',

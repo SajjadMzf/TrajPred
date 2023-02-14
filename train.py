@@ -59,15 +59,15 @@ def train_model_dict(p):
     model_eval_func = p.model_dictionary['model evaluation function']
     model_kpi_func = p.model_dictionary['model kpi function']
     
-    tr_dataset = Dataset.LCDataset(p.DATASET_DIR, p.DATA_FILES,
-        index_file = Dataset.get_index_file(p,  'Tr'),
+    tr_dataset = Dataset.LCDataset(p.TR.DATASET_DIR, p.TR.DATA_FILES,
+        index_file = Dataset.get_index_file(p,p.TR, 'Tr'),
         data_type = p.model_dictionary['data type'], 
         state_type = p.model_dictionary['state type'], 
         keep_plot_info= False, 
         force_recalc_start_indexes = False)
   
-    val_dataset = Dataset.LCDataset(p.DATASET_DIR, p.DATA_FILES,
-        index_file = Dataset.get_index_file(p,  'Val'),
+    val_dataset = Dataset.LCDataset(p.TR.DATASET_DIR, p.TR.DATA_FILES,
+        index_file = Dataset.get_index_file(p,p.TR,  'Val'),
         data_type = p.model_dictionary['data type'], 
         state_type = p.model_dictionary['state type'], 
         keep_plot_info= True, 
@@ -78,8 +78,9 @@ def train_model_dict(p):
         output_states_min = tr_dataset.output_states_min,
         output_states_max = tr_dataset.output_states_max)
     
+    '''
     te_dataset = Dataset.LCDataset(p.DATASET_DIR, p.DATA_FILES,
-        index_file = Dataset.get_index_file(p,  'Te'),
+        index_file = Dataset.get_index_file(p,p.TE,  'Te'),
         data_type = p.model_dictionary['data type'],
         state_type = p.model_dictionary['state type'], 
         keep_plot_info= True, 
@@ -89,7 +90,7 @@ def train_model_dict(p):
         states_max = tr_dataset.states_max, 
         output_states_min = tr_dataset.output_states_min, 
         output_states_max = tr_dataset.output_states_max)
-    
+    '''
     # Train/Evaluate:
     if p.DEBUG_MODE:
         tb_log_dir = "runs(debugging)/{}/{}".format(p.experiment_group,p.experiment_file)
@@ -125,7 +126,7 @@ if __name__ == '__main__':
     train_model_dict(p)
     '''
     
-    p = params.ParametersHandler('MMnTP.yaml', 'exid.yaml', './config')
+    p = params.ParametersHandler('MMnTP.yaml', 'exid_train.yaml', './config', seperate_test_dataset='exid_test.yaml')
     p.hyperparams['experiment']['group'] = 'lrwub32'
     p.hyperparams['training']['batch_size'] = 32
     p.hyperparams['experiment']['debug_mode'] = False

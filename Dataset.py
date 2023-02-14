@@ -180,8 +180,13 @@ class LCDataset(Dataset):
             start_indexes['U']['AbbVal'] = samples_start_index[:abbVal_samples]
             for index_group in index_groups: 
                 print('Balancing {} dataset...'.format(index_group))
-                start_indexes['U'][index_group] = np.concatenate(start_indexes['U'][index_group] , axis = 0)
-                start_indexes['B'][index_group] = self.balance_dataset(start_indexes['U'][index_group])
+                #print(len(start_indexes['U'][index_group]))
+                if len(start_indexes['U'][index_group]) == 0:
+                    start_indexes['U'][index_group] = np.array([])
+                    start_indexes['B'][index_group] = np.array([])
+                else:
+                    start_indexes['U'][index_group] = np.concatenate(start_indexes['U'][index_group] , axis = 0)
+                    start_indexes['B'][index_group] = self.balance_dataset(start_indexes['U'][index_group])
             
             for ub_ind in unbalanced_inds:
                 index_file = modify_index_file(self.index_file, unbalanced_ind = ub_ind)
@@ -279,7 +284,7 @@ class LCDataset(Dataset):
             ttlc_status = ttlc_available[start_index].astype(np.long)  # constant number for all frames of same scenario        
         return data_output, label, plot_output, ttlc_status
 
-def get_index_file(p, index_group):
+def get_index_file(p, d_class, index_group):
     '''
         Index File Format: IndexGroup_InSeqLen_OutSeqLen_SkipSeqLen_BalancedIndex_TrRatio_AbbValRatio_ValRatio_TeRatio.npy
         IndexGroup Option: Tr, Val, Te, AbbTr, AbbVal, AbbTe
@@ -291,7 +296,7 @@ def get_index_file(p, index_group):
         unbalanced_ind = 'U'
     else:
         unbalanced_ind = 'B'
-    index_file = '{}_{}_{}_{}_{}_{}_{}_{}_{}_.npy'.format(index_group, p.IN_SEQ_LEN, p.TGT_SEQ_LEN, p.SKIP_SEQ_LEN, unbalanced_ind, p.TR_RATIO, p.ABBVAL_RATIO, p.VAL_RATIO, p.TE_RATIO)
+    index_file = '{}_{}_{}_{}_{}_{}_{}_{}_{}_{}.npy'.format(index_group, p.IN_SEQ_LEN, p.TGT_SEQ_LEN, p.SKIP_SEQ_LEN, unbalanced_ind, d_class.TR_RATIO, d_class.ABBVAL_RATIO, d_class.VAL_RATIO, d_class.TE_RATIO, d_class.SELECTED_DATASET)
     return index_file
 
 def modify_index_file(index_file,index_group = None, unbalanced_ind = None):

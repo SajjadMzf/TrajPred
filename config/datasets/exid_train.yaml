@@ -1,0 +1,9 @@
+name: exid_train
+train: 0.9
+abblation_val: 0.1
+val: 0.1
+test: 0
+image_width: 200
+image_height: 80
+dataset_dir: '../../Dataset/Processed_exid/RenderedDataset/'
+dataset_ind: range(39,40)

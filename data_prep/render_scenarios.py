@@ -327,6 +327,7 @@ class RenderScenarios:
         # exid version
         center_y = lambda itr: frame_data[rc.Y][itr]
 
+        #TODO: remove fix sign here in and in BEVplotter
         fix_sign = lambda x: x if driving_dir == 1 else -1*x
 
         
@@ -588,6 +589,7 @@ class RenderScenarios:
     
     def update_dirs(self):
         
+        '''
         self.LC_cropped_imgs_dir = self.LC_cropped_imgs_rdir
         if not os.path.exists(self.LC_cropped_imgs_dir):
             os.makedirs(self.LC_cropped_imgs_dir)
@@ -597,6 +599,7 @@ class RenderScenarios:
             if not os.path.exists(label_dir):
                 os.makedirs(label_dir) 
 
+        
         self.LC_whole_imgs_dir = self.LC_whole_imgs_rdir
         if not os.path.exists(self.LC_whole_imgs_dir):
             os.makedirs(self.LC_whole_imgs_dir)
@@ -605,7 +608,7 @@ class RenderScenarios:
             label_dir = os.path.join(self.LC_whole_imgs_dir, str(i))
             if not os.path.exists(label_dir):
                 os.makedirs(label_dir) 
-        
+        '''
         self.LC_image_dataset_dir = self.LC_image_dataset_rdir
         if not os.path.exists(self.LC_image_dataset_dir):
             os.makedirs(self.LC_image_dataset_dir)

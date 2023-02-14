@@ -97,6 +97,7 @@ def MMnTP_evaluation(p, data_tuple, plot_info, dataset, label_tuple, model, loss
     traj_data = data_tuple[-1]
     traj_initial_input = traj_data[:,(p.IN_SEQ_LEN-1):p.IN_SEQ_LEN] 
     traj_gt = traj_data[:,p.IN_SEQ_LEN:(p.IN_SEQ_LEN+p.TGT_SEQ_LEN)]
+    traj_gt_export = traj_data
     traj_track_gt = traj_data[:,:(p.IN_SEQ_LEN+p.TGT_SEQ_LEN)]
     feature_data = data_tuple[0]
     with torch.no_grad():

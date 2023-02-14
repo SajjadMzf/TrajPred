@@ -1,0 +1,9 @@
+name: exid_test
+train: 0.
+abblation_val: 0.
+val: 0.
+test: 1.0
+image_width: 200
+image_height: 80
+dataset_dir: '../../Dataset/Processed_exid/RenderedDataset/'
+dataset_ind: range(39,40)
