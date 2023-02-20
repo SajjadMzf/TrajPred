@@ -11,11 +11,12 @@ import model_specific_training_functions as mstf
 import pickle
 
 class ParametersHandler:
-    def __init__(self, model, dataset, parameters_dir, seperate_test_dataset = None, experiments_dir = 'experiments/', evaluation_dir = 'evaluations/', models_dir = 'models/', datasets_dir = 'datasets/', constants_file = 'constants.yaml', hyperparams_file = 'hyperparams.yaml'):
+    def __init__(self, model, dataset, parameters_dir, seperate_deploy_dataset = None, seperate_test_dataset = None, experiments_dir = 'experiments/', evaluation_dir = 'evaluations/', models_dir = 'models/', datasets_dir = 'datasets/', constants_file = 'constants.yaml', hyperparams_file = 'hyperparams.yaml'):
         self.parameter_tuning_experiment = False 
         self.model_file = os.path.join(os.path.join(parameters_dir, models_dir), model)
         self.train_dataset_file = os.path.join(os.path.join(parameters_dir, datasets_dir), dataset)
         self.test_dataset_file = os.path.join(os.path.join(parameters_dir, datasets_dir), seperate_test_dataset) if seperate_test_dataset is not None else self.train_dataset_file
+        self.deploy_dataset_file = os.path.join(os.path.join(parameters_dir, datasets_dir), seperate_deploy_dataset) if seperate_deploy_dataset is not None else self.test_dataset_file        
         self.hyperparams_file = os.path.join(parameters_dir, hyperparams_file)
         self.constants_file = os.path.join(parameters_dir, constants_file)
         self.model_dataset = '{}_{}'.format(model.split('.')[0], dataset.split('.')[0])
@@ -44,7 +45,9 @@ class ParametersHandler:
         with open(self.test_dataset_file, 'r') as f:
             self.te_dataset = yaml.load(f, Loader = yaml.FullLoader)
         
-
+        with open(self.deploy_dataset_file, 'r') as f:
+            self.de_dataset = yaml.load(f, Loader = yaml.FullLoader)
+        
         with open(self.model_file, 'r') as f:
             self.model = yaml.load(f, Loader = yaml.FullLoader)
         
@@ -133,7 +136,7 @@ class ParametersHandler:
        
         self.TR = DataClass(self.tr_dataset)
         self.TE = DataClass(self.te_dataset)
-        
+        self.DE = DataClass(self.de_dataset)
         # eval string attributes
         self.model_dictionary = copy.deepcopy(self.model)# we dont modify self.model as we might export/import it to/from YALM files
         self.model_dictionary['ref'] = eval(self.model_dictionary['ref'])
@@ -142,6 +145,8 @@ class ParametersHandler:
         self.model_dictionary['traj loss function'] = eval(self.model_dictionary['traj loss function'])
         self.model_dictionary['model training function'] = eval(self.model_dictionary['model training function'])
         self.model_dictionary['model evaluation function'] = eval(self.model_dictionary['model evaluation function'])
+        self.model_dictionary['model deploy function'] = eval(self.model_dictionary['model deploy function'])
+        
         self.model_dictionary['model kpi function'] = eval(self.model_dictionary['model kpi function'])
         
         self.CLASSIFICATION = self.constants['TASKS']['CLASSIFICATION']
@@ -155,7 +160,7 @@ class ParametersHandler:
         eval_name_dict = {'eval Time': '{}'.format(datetime.now())}
         name_dict = {'experiment file name': self.latest_experiment_file}
         with open(evaluation_cdir, 'wb') as f:
-            pickle.dump([name_dict, self.hyperparams, self.model, self.tr_dataset, self.te_dataset, kpis_dict], f) 
+            pickle.dump([name_dict, self.hyperparams, self.model, self.tr_dataset, self.te_dataset, self.de_dataset, kpis_dict], f) 
     # Export experiment after training a model (Do not export an imported experiment or it will overwrite it!,use export evalution)
     
     def export_experiment(self):
@@ -165,7 +170,7 @@ class ParametersHandler:
         #else:
         print('Experiment file is: ', self.latest_experiment_file)
         with open(self.latest_experiment_file, 'w') as f:
-            experiment = yaml.dump_all([name_dict, self.hyperparams, self.model, self.tr_dataset, self.te_dataset], f, default_flow_style= False, explicit_start = True ) 
+            experiment = yaml.dump_all([name_dict, self.hyperparams, self.model, self.tr_dataset, self.te_dataset, self.de_dataset], f, default_flow_style= False, explicit_start = True ) 
         
     # Import an already trained model for evaluation or reproducing the results
     def import_experiment(self, experiment_file):
@@ -179,6 +184,7 @@ class ParametersHandler:
             self.model = experiment_list[2]
             self.tr_dataset = experiment_list[3]
             self.te_dataset = experiment_list[4]
+            self.de_dataset = experiment_list[5]
         self.latest_experiment_file = name_dict['experiment file name']
         self.experiment_file = self.latest_experiment_file.split('/')[-1]
         print('Experiment file is: ', self.latest_experiment_file)
@@ -194,4 +200,5 @@ class DataClass:
         self.VAL_RATIO = dataset['val']
         self.TE_RATIO = dataset['test']
         self.ABBVAL_RATIO = dataset['abblation_val']
+        self.DE_RATIO = dataset['deploy']
         self.DATA_FILES = [ str(i).zfill(2)+'.h5' for i in eval(dataset['dataset_ind'])]

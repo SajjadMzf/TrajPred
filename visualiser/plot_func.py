@@ -43,7 +43,7 @@ def plot_frame(
         print(int(frame),end="\r")
         # convert coordinate to image coordinate:
         lane_y_max = max([max(lane['l'][:,1]) for lane in lane_markings])
-        lane_y_min = min([min(lane['l'][:,1]) for lane in lane_markings])
+        lane_y_min = min([min(lane['r'][:,1]) for lane in lane_markings])
         lane_x_max = max([max(lane['l'][:,0]) for lane in lane_markings])
         lane_x_min = min([min(lane['l'][:,0]) for lane in lane_markings])
         x_ = lambda x: (x - lane_x_min) 
@@ -63,21 +63,21 @@ def plot_frame(
         in_seq_len = traj_labels.shape[0] - tgt_seq_len
         #pdb.set_trace()
         #TODO: remove temp fix sign here and in render scenarios
-        traj_labels = -1*traj_labels
-        traj_preds = -1*traj_preds
+        #traj_labels = -1*traj_labels
+        #traj_preds = -1*traj_preds
 
         # set ref to frame=in_seq_len
         traj_labels -= traj_labels[in_seq_len-1] 
-        for i in range(n_mode):
-            traj_preds[i] -= traj_preds[i,in_seq_len-1]
+        #for i in range(n_mode):
+        #    traj_preds[i] -= traj_preds[i,in_seq_len-1]
         #pdb.set_trace()
         # swap x,y 
         traj_labels = traj_labels[:,[1,0]]
         traj_preds = traj_preds[:, :, [1,0]]
         
         
-        assert(traj_labels[in_seq_len-1,0] == 0)
-        assert(traj_labels[in_seq_len-1,1] == 0)
+        #assert(traj_labels[in_seq_len-1,0] == 0)
+        #assert(traj_labels[in_seq_len-1,1] == 0)
         traj_labels[:,0] = x_(traj_labels[:,0]+frame_data[rc.X][tv_itr])*p.X_IMAGE_SCALE
         traj_labels[:,1] = y_(traj_labels[:,1]+frame_data[rc.Y][tv_itr])*p.Y_IMAGE_SCALE
         traj_preds[:,:,0] = x_(traj_preds[:,:,0]+frame_data[rc.X][tv_itr])*p.X_IMAGE_SCALE
@@ -106,8 +106,8 @@ def plot_frame(
                 if itr != tv_itr:
                     assert(corner_x(itr)>0)
                     assert(corner_x(itr)<image_width)
-                    assert(corner_y(itr)>0)
-                    assert(corner_y(itr)<image_height)
+                    #assert(corner_y(itr)>0)
+                    #assert(corner_y(itr)<image_height)
                     
                     image = draw_vehicle(image, corner_x(itr), corner_y(itr), veh_width(itr), veh_height(itr), p.COLOR_CODES['SV'])
                 #else:
@@ -140,7 +140,9 @@ def plot_frame(
         image = image.astype(np.uint8)
         
         sorted_modes = np.argsort(mode_prob)[::-1]
-        for mode_itr in range(p.N_PLOTTED_TRAJS):    
+        n_modes = len(mode_prob)
+        for mode_itr in range(min(n_modes,p.N_PLOTTED_TRAJS)):    
+            
             bm = sorted_modes[mode_itr]
             for i in range(len(traj_preds[bm])):
                 if i ==0:
@@ -148,10 +150,6 @@ def plot_frame(
                 image = cv2.line(image, tuple(traj_preds[bm][i]), tuple(traj_preds[bm][i-1]), p.COLOR_CODES['PR_TRAJ'][mode_itr], 2)
                 image = cv2.circle(image, tuple(traj_preds[bm][i-1]), 4, p.COLOR_CODES['PR_TRAJ'][mode_itr], thickness = -1)
 
-        
-
-        
-       
         if p.PLOT_MAN: 
             
             fig, ax = plt.subplots(figsize=(16, 4))
@@ -315,7 +313,6 @@ def save_image_sequence(
 
 
 def msv2hbar(msv):
-    msv1 = msv
     cats = []
     data = []
     while True:

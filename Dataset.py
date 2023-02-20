@@ -15,7 +15,6 @@ class LCDataset(Dataset):
     data_type, 
     index_file,#'in_seq_len, out_seq_len, skip_seq_len, _B for balanced(_U for unbalanced),tr_ratio,abb_val_ratio,val_ratio,test_ratio,  
     state_type = '',
-
     keep_plot_info = True, 
     states_min = 0, 
     states_max = 0, 
@@ -40,8 +39,9 @@ class LCDataset(Dataset):
         self.index_file_dirs = os.path.join(dataset_dir, self.index_file)
         self.file_size = []
         self.dataset_size = 0
-        self.state_data_name = 'state_'+ state_type + '_data'
+        self.state_data_name = 'state_'+ state_type #+ '_data'
         self.data_type= data_type
+        self.deploy_data = deploy_data
         self.parse_index_file()
         
         if data_type == 'image':
@@ -93,7 +93,7 @@ class LCDataset(Dataset):
             self.in_seq_len = int(index_data[1])
             self.out_seq_len = int(index_data[2])
             self.end_of_seq_skip_len = int(index_data[3])
-            self.total_seq_len = self.in_seq_len + self.out_seq_len
+            self.total_seq_len = self.in_seq_len + self.out_seq_len if self.index_group != 'De' else self.in_seq_len
             self.unbalanced_status = index_data[4]
             if index_data[4] == 'B':
                 self.unbalanced = False
@@ -105,8 +105,9 @@ class LCDataset(Dataset):
             self.abb_val_ratio = float(index_data[6])
             self.val_ratio = float(index_data[7]) 
             self.te_ratio = float(index_data[8]) 
+            self.de_ratio = float(index_data[9])
         except:
-            print('Wrong index file fame format.')
+            print('Wrong index file format.')
 
     def get_features_range(self , feature_name):
         for dataset_dir in self.dataset_dirs:
@@ -136,6 +137,7 @@ class LCDataset(Dataset):
     def get_samples_start_index(self,force_recalc = False):
         
         if force_recalc or (not os.path.exists(self.index_file_dirs)):
+            sample_seq_len = self.in_seq_len if self.index_group =='De'else self.in_seq_len+self.out_seq_len+self.end_of_seq_skip_len 
             print('Extracing start indexes for all index groups')
             samples_start_index = []
             valid_tv = -1
@@ -149,8 +151,8 @@ class LCDataset(Dataset):
                     current_tv = -1
                     for itr, tv_id in enumerate(tv_ids):
                         print('{}/{}'.format(itr, len(tv_ids)), end = '\r')
-                        if (itr+self.in_seq_len+self.out_seq_len+self.end_of_seq_skip_len) <= len_scenario:
-                            if np.all(tv_ids[itr:(itr+self.in_seq_len+self.out_seq_len+self.end_of_seq_skip_len)] == tv_id):
+                        if (itr+sample_seq_len) <= len_scenario:
+                            if np.all(tv_ids[itr:(itr+sample_seq_len)] == tv_id):
                                 if tv_id != current_tv:
                                     samples_start_index.append([])
                                     valid_tv+=1
@@ -165,7 +167,8 @@ class LCDataset(Dataset):
             abbVal_samples = int(n_tracks*self.abb_val_ratio)
             val_samples = int(n_tracks*self.val_ratio)
             te_samples = int(n_tracks*self.te_ratio)
-            index_groups = ['Tr', 'Val', 'AbbTe', 'Te', 'AbbTr', 'AbbVal']
+            de_samples = int(n_tracks*self.de_ratio)
+            index_groups = ['Tr', 'Val', 'AbbTe', 'Te', 'AbbTr', 'AbbVal', 'De']
             unbalanced_inds = ['U', 'B']
             
             start_indexes = {}
@@ -173,11 +176,12 @@ class LCDataset(Dataset):
             start_indexes['U'] = {}
             
             start_indexes['U']['Tr'] = samples_start_index[:tr_samples]
-            start_indexes['U']['Val'] = samples_start_index[tr_samples:(tr_samples + abbVal_samples)]
-            start_indexes['U']['AbbTe'] = samples_start_index[tr_samples:(tr_samples + abbVal_samples)]
-            start_indexes['U']['Te'] = samples_start_index[(tr_samples+ abbVal_samples):(tr_samples + abbVal_samples+te_samples)]
+            start_indexes['U']['Val'] = samples_start_index[tr_samples:(tr_samples + val_samples)]
+            start_indexes['U']['AbbTe'] = samples_start_index[tr_samples:(tr_samples + val_samples)]
+            start_indexes['U']['Te'] = samples_start_index[(tr_samples + val_samples):(tr_samples + val_samples + te_samples)]
             start_indexes['U']['AbbTr'] = samples_start_index[abbVal_samples:tr_samples]
             start_indexes['U']['AbbVal'] = samples_start_index[:abbVal_samples]
+            start_indexes['U']['De'] = samples_start_index[(tr_samples+val_samples+ te_samples):(tr_samples+val_samples+ te_samples+de_samples)]
             for index_group in index_groups: 
                 print('Balancing {} dataset...'.format(index_group))
                 #print(len(start_indexes['U'][index_group]))
@@ -186,7 +190,7 @@ class LCDataset(Dataset):
                     start_indexes['B'][index_group] = np.array([])
                 else:
                     start_indexes['U'][index_group] = np.concatenate(start_indexes['U'][index_group] , axis = 0)
-                    start_indexes['B'][index_group] = self.balance_dataset(start_indexes['U'][index_group])
+                    start_indexes['B'][index_group] = self.balance_dataset(start_indexes['U'][index_group]) if index_group != 'De' else np.array([])
             
             for ub_ind in unbalanced_inds:
                 index_file = modify_index_file(self.index_file, unbalanced_ind = ub_ind)
@@ -243,7 +247,6 @@ class LCDataset(Dataset):
                 state_data = f[self.state_data_name]
             
             labels_data = f['labels']
-            ttlc_available = f['ttlc_available']
 
             if self.keep_plot_info:
                 frame_data = f['frame_data']
@@ -281,8 +284,7 @@ class LCDataset(Dataset):
                 
 
             label = np.absolute(labels_data[(start_index):(start_index+self.total_seq_len)].astype(np.long))
-            ttlc_status = ttlc_available[start_index].astype(np.long)  # constant number for all frames of same scenario        
-        return data_output, label, plot_output, ttlc_status
+        return data_output, label, plot_output
 
 def get_index_file(p, d_class, index_group):
     '''
@@ -296,7 +298,7 @@ def get_index_file(p, d_class, index_group):
         unbalanced_ind = 'U'
     else:
         unbalanced_ind = 'B'
-    index_file = '{}_{}_{}_{}_{}_{}_{}_{}_{}_{}.npy'.format(index_group, p.IN_SEQ_LEN, p.TGT_SEQ_LEN, p.SKIP_SEQ_LEN, unbalanced_ind, d_class.TR_RATIO, d_class.ABBVAL_RATIO, d_class.VAL_RATIO, d_class.TE_RATIO, d_class.SELECTED_DATASET)
+    index_file = '{}_{}_{}_{}_{}_{}_{}_{}_{}_{}_{}.npy'.format(index_group, p.IN_SEQ_LEN, p.TGT_SEQ_LEN, p.SKIP_SEQ_LEN, unbalanced_ind, d_class.TR_RATIO, d_class.ABBVAL_RATIO, d_class.VAL_RATIO, d_class.TE_RATIO, d_class.DE_RATIO, d_class.SELECTED_DATASET)
     return index_file
 
 def modify_index_file(index_file,index_group = None, unbalanced_ind = None):

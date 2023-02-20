@@ -3,14 +3,14 @@ import numpy as np
 
 
 # General parameters
-MAX_PLOTS = 1
+MAX_PLOTS = 100
 PLOT_TEXTS = True
 PLOT_MAN = True
 
 #  Dataset/Model
 DATASET = 'exid'#'HIGHD'
 FPS = 5
-model_name =  'MMnTP_exid_train_2023-02-06 23:28:30.583566'#'MMnTP_highD_2022-12-07 18:26:29.329486'#'DMTP_highD_2022-11-29 13:21:03.655754'#'MTPMTT_highD_2022-08-22 15:47:03.709155'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-06-27 14:46:40.899317'#'ManouvreTransformerTraj_highD_2022-06-14 15:14:02.050065'
+model_name =  'MMnTP_exid_train_2023-02-15 16:57:27.391252'#'MMnTP_exid_train_2023-02-16 11:49:58.237413'#''#'MMnTP_highD_2022-12-07 18:26:29.329486'#'DMTP_highD_2022-11-29 13:21:03.655754'#'MTPMTT_highD_2022-08-22 15:47:03.709155'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-06-27 14:46:40.899317'#'ManouvreTransformerTraj_highD_2022-06-14 15:14:02.050065'
 RESULT_FILE = "../results/vis_data/"+ model_name +".pickle"
 
 
@@ -114,10 +114,29 @@ if DATASET == 'HIGHD':
     static_paths = generate_paths('../../../Dataset/HighD/Statics/', 60, '_tracksMeta.csv')
     #background_paths = generate_paths('./Backgrounds/',60, '_highway.jpg')
 elif DATASET == 'exid':
-    track_paths = generate_paths2('../../../Dataset/exid/Tracks/', 39, 40, '_tracks.csv')
-    frame_pickle_paths = generate_paths2('../../../Dataset/exid/Pickles/', 39, 40, '_frames.pickle')
-    track_pickle_paths = generate_paths2('../../../Dataset/exid/Pickles/', 39, 40, '_tracks.pickle')
-    map_paths = '../../../Dataset/exid/Maps/39-53.pickle'#generate_paths2('../../../Dataset/exid/Maps/', 39, 40, '.pkl')
+    track_paths = generate_paths2('../../../Dataset/exid/Tracks/', 0, 93, '_tracks.csv')
+    frame_pickle_paths = generate_paths2('../../../Dataset/exid/Pickles/', 0, 93, '_frames.pickle')
+    track_pickle_paths = generate_paths2('../../../Dataset/exid/Pickles/', 0, 93, '_tracks.pickle')
+    map_list = ['../../../Dataset/exid/Maps/39-52.pickle',
+                '../../../Dataset/exid/Maps/53-60.pickle',
+                '../../../Dataset/exid/Maps/61-72.pickle',
+                '../../../Dataset/exid/Maps/78-92.pickle'
+                ]
+    
+    map_paths = []#generate_paths2('../../../Dataset/exid/Maps/', 39, 40, '.pkl')
+    for i in range(0,39):
+        map_paths.append('')
+    for i in range(39,53):
+        map_paths.append(map_list[0])
+    for i in range(53,61):
+        map_paths.append(map_list[1])
+    for i in range(61,73):
+        map_paths.append(map_list[2])
+    for i in range(73,78):
+        map_paths.append('')
+    for i in range(78, 93):
+        map_paths.append(map_list[3])
+        
     fr_div = 5
 elif DATASET == 'FNGSIM':
     track_paths = ['../../Dataset/FNGSIM/Traj_data/track_trajectories-0400-0415.csv',

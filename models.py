@@ -44,7 +44,7 @@ class MMnTP(nn.Module):
         if self.man_dec_in:
             self.decoder_in_dim += 3
         
-        self.input_dim = 18
+        self.input_dim = 23
         
         if self.prob_output:
             self.output_dim = 5 # muY, muX, sigY, sigX, rho 
@@ -92,6 +92,7 @@ class MMnTP(nn.Module):
         self.dec_man_fc2 = nn.Linear(self.classifier_dim, self.man_output_dim)
         
     def forward(self, x, y, y_mask):      
+        self.batch_size = x.shape[0]
         encoder_out = self.encoder_forward(x)
         man_pred = self.man_decoder_forward(encoder_out)
         traj_pred = self.traj_decoder_forward(y, y_mask, encoder_out)
@@ -100,6 +101,7 @@ class MMnTP(nn.Module):
     
     def encoder_forward(self, x):
         #encoder
+        self.batch_size = x.shape[0]
         x = self.encoder_embedding(x)
         x = self.positional_encoder(x)
         encoder_out = self.transformer_encoder(x)

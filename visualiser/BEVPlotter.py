@@ -68,7 +68,7 @@ class BEVPlotter:
             plot_ids = [plot_ids[i] for i in range(p.MAX_PLOTS)]
         self.remove_ids_list = remove_ids_list
         for i, plot_id in enumerate(plot_ids):
-            self.plot_one_scenario(plot_id, )
+            self.plot_one_scenario(plot_id)
     
     
     def plot_one_scenario(self,plot_id):
@@ -79,12 +79,19 @@ class BEVPlotter:
         else:
             scenario_itr = self.plot_ids.index(plot_id)
         
+
         tv_id = self.sorted_scenarios[scenario_itr]['tv']
         data_file = self.sorted_scenarios[scenario_itr]['data_file']
         traj_min = self.sorted_scenarios[scenario_itr]['traj_min']
         traj_max = self.sorted_scenarios[scenario_itr]['traj_max']
-        with open(p.map_paths, 'rb') as handle:
+        with open(p.map_paths[data_file], 'rb') as handle:
             map_data = pickle.load(handle)
+        track_path = p.track_paths[data_file]
+        print(track_path)
+        print(p.map_paths[data_file])
+        pickle_path = p.frame_pickle_paths[data_file]
+        frames_data = rc.read_track_csv(track_path, pickle_path, group_by = 'frames', reload = False, fr_div = p.fr_div)
+        
         driving_dir = map_data['driving_dir']
         
         print('FILE-TV: {}-{}, List of Available Frames: {}, dd:{}'.format(plot_id[0], plot_id[1], self.sorted_scenarios[scenario_itr]['times'], driving_dir ))
@@ -95,6 +102,7 @@ class BEVPlotter:
         
         # for each time-step
         images = []
+        
         for j,time in enumerate(self.sorted_scenarios[scenario_itr]['times']):
             
             if p.PLOT_MAN== False:
@@ -108,18 +116,19 @@ class BEVPlotter:
             
             traj_preds = self.sorted_scenarios[scenario_itr]['traj_dist_preds'][j][:,:, :2]
             frames = self.sorted_scenarios[scenario_itr]['frames'][j]
-            
-            scenario_tuple = (traj_min, traj_max, man_labels, man_preds, mode_prob, traj_labels, traj_preds, frames, data_file, map_data)
+            if plot_id[0]==44 and plot_id[1] == 290:
+                pdb.set_trace()
+            scenario_tuple = (traj_min, traj_max, man_labels, man_preds, mode_prob, traj_labels, traj_preds, frames, frames_data, map_data)
             image = self.plot_one_frame(scenario_itr, tv_id, scenario_tuple, j)
             images.append(image)
         images = np.array(images)
         scenario_id = 'File{}_TV{}_SN{}_F{}'.format(data_file, tv_id, scenario_itr, frames[0])
-        pf.save_image_sequence(p.model_name, images, self.traj_vis_dir, scenario_id, self.remove_ids_list is not None)              
+        #pf.save_image_sequence(p.model_name, images, self.traj_vis_dir, scenario_id, self.remove_ids_list is not None)              
 
     
     def plot_one_frame(self, scenario_itr, tv_id, scenario_tuple, time):
         summary_image = False
-        (traj_min, traj_max, man_labels, man_preds, mode_prob, traj_labels, traj_preds, frames, data_file, map_data) = scenario_tuple
+        (traj_min, traj_max, man_labels, man_preds, mode_prob, traj_labels, traj_preds, frames, frames_data, map_data) = scenario_tuple
         driving_dir = map_data['driving_dir']
         image_height = int(map_data['image_height']*p.Y_IMAGE_SCALE)
         image_width = int(map_data['image_width']*p.X_IMAGE_SCALE)
@@ -128,10 +137,7 @@ class BEVPlotter:
         in_seq_len = self.in_seq_len
         tgt_seq_len = self.tgt_seq_len
         frame = frames[in_seq_len-1]
-        
-        track_path = p.track_paths[data_file-1]
-        pickle_path = p.frame_pickle_paths[data_file-1]
-        frames_data = rc.read_track_csv(track_path, pickle_path, group_by = 'frames', reload = False, fr_div = p.fr_div)
+        #print(frames.shape)
         frame_list = [frame_data[rc.FRAME][0] for frame_data in frames_data]
         frame_data = frames_data[frame_list.index(frame)]
         
@@ -139,8 +145,11 @@ class BEVPlotter:
         traj_labels = traj_labels*(traj_max-traj_min)+traj_min
         traj_labels = np.cumsum(traj_labels, axis = 0)
         traj_preds =  traj_preds*(traj_max-traj_min)+traj_min
-        traj_preds = np.cumsum(traj_preds, axis = 0)
+        traj_preds = np.cumsum(traj_preds, axis = 1)
+        #print(traj_labels.shape)
         #pdb.set_trace()  
+        image = 0
+        '''
         image = pf.plot_frame(
             lane_markings,
             frame_data,
@@ -154,6 +163,7 @@ class BEVPlotter:
             traj_preds,
             image_width,
             image_height)            
+        '''
         return image
         
         
@@ -163,7 +173,7 @@ if __name__ =="__main__":
         fps = p.FPS,
         result_file = p.RESULT_FILE,
         dataset_name = p.DATASET,
-        force_resort= False)
+        force_resort= True)
 
     bev_plotter.plot(file_id_pairs = None, remove_ids_list = None)
     

@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import pickle
+import pdb
 
 import param as p
 
@@ -72,6 +73,10 @@ def read_scenarios(result_file, force_resort = False):
                 
                 
                 sorted_index = file_tv_pairs.index(((data_file,tv_id)))
+                #if data_file==44 and tv_id == 290:
+                #    pdb.set_trace()
+                if np.any(scenarios['man_gt'][batch_grp][batch_itr]==2):
+                    pdb.set_trace()
                 sorted_scenarios_dict[sorted_index]['times'].append(scenarios['frames'][batch_grp][batch_itr][in_seq_len])# time is frame number at the end of obs
                 if p.PLOT_MAN:
                     sorted_scenarios_dict[sorted_index]['man_labels'].append(scenarios['man_gt'][batch_grp][batch_itr]) 

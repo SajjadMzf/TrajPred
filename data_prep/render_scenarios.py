@@ -19,7 +19,6 @@ class RenderScenarios:
         track_path:'Path to track file', 
         track_pickle_path:'Path to track pickle file', 
         frame_pickle_path:'Path to frame pickle file',
-        map_path: 'Path to map file',
         static_path:'Path to static file',
         meta_path:'Path to meta file',
         dataset_name: 'Dataset  Name'):
@@ -31,31 +30,16 @@ class RenderScenarios:
         self.file_num = file_num
         
         # Default Settings
-        self.save_whole_imgs = p.save_whole_imgs
-        self.save_cropped_imgs = p.save_cropped_imgs
         
         ''' 1. Representation Properties:'''
         self.filled = True
         self.empty = False
         self.dtype = bool
-        # 1.1 Scales and distances
-        self.image_scaleW = p.image_scaleW
-        self.image_scaleH = p.image_scaleH
-        self.lines_width = 1
-        self.dash_lines = tuple([8,8])
-        self.highway_top_margin = int(5 * self.image_scaleH)
-        self.highway_bottom_margin = int(5 * self.image_scaleH)
-        self.cropped_height = 0#p.cropped_height
-        self.cropped_width = 0#p.cropped_width
         # 1.3 Others
-        self.mid_barrier = False
         
-        self.LC_whole_imgs_rdir = "../../Dataset/" + dataset_name + "/WholeImages" 
-        self.LC_cropped_imgs_rdir = "../../Dataset/" + dataset_name + "/CroppedImages" 
         
         self.LC_states_dir = "../../Dataset/" + dataset_name + "/Scenarios"  
-        self.LC_image_dataset_rdir = "../../Dataset/" + dataset_name + "/RenderedDataset" 
-         
+        self.LC_image_dataset_rdir = "../../Dataset/" + dataset_name + "/RenderedDataset"
         self.frames_data = rc.read_track_csv(track_path, frame_pickle_path, group_by = 'frames', fr_div = self.fr_div)
         self.data_tracks = rc.read_track_csv(track_path, track_pickle_path, group_by = 'tracks', reload = False, fr_div = self.fr_div)
         self.track_list = [data_track[rc.TRACK_ID][0] for data_track in self.data_tracks]
@@ -64,10 +48,7 @@ class RenderScenarios:
         df = pandas.read_csv(track_path)
         selected_frames = (df.frame%self.fr_div == 0).real.tolist()
         df = df.loc[selected_frames]
-        image_width = df[rc.X].max() 
         self.frame_list = [data_frame[rc.FRAME][0] for data_frame in self.frames_data]
-        self.image_width = 0#int(image_width * self.image_scaleW)
-        self.image_height = 0#int((self.metas[rc.LOWER_LANE_MARKINGS][-1])*self.image_scaleH + self.highway_top_margin + self.highway_bottom_margin)
         self.update_dirs()
         
     def load_scenarios(self):
@@ -80,273 +61,92 @@ class RenderScenarios:
         npy_dir = os.path.join(self.LC_image_dataset_dir, str(self.file_num).zfill(2) + '.npy')
         hf = h5py.File(file_dir, 'w')
         
-        valid_itrs = [False if scenario['valid'] is False else True for scenario in self.scenarios] 
-        
-        data_num = valid_itrs.count(True)
+        data_num = len(self.scenarios)
         total_frames = 0  
-        for itr, validity in enumerate(valid_itrs):
-            if validity == True:
-                total_frames += len(self.scenarios[itr]['frames'])
+        for itr in range(data_num):
+            total_frames += len(self.scenarios[itr]['frames'])
 
-        if p.GENERATE_IMAGE_DATA:
-            image_data = hf.create_dataset('image_data', shape = (total_frames, 3, self.cropped_height, self.cropped_width), dtype = np.bool)
         frame_data = hf.create_dataset('frame_data', shape = (total_frames,), dtype = np.float32)       
         file_ids = hf.create_dataset('file_ids', shape = (total_frames,), dtype = np.int)
         tv_data = hf.create_dataset('tv_data', shape = (total_frames,), dtype = np.int)
         labels = hf.create_dataset('labels', shape = (total_frames,), dtype = np.float32)
-        state_wirth_data = hf.create_dataset('state_wirth_data', shape = (total_frames, 18), dtype = np.float32)
-        state_shou_data = hf.create_dataset('state_shou_data', shape = (total_frames, 18), dtype = np.float32)
-        state_ours_data = hf.create_dataset('state_ours_data', shape = (total_frames, 18), dtype = np.float32)
-        state_9svs_data = hf.create_dataset('state_9svs_data', shape = (total_frames, 18), dtype = np.float32)
-        
+        state_merging_data = hf.create_dataset('state_merging', shape = (total_frames, 23), dtype = np.float32)
         output_states_data = hf.create_dataset('output_states_data', shape = (total_frames, 2), dtype = np.float32)
-        ttlc_available = hf.create_dataset('ttlc_available', shape = (total_frames,), dtype = np.bool)
         
         cur_frame = 0
-        for itr, validity in enumerate(valid_itrs):
+        for itr in range(data_num):
             scenario_length = len(self.scenarios[itr]['frames'])
-            if validity == False:
-                continue
-            if p.GENERATE_IMAGE_DATA:
-                temp = self.scenarios[itr]['images']
-                temp = np.transpose(temp,[0,3,1,2])# Chanel first
-                image_data[cur_frame:(cur_frame+scenario_length), :] = temp
-            state_wirth_data[cur_frame:(cur_frame+scenario_length), :] = self.scenarios[itr]['states_wirth']
-            state_shou_data[cur_frame:(cur_frame+scenario_length), :] = self.scenarios[itr]['states_shou']
-            state_ours_data[cur_frame:(cur_frame+scenario_length), :] = self.scenarios[itr]['states_ours']
-            state_9svs_data[cur_frame:(cur_frame+scenario_length), :] = self.scenarios[itr]['states_9svs']
+            state_merging_data[cur_frame:(cur_frame+scenario_length), :] = self.scenarios[itr]['states_merging']
             output_states_data[cur_frame:(cur_frame+scenario_length), :] = self.scenarios[itr]['output_states']
             frame_data[cur_frame:(cur_frame+scenario_length)] = self.scenarios[itr]['frames']
             tv_data[cur_frame:(cur_frame+scenario_length)] = self.scenarios[itr]['tv']
             file_ids[cur_frame:(cur_frame+scenario_length)] = self.scenarios[itr]['file']
             labels[cur_frame:(cur_frame+scenario_length)] = self.scenarios[itr]['label']
-            ttlc_available[cur_frame:(cur_frame+scenario_length)] = self.scenarios[itr]['ttlc_available']
             cur_frame +=scenario_length
             
         assert(cur_frame == total_frames)
         hf.close()
         np.save(npy_dir, total_frames) 
     
-      
-
-        
-
     def render_scenarios(self)-> "Number of rendered and saved scenarios":
         saved_data_number = 0
         
-        for scenario_idx, scenario in enumerate(self.scenarios):
-            
+        for scenario_idx, scenario in enumerate(self.scenarios):        
             if scenario_idx%500 == 0:
                 print('Scenario {} out of: {}'.format(scenario_idx, len(self.scenarios)))
             tv_id = scenario['tv']
-            label = max(scenario['label']) # TODO: this can be improved affecting where a scenario is saved
-            driving_dir = scenario['driving_dir']
-            scene_cropped_imgs = []
-            whole_imgs = []
             img_frames = []
-            states_wirth = []
-            states_shou = []
-            states_ours = []
-            states_9svs = []
+            states_merging = []
             output_states = []
             number_of_fr = len(scenario['frames'])
             tv_lane_ind = None
-            valid = True
+                
             for fr in range(number_of_fr):
                 frame = scenario['frames'][fr]
                 img_frames.append(frame)
                 
                 svs_ids = scenario['svs']['id'][:,fr]
-                
-                invalid_state , state_wirth, state_shou,state_ours, state_9svs, output_state, tv_lane_ind = self.calc_states(
+                state_merging, output_state, tv_lane_ind = self.calc_states(
                     self.frames_data[self.frame_list.index(frame)],
                     tv_id, 
                     svs_ids,
-                    driving_dir,
                     frame,
-                    tv_lane_ind,
-                    post_lc_only = False
+                    tv_lane_ind
                     )
-                if invalid_state:
-                    print('Invalid frame:', fr+1, ' of scenario: ', scenario_idx+1, ' of ', len(self.scenarios))
-                    break
-
                 output_states.append(output_state)
                 if fr==0: # first time-step is repeated so that when we calc the diff, the first timestep would be zero displacement. 
                     output_states.append(output_state)
                 
-                if p.GENERATE_IMAGE_DATA:
-                    cropped_img, whole_img, valid = self.plot_frame(
-                        self.frames_data[self.frame_list.index(frame)],
-                        tv_id, 
-                        svs_ids,
-                        driving_dir,
-                        frame,
-                        tv_lane_ind
-                        )
-                    if not valid: # Being valid is about width of TV not being less than 2 pixels
-                        print('Invalid frame:', fr+1, ' of scenario: ', scenario_idx+1, ' of ', len(self.scenarios))
-                        break
-                states_wirth.append(state_wirth)
-                states_shou.append(state_shou)
-                states_ours.append(state_ours)
-                states_9svs.append(state_9svs)
-                if p.GENERATE_IMAGE_DATA:
-                    scene_cropped_imgs.append(cropped_img)
-                    whole_imgs.append(whole_img)
-                
+                states_merging.append(state_merging)
                     
-            if not valid or invalid_state:
-                self.scenarios[scenario_idx]['valid'] = False
-                continue
-            #print(self.scenarios[scenario_idx]['label'])
-            #print(output_states)
-            #exit()
-            if p.GENERATE_IMAGE_DATA:
-                scene_cropped_imgs = np.array(scene_cropped_imgs, dtype = self.dtype)
-                self.scenarios[scenario_idx]['images'] = scene_cropped_imgs
-            self.scenarios[scenario_idx]['states_wirth'] = np.array(states_wirth)
-            self.scenarios[scenario_idx]['states_shou'] = np.array(states_shou)
-            self.scenarios[scenario_idx]['states_ours'] = np.array(states_ours)
-            self.scenarios[scenario_idx]['states_9svs'] = np.array(states_9svs)
-            self.scenarios[scenario_idx]['valid'] = True
+            self.scenarios[scenario_idx]['states_merging'] = np.array(states_merging)
             output_states = np.array(output_states)
             output_states = output_states[1:,:]- output_states[:-1,:] # output_states[i] = x[i]-x[i-1] except for i=0 where output_states =0
             self.scenarios[scenario_idx]['output_states'] = output_states
-            
             saved_data_number += 1
             
-            if p.GENERATE_IMAGE_DATA:
-                if self.save_whole_imgs: rf.save_image_sequence( tv_id, img_frames, whole_imgs, os.path.join(self.LC_whole_imgs_dir, str(label)), self.file_num)
-                if self.save_cropped_imgs: rf.save_image_sequence( tv_id, img_frames, scene_cropped_imgs, os.path.join(self.LC_cropped_imgs_dir, str(label)), self.file_num)
-                
         return saved_data_number
-
-    def plot_frame(
-        self, 
-        frame_data:'Data array of current frame', 
-        tv_id:'ID of the TV', 
-        svs_ids:'IDs of the SVs', 
-        driving_dir:'TV driving direction',
-        frame:'frame',
-        tv_lane_ind:'tv lane index'):
-        
-        veh_channel, lane_channel, obs_channel = rf.initialize_representation(self.image_width, self.image_height, rep_dtype = self.dtype, filled_value = self.filled, occlusion= False)
-        assert(frame_data[rc.FRAME][0]==frame)   
-        tv_itr = np.nonzero(frame_data[rc.TRACK_ID] == tv_id)[0][0]
-        svs_itr = np.array([np.nonzero(frame_data[rc.TRACK_ID] == sv_id)[0][0] if sv_id!=0 else None for sv_id in svs_ids])
-        
-        vehicle_in_frame_number = len(frame_data[rc.TRACK_ID])
-        
-        # Lambda function for calculating vehicles x,y, width and length
-        corner_x = lambda itr: int(frame_data[rc.X][itr]*self.image_scaleW)
-        corner_y = lambda itr: int((frame_data[rc.Y][itr])*self.image_scaleH) + self.highway_top_margin
-        veh_width = lambda itr: int(frame_data[rc.WIDTH][itr]*self.image_scaleW)
-        veh_height = lambda itr: int(frame_data[rc.HEIGHT][itr]*self.image_scaleH)
-        center_x = lambda itr: int(frame_data[rc.X][itr]*self.image_scaleW + veh_width(itr)/2)
-        center_y = lambda itr: int(frame_data[rc.Y][itr]*self.image_scaleH + veh_height(itr)/2)  + self.highway_top_margin
-        
-        # TV lane markings and lane index
-        tv_lane_markings = (self.metas[rc.UPPER_LANE_MARKINGS])* self.image_scaleH  + self.highway_top_margin if driving_dir == 1 else (self.metas[rc.LOWER_LANE_MARKINGS])* self.image_scaleH + self.highway_top_margin
-        tv_lane_markings = tv_lane_markings.astype(int)
-        
-        
-        tv_lane_ind = 0
-        for ind, value in reversed(list(enumerate(tv_lane_markings))):
-            if center_y(tv_itr)>value:
-                tv_lane_ind = ind
-                break
-
-        for itr in range(vehicle_in_frame_number):
-            veh_channel = rf.draw_vehicle(veh_channel, corner_x(itr), corner_y(itr), veh_width(itr), veh_height(itr), self.filled)
-        
-
-        # If a barrier is conisdered at the middle of highway blocking the view, the image height will change depending on driving direction
-        if self.mid_barrier:
-            mid_barrier = int(((self.metas[rc.UPPER_LANE_MARKINGS][-1] + self.metas[rc.LOWER_LANE_MARKINGS][0])/2) * self.image_scaleH)  + self.highway_top_margin
-            dir_image_height = lambda driving_dir: [0, mid_barrier-2] if driving_dir==1 else [mid_barrier+2, self.image_height]
-        else:
-            dir_image_height = lambda driving_dir: [0, self.image_height]
-        
-        # Draw lines
-        lane_channel = rf.draw_lane_markings(lane_channel, 
-                                self.image_width, 
-                                (self.metas[rc.LOWER_LANE_MARKINGS])* self.image_scaleH  + self.highway_top_margin,
-                                (self.metas[rc.UPPER_LANE_MARKINGS])* self.image_scaleH  + self.highway_top_margin,
-                                self.lines_width, 
-                                self.filled, 
-                                self.dash_lines*self.image_scaleW
-                                )
-        
-        # Crop image
-        image = np.concatenate((veh_channel, lane_channel, obs_channel), axis = 2)
-        
-        
-        
-        
-        cropped_img, valid = rf.crop_image(image, 
-                                    self.image_width, 
-                                    self.image_height,
-                                    int(center_x(tv_itr)),
-                                    int(center_y(tv_itr)),
-                                    tv_lane_markings,
-                                    driving_dir,
-                                    tv_lane_ind,
-                                    self.cropped_height,
-                                    self.cropped_width,
-                                    self.lines_width,
-                                    self.filled)
-    
-        if tv_lane_ind+1>=len(tv_lane_markings):# len is 1-based lane_ind is 0-based
-            return cropped_img, image, False, [], [], [], []
-        
-        return cropped_img, image, valid
-        
 
     def calc_states(
         self, 
         frame_data:'Data array of current frame', 
         tv_id:'ID of the TV', 
         svs_ids:'IDs of the SVs', 
-        driving_dir:'TV driving direction',
         frame:'frame',
-        tv_lane_ind:'TV lane index',
-        post_lc_only:'A flag for only producing output state'):
+        tv_lane_ind:'TV lane index'):
         
         assert(frame_data[rc.FRAME][0]==frame)   
-        invalid_data = False
         tv_itr = np.nonzero(frame_data[rc.TRACK_ID] == tv_id)[0][0]
         
-        vehicle_in_frame_number = len(frame_data[rc.TRACK_ID])
         
-        # Lambda function for calculating vehicles x,y, width and length
+
         
-        veh_height = lambda itr: frame_data[rc.HEIGHT][itr]
-        
-        # center_y = lambda itr: frame_data[rc.Y][itr] + veh_height(itr)/2
         # exid version
-        center_y = lambda itr: frame_data[rc.Y][itr]
-
-        #TODO: remove fix sign here in and in BEVplotter
-        fix_sign = lambda x: x if driving_dir == 1 else -1*x
-
+        lateral_pos = lambda itr: frame_data[rc.Y2LANE][itr]
         
-        #lateral_pos = lambda itr, lane_ind: abs(frame_data[rc.Y][itr] + frame_data[rc.HEIGHT][itr]/2- tv_lane_markings[lane_ind])
-        #lateral_pos_centre_line = lambda itr, lane_ind: fix_sign((frame_data[rc.Y][itr] + (frame_data[rc.HEIGHT][itr]/2))- (tv_lane_markings[lane_ind+1] + tv_lane_markings[lane_ind])/2)
-        # exid version
-        lateral_pos = lambda itr, lane_ind: frame_data[rc.Y2LANE][itr]
-        lateral_pos_centre_line = lambda itr, lane_ind: frame_data[rc.Y2LANE][itr]- frame_data[rc.LANE_WIDTH][itr]/2  
+        rel_distance_x = lambda itr: (frame_data[rc.X][itr] - frame_data[rc.X][tv_itr])
+        rel_distance_y = lambda itr: (frame_data[rc.Y][itr] - frame_data[rc.Y][tv_itr])
         
-
-        rel_distance_x = lambda itr: abs(frame_data[rc.X][itr] - frame_data[rc.X][tv_itr])
-        rel_distance_y = lambda itr: abs(frame_data[rc.Y][itr] - frame_data[rc.Y][tv_itr])
-        
-        rel_velo_x = lambda itr: fix_sign(frame_data[rc.X_VELOCITY][itr] - frame_data[rc.X_VELOCITY][tv_itr]) #transform from [-1,1] to [0,1]
-        rel_velo_y =lambda itr: fix_sign(frame_data[rc.Y_VELOCITY][itr] - frame_data[rc.Y_VELOCITY][tv_itr])
-        rel_acc_x = lambda itr: fix_sign(frame_data[rc.X_ACCELERATION][itr] - frame_data[rc.X_ACCELERATION][tv_itr])
-        rel_acc_y =lambda itr: fix_sign(frame_data[rc.Y_ACCELERATION][itr] - frame_data[rc.Y_ACCELERATION][tv_itr])
-
-
         # TV lane markings and lane index
         '''
         tv_lane_markings = (self.metas[rc.UPPER_LANE_MARKINGS]) if driving_dir == 1 else (self.metas[rc.LOWER_LANE_MARKINGS])
@@ -368,227 +168,74 @@ class RenderScenarios:
         lane_width = frame_data[rc.LANE_WIDTH][tv_itr]
         ## Output States:
         output_state = np.zeros((2))
-        output_state[0] = fix_sign(frame_data[rc.Y][tv_itr])
-        output_state[1] = fix_sign(frame_data[rc.X][tv_itr])
+        output_state[0] = frame_data[rc.Y][tv_itr]
+        output_state[1] = frame_data[rc.X][tv_itr]
         
         
         svs_itr = np.array([np.nonzero(frame_data[rc.TRACK_ID] == sv_id)[0][0] if sv_id!=0 and sv_id!=-1 else None for sv_id in svs_ids])
-        # svs : [pv_id, fv_id, rv_id, rpv_id, rfv_id, lv_id, lpv_id, lfv_id]
+        # svs : [pv_id, fv_id, rv1_id, rv2_id, rv3_id, lv1_id, lv2_id, lv3_id]
         pv_itr = svs_itr[0]
         fv_itr = svs_itr[1]
-        rv_itr = svs_itr[2]
-        rpv_itr = svs_itr[3]
-        rfv_itr = svs_itr[4]
-        lv_itr = svs_itr[5]
-        lpv_itr = svs_itr[6]
-        lfv_itr = svs_itr[7]
+        rv1_itr = svs_itr[2]
+        rv2_itr = svs_itr[3]
+        rv3_itr = svs_itr[4]
+        lv1_itr = svs_itr[5]
+        lv2_itr = svs_itr[6]
+        lv3_itr = svs_itr[7]
         
+        
+        ###################################### State Merging #####################################################
+        state_merging = np.zeros((23)) # a proposed features  
+        # (1) Lateral Pos
+        state_merging[0] = lateral_pos(tv_itr)
+        # (2) Long Velo
+        state_merging[1] = frame_data[rc.X_VELOCITY][tv_itr]
+        # (3)Lat ACC
+        state_merging[2] = frame_data[rc.Y_ACCELERATION][tv_itr]
+        # (4)Long ACC
+        state_merging[3] = frame_data[rc.X_ACCELERATION][tv_itr]
+        # (5) PV X
+        state_merging[4] = rel_distance_x(pv_itr) if pv_itr != None else 400
+        # (6) PV Y
+        state_merging[5] = rel_distance_y(pv_itr) if pv_itr != None else 30
+        # (7) FV X
+        state_merging[6] = rel_distance_x(fv_itr) if fv_itr != None else 400
+        # (8) FV Y
+        state_merging[7] = rel_distance_y(pv_itr) if pv_itr != None else 30
+        # (9) RV1 X
+        state_merging[8] = rel_distance_x(rv1_itr) if rv1_itr != None else 400
+        # (10) RV1 Y
+        state_merging[9] = rel_distance_y(pv_itr) if pv_itr != None else 30
+        # (11) RV2 X
+        state_merging[10] = rel_distance_x(rv2_itr) if rv2_itr != None else 400
+        # (12) RV2 Y
+        state_merging[11] = rel_distance_y(pv_itr) if pv_itr != None else 30
+        # (13) RV3 X
+        state_merging[12] = rel_distance_x(rv3_itr) if rv3_itr != None else 400
+        # (14) RV3 Y
+        state_merging[13] = rel_distance_y(rv3_itr) if rv3_itr != None else 30
+        # (15) LV1 X
+        state_merging[14] = rel_distance_x(lv1_itr) if lv1_itr != None else 400
+        # (16) LV1 Y
+        state_merging[15] = rel_distance_y(lv1_itr) if lv1_itr != None else -30
+        # (17) LV2 X
+        state_merging[16] = rel_distance_x(lv2_itr) if lv2_itr != None else 400
+        # (18) LV2 Y
+        state_merging[17] = rel_distance_y(lv2_itr) if lv2_itr != None else -30
+        # (19) LV3 X
+        state_merging[18] = rel_distance_x(lv3_itr) if lv3_itr != None else 400
+        # (20) LV3 Y
+        state_merging[19] = rel_distance_y(lv3_itr) if lv3_itr != None else -30
+        # (21) Lane width
+        state_merging[20] = lane_width
+        # (22) Right lane boundry type
+        state_merging[21] = lane_width#right_lane_type
+        # (23) Left lane boundry type
+        state_merging[22] = lane_width#left_lane_type
 
-        ##################### LSTM1, MLP1 #########################        
-        state_wirth = np.zeros((18)) # From Wirthmuller 2021
-        
-        #(1) Existence of left lane, 
-        if (tv_lane_ind+1== p.N_LANES and driving_dir == 1) or (tv_lane_ind ==0 and driving_dir==2):
-            state_wirth[0] = 0
-        else:
-            state_wirth[0] = 1
-        # (2) Existence of right lane, 
-        if (tv_lane_ind+1== p.N_LANES and driving_dir == 2) or (tv_lane_ind ==0 and driving_dir==1):
-            state_wirth[1] = 0
-        else:
-            state_wirth[1] = 1
-        # (3) lane width,  
-        state_wirth[2] = lane_width 
-        # (4) Longitudinal distance of TV to PV, 
-        state_wirth[3] = rel_distance_x(pv_itr) if pv_itr != None else 400 
-        # (5)Longitudinal distance of TV to RPV, 
-        state_wirth[4] = rel_distance_x(rpv_itr) if rpv_itr != None else 400  
-        # (6)Longitudinal distance of TV to FV, 
-        state_wirth[5] = rel_distance_x(fv_itr) if fv_itr != None else 400 
-        # (7)lateral distance of TV to the left lane marking, 
-        state_wirth[6] = lateral_pos(tv_itr, tv_lane_ind)
-        # (8)lateral distance of TV to RV, 
-        state_wirth[7] = rel_distance_y(rv_itr) if rv_itr != None else 3*lane_width 
-        # (9)lateral distance of TV to RFV, 
-        state_wirth[8] = rel_distance_y(rfv_itr) if rfv_itr != None else 3*lane_width 
-        # (10) relative longitudinal velocity of TV w.r.t. PV,
-        state_wirth[9] = rel_velo_x(pv_itr) if pv_itr != None else 0  
-        # (11) relative longitudinal velocity of TV w.r.t. FV 
-        state_wirth[10] = rel_velo_x(fv_itr) if fv_itr != None else 0
-        # (12)Relative lateral velocity of TV w.r.t. PV, 
-        state_wirth[11] = rel_velo_y(pv_itr) if pv_itr != None else 0
-        # (13)Relative lateral velocity of TV w.r.t. RPV,
-        state_wirth[12] = rel_velo_y(rpv_itr) if rpv_itr != None else 0  
-        # (14)Relative lateral velocity of TV w.r.t. RV, 
-        state_wirth[13] = rel_velo_y(rv_itr) if rv_itr != None else 0
-        # (15)Relative lateral velocity of TV w.r.t. LV, 
-        state_wirth[14] = rel_velo_y(lv_itr) if lv_itr != None else 0
-        # (16) longitudinal acceleration of the TV, 
-        state_wirth[15] = fix_sign(frame_data[rc.X_ACCELERATION][tv_itr])
-        # (17) relative longitudinal acceleration of the TV w.r.t RPV, 
-        state_wirth[16] = rel_acc_x(rpv_itr) if rpv_itr != None else 0
-        # (18) lateral acceleration of the prediction target
-        state_wirth[17] = fix_sign(frame_data[rc.Y_ACCELERATION][tv_itr])
-
-
-
-        ##################### MLP2 ######################### 
-        state_shou = np.zeros((18)) # From Shou 2020
-        
-         #(1) Existence of left lane, 
-        if (tv_lane_ind+1== p.N_LANES and driving_dir == 1) or (tv_lane_ind ==0 and driving_dir==2):
-            state_wirth[0] = 0
-        else:
-            state_wirth[0] = 1
-        # (2) Existence of right lane, 
-        if (tv_lane_ind+1== p.N_LANES and driving_dir == 2) or (tv_lane_ind ==0 and driving_dir==1):
-            state_wirth[1] = 0
-        else:
-            state_wirth[1] = 1
-        # (3) Longitudinal distance of TV to RPV, 
-        state_shou[2] = rel_distance_x(rpv_itr) if rpv_itr != None else 400 
-        # (4) Longitudinal distance of TV to PV, 
-        state_shou[3] = rel_distance_x(pv_itr) if pv_itr != None else 400 
-        # (5) Longitudinal distance of TV to LPV, 
-        state_shou[4] = rel_distance_x(lpv_itr) if lpv_itr != None else 400 
-        # (6) Longitudinal distance of TV to RV, 
-        state_shou[5] = rel_distance_x(rv_itr) if rv_itr != None else 400 
-        # (7) Longitudinal distance of TV to LV, 
-        state_shou[6] = rel_distance_x(lv_itr) if lv_itr != None else 400 
-        # (8) Longitudinal distance of TV to RFV, 
-        state_shou[7] = rel_distance_x(rfv_itr) if rfv_itr != None else 400 
-        # (9) Longitudinal distance of TV to FV, 
-        state_shou[8] = rel_distance_x(fv_itr) if fv_itr != None else 400 
-        # (10) Longitudinal distance of TV to LFV, 
-        state_shou[9] = rel_distance_x(lfv_itr) if lfv_itr != None else 400 
-        # (11) Relative Velocity of TV w.r.t. RPV, 
-        state_shou[10] = rel_velo_x(rpv_itr) if rpv_itr != None else 0
-        # (12) Relative Velocity of TV w.r.t.  PV, 
-        state_shou[11] = rel_velo_x(pv_itr) if pv_itr != None else 0
-        # (13) Relative Velocity of TV w.r.t.  LPV, 
-        state_shou[12] = rel_velo_x(lpv_itr) if lpv_itr != None else 0
-        # (14) Relative Velocity of TV w.r.t.  RV, 
-        state_shou[13] = rel_velo_x(rv_itr) if rv_itr != None else 0
-        # (15) Relative Velocity of TV w.r.t. LV, 
-        state_shou[14] = rel_velo_x(lv_itr) if lv_itr != None else 0
-        # (16) Relative Velocity of TV w.r.t.  RFV, 
-        state_shou[15] = rel_velo_x(rfv_itr) if rfv_itr != None else 0
-        # (17) Relative Velocity of TV w.r.t.  FV, 
-        state_shou[16] = rel_velo_x(fv_itr) if fv_itr != None else 0
-        # (18) Relative Velocity of TV w.r.t. LFV 
-        state_shou[17] = rel_velo_x(lfv_itr) if lfv_itr != None else 0
-        
-        ##################### LSTM2 #########################
-        state_ours = np.zeros((18)) # a proposed features  
-        # (1) lateral velocity 
-        state_ours[0] = fix_sign(frame_data[rc.Y_VELOCITY][tv_itr])
-        # (2) longitudinal velocity 
-        state_ours[1] = fix_sign(frame_data[rc.X_VELOCITY][tv_itr])
-        # (3) lateral acceleration 
-        state_ours[2] = fix_sign(frame_data[rc.Y_ACCELERATION][tv_itr])
-        # (4) longitudinal acceleration 
-        state_ours[3] = fix_sign(frame_data[rc.X_ACCELERATION][tv_itr])
-        # (5) lateral distance of TV to the left lane marking 
-        state_ours[4] = lateral_pos(tv_itr, tv_lane_ind)
-        # (6)Relative longitudinal velocity of the TV w.r.t. PV 
-        state_ours[5] = rel_velo_x(pv_itr) if pv_itr != None else 0
-        # (7) longitudinal distance of TV to PV 
-        state_ours[6] = rel_distance_x(pv_itr) if pv_itr != None else 400 
-        # (8) Relative longitudinal velocity of the TV w.r.t. FV, 
-        state_ours[7] = rel_velo_x(fv_itr) if fv_itr != None else 0
-        # (9) longitudinal distance of TV to FV, 
-        state_ours[8] = rel_distance_x(fv_itr) if fv_itr != None else 400 
-        # (10) longitudinal distance of TV to RPV, 
-        state_ours[9] = rel_distance_x(rpv_itr) if rpv_itr != None else 400 
-        # (11) longitudinal distance of TV to RV, 
-        state_ours[10] = rel_distance_x(rv_itr) if rv_itr != None else 400 
-        # (12) longitudinal distance of TV to RFV, 
-        state_ours[11] = rel_distance_x(rfv_itr) if rfv_itr != None else 400 
-        # (13) longitudinal distance of TV to LPV, 
-        state_ours[12] = rel_distance_x(lpv_itr) if lpv_itr != None else 400 
-        # (14) longitudinal distance of TV to LV, 
-        state_ours[13] = rel_distance_x(lv_itr) if lv_itr != None else 400 
-        # (15) longitudinal distance of TV to LFV, 
-        state_ours[14] = rel_distance_x(lfv_itr) if lfv_itr != None else 400 
-        # (16) Existence of left lane, 
-         #(1) Existence of left lane, 
-        if (tv_lane_ind+1== p.N_LANES and driving_dir == 1) or (tv_lane_ind ==0 and driving_dir==2):
-            state_wirth[15] = 0
-        else:
-            state_wirth[15] = 1
-        # (2) Existence of right lane, 
-        if (tv_lane_ind+1== p.N_LANES and driving_dir == 2) or (tv_lane_ind ==0 and driving_dir==1):
-            state_wirth[16] = 0
-        else:
-            state_wirth[16] = 1
-        
-        # (18) lane width
-        state_ours[17] = lane_width 
-
-        ##################### 9SV #########################
-        fix_lane_ind = lambda tv_lane, position2tv: tv_lane+position2tv if driving_dir ==1 else tv_lane-position2tv #right is -1, left is +1
-        state_9svs = np.zeros((18)) # a proposed features  
-        # (1) tv lateral pos
-        state_9svs[0] = lateral_pos_centre_line(tv_itr, tv_lane_ind)
-        # (2) tv longitudinal velocity 
-        state_9svs[1] = fix_sign(frame_data[rc.X_VELOCITY][tv_itr])
-        # (3) rpv lateral pos
-        
-        state_9svs[2] = lateral_pos_centre_line(rpv_itr, fix_lane_ind(tv_lane_ind, -1)) if rpv_itr != None else 0
-        # (4) rpv rel longitudinal distance to tv 
-        state_9svs[3] = rel_distance_x(rpv_itr) if rpv_itr != None else 400
-        # (5) pv lateral pos
-        state_9svs[4] = lateral_pos_centre_line(pv_itr, fix_lane_ind(tv_lane_ind, 0)) if pv_itr != None else 0
-        # (6) pv rel longitudinal distance to tv 
-        state_9svs[5] = rel_distance_x(pv_itr) if pv_itr != None else 400
-        # (7) lpv lateral pos
-        #print('frame', frame)
-        #print('y center', center_y(tv_itr))
-        #print('d',driving_dir)
-        #print('tv_lane_ind',tv_lane_ind)
-        #print(center_y(tv_itr)>=tv_lane_markings)
-        #print(tv_lane_markings)
-        #print('lane id',frame_data[rc.LANE_ID][tv_itr])
-        #print('y+height', frame_data[rc.Y][tv_itr] + frame_data[rc.HEIGHT][tv_itr])
-        #if driving_dir == 2:
-        #    print(2)
-        #if  driving_dir == 1 and frame_data[rc.LANE_ID][tv_itr]-tv_lane_ind != 2:
-        #    print('lane id',frame_data[rc.LANE_ID][tv_itr])
-        #if driving_dir == 2 and frame_data[rc.LANE_ID][tv_itr]-tv_lane_ind-len(self.metas[rc.UPPER_LANE_MARKINGS]) != 2:
-        #    print('lane id',frame_data[rc.LANE_ID][tv_itr])
-
-        #(rpv_itr)
-        #print(frame_data[rc.HEIGHT])
-        state_9svs[6] = lateral_pos_centre_line(lpv_itr, fix_lane_ind(tv_lane_ind, 1)) if lpv_itr != None else 0
-        # (8) lpv rel longitudinal distance to tv 
-        state_9svs[7] = rel_distance_x(lpv_itr) if lpv_itr != None else 400
-        # (9) rv lateral pos
-        state_9svs[8] = lateral_pos_centre_line(rv_itr, fix_lane_ind(tv_lane_ind, -1)) if rv_itr != None else 0
-        # (10) rv rel longitudinal distance to tv 
-        state_9svs[9] = rel_distance_x(rv_itr) if rv_itr != None else 400
-        # (11) lv lateral pos
-        state_9svs[10] = lateral_pos_centre_line(lv_itr, fix_lane_ind(tv_lane_ind, 1)) if lv_itr != None else 0
-        # (12) lv rel longitudinal distance to tv 
-        state_9svs[11] = rel_distance_x(lv_itr) if lv_itr != None else 400
-        # (13) rfv lateral pos
-        state_9svs[12] = lateral_pos_centre_line(rfv_itr, fix_lane_ind(tv_lane_ind, -1)) if rfv_itr != None else 0
-        # (14) rfv rel longitudinal distance to tv 
-        state_9svs[13] = rel_distance_x(rfv_itr) if rfv_itr != None else 400
-        # (15) fv lateral pos
-        state_9svs[14] = lateral_pos_centre_line(fv_itr, fix_lane_ind(tv_lane_ind, 0)) if fv_itr != None else 0
-        # (16) fv rel longitudinal distance to tv 
-        state_9svs[15] = rel_distance_x(fv_itr) if fv_itr != None else 400
-        # (17) lfv lateral pos
-        state_9svs[16] = lateral_pos_centre_line(lfv_itr, fix_lane_ind(tv_lane_ind, 1)) if lfv_itr != None else 0
-        # (18) lfv rel longitudinal distance to tv 
-        state_9svs[17] = rel_distance_x(lfv_itr) if lfv_itr != None else 400
-        
-         
-        
-        return invalid_data, state_wirth, state_shou, state_ours, state_9svs, output_state, tv_lane_ind, 
+        return state_merging, output_state, tv_lane_ind, 
     
     def update_dirs(self):
-        
         '''
         self.LC_cropped_imgs_dir = self.LC_cropped_imgs_rdir
         if not os.path.exists(self.LC_cropped_imgs_dir):
@@ -612,5 +259,6 @@ class RenderScenarios:
         self.LC_image_dataset_dir = self.LC_image_dataset_rdir
         if not os.path.exists(self.LC_image_dataset_dir):
             os.makedirs(self.LC_image_dataset_dir)
+        
         
     

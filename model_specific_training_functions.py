@@ -80,6 +80,61 @@ def MMnTP_training(p, data_tuple, label_tuple, model, loss_func_tuple, device):
     }
     return training_loss, batch_print_info_dict
 
+def MMnTP_deploy(p, data_tuple, plot_info, dataset, model, device):
+    (tv_id, frames, data_file) = plot_info
+    
+    traj_data = data_tuple[-1]
+    traj_initial_input = traj_data[:,(p.IN_SEQ_LEN-1):p.IN_SEQ_LEN] 
+    feature_data = data_tuple[0]
+    with torch.no_grad():
+        encoder_out = model.encoder_forward(x = feature_data)
+        man_pred = model.man_decoder_forward(encoder_out)
+    mode_prob, man_vectors = mf.calc_man_vectors(man_pred, model.n_mode, model.man_per_mode, p.TGT_SEQ_LEN, device)
+    mode_prob = F.softmax(mode_prob,dim = 1)
+
+    BM_man_vector = mf.sel_high_prob_man(man_pred, model.n_mode, model.man_per_mode, p.TGT_SEQ_LEN, device)
+    decoder_input = traj_initial_input
+    decoder_input = torch.stack([decoder_input,decoder_input,decoder_input], dim = 1) #multi-modal
+    BM_predicted_data_dist, BM_traj_pred = MMnTP_trajectory_inference(p, model, device, decoder_input, encoder_out, BM_man_vector)
+
+    
+    # Trajectory inference for all modes!
+    if p.MULTI_MODAL_EVAL == True and p.MULTI_MODAL==True:
+        traj_preds = []
+        data_dist_preds = []
+        for mode_itr in range(model.n_mode):
+            man_pred_vector = man_vectors[:,mode_itr]
+            decoder_input = traj_initial_input
+            decoder_input = torch.stack([decoder_input,decoder_input,decoder_input], dim = 1) #multi-modal
+            predicted_data_dist, traj_pred = MMnTP_trajectory_inference(p, model, device, decoder_input, encoder_out, man_pred_vector)
+            traj_preds.append(traj_pred)
+            data_dist_preds.append(predicted_data_dist)
+        traj_preds = torch.stack(traj_preds, dim = 1)
+        data_dist_preds = torch.stack(data_dist_preds, dim =1)
+    else:
+        data_dist_preds = []
+        for mode_itr in range(model.n_mode):
+            data_dist_preds.append(BM_predicted_data_dist)
+        data_dist_preds = torch.stack(data_dist_preds, dim =1)
+    unnormalised_traj_pred = data_dist_preds.cpu().data.numpy()
+    unnormalised_traj_pred = unnormalised_traj_pred[:,:,:,:2]
+    traj_max = dataset.output_states_min
+    traj_min = dataset.output_states_max
+    unnormalised_traj_pred = unnormalised_traj_pred*(traj_max-traj_min) + traj_min 
+    unnormalised_traj_pred = np.cumsum(unnormalised_traj_pred, axis = 2)
+    batch_export_dict = {    
+        'data_file': data_file,
+        'tv': tv_id.numpy(),
+        'frames': frames.numpy(),
+        'traj_pred': unnormalised_traj_pred,
+        'mode_prob': F.softmax(mode_prob, dim = -1).detach().cpu().data.numpy(),
+    }
+
+    return batch_export_dict
+
+
+
+
 def MMnTP_evaluation(p, data_tuple, plot_info, dataset, label_tuple, model, loss_func_tuple, device, eval_type):
     (tv_id, frames, data_file) = plot_info
     

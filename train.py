@@ -78,8 +78,8 @@ def train_model_dict(p):
         output_states_min = tr_dataset.output_states_min,
         output_states_max = tr_dataset.output_states_max)
     
-    '''
-    te_dataset = Dataset.LCDataset(p.DATASET_DIR, p.DATA_FILES,
+    
+    te_dataset = Dataset.LCDataset(p.TE.DATASET_DIR, p.TE.DATA_FILES,
         index_file = Dataset.get_index_file(p,p.TE,  'Te'),
         data_type = p.model_dictionary['data type'],
         state_type = p.model_dictionary['state type'], 
@@ -90,7 +90,7 @@ def train_model_dict(p):
         states_max = tr_dataset.states_max, 
         output_states_min = tr_dataset.output_states_min, 
         output_states_max = tr_dataset.output_states_max)
-    '''
+    
     # Train/Evaluate:
     if p.DEBUG_MODE:
         tb_log_dir = "runs(debugging)/{}/{}".format(p.experiment_group,p.experiment_file)
@@ -98,7 +98,7 @@ def train_model_dict(p):
         tb_log_dir = "runs/{}/{}".format(p.experiment_group,p.experiment_file)
     tb = SummaryWriter(log_dir= tb_log_dir)
     val_result_dic = training_functions.train_top_func(p,model_train_func, model_eval_func, model_kpi_func, model, (traj_loss_func, man_loss_func), optimizer, tr_dataset, val_dataset,device, tensorboard = tb)    
-    #kpi_dic = training_functions.eval_top_func(p, model_eval_func, model_kpi_func, model, (traj_loss_func, man_loss_func), te_dataset, device,  tensorboard = tb)
+    kpi_dic = training_functions.eval_top_func(p, model_eval_func, model_kpi_func, model, (traj_loss_func, man_loss_func), te_dataset, device,  tensorboard = tb)
     #print('x')
     p.export_experiment()
     # Save results:
@@ -126,13 +126,15 @@ if __name__ == '__main__':
     train_model_dict(p)
     '''
     
-    p = params.ParametersHandler('MMnTP.yaml', 'exid_train.yaml', './config', seperate_test_dataset='exid_test.yaml')
+    p = params.ParametersHandler('MMnTP.yaml', 'exid_train.yaml', './config')
     p.hyperparams['experiment']['group'] = 'lrwub32'
     p.hyperparams['training']['batch_size'] = 32
     p.hyperparams['experiment']['debug_mode'] = False
     p.hyperparams['dataset']['ablation'] = False
     p.hyperparams['experiment']['multi_modal_eval'] = False
-    p.model['hyperparams']['number of modes'] = 6
+    p.model['hyperparams']['number of modes'] = 1
+    p.hyperparams['model']['multi_modal'] =  False
+    p.hyperparams['model']['man_dec_out'] = False
     p.match_parameters()
     #1
     train_model_dict(p)

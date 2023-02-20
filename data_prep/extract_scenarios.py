@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import pickle
+import pdb
 
 import read_csv as rc
 import param as p
@@ -20,7 +21,6 @@ class ExtractScenarios:
         track_path:'Path to track file', 
         track_pickle_path:'Path to track pickle file', 
         frame_pickle_path:'Path to frame pickle file',
-        map_path:'path to map file',
         static_path:'Path to static file',
         meta_path:'Path to meta file',
         dataset_name:'Dataset Name' = None):
@@ -43,8 +43,7 @@ class ExtractScenarios:
         self.data_frames = rc.read_track_csv(track_path, frame_pickle_path, group_by = 'frames', reload = True, fr_div = self.fr_div)
         self.track_list = [data_track[rc.TRACK_ID][0] for data_track in self.data_tracks]
         self.frame_list = [data_frame[rc.FRAME][0] for data_frame in self.data_frames]
-        with open(map_path, 'rb') as f:
-            self.lm =  pickle.load(f)
+        
         #self.statics = rc.read_static_info(static_path)
 
     def extract_and_save(self): 
@@ -80,8 +79,11 @@ class ExtractScenarios:
                 frame = tv_data[rc.FRAME][fr_indx]
                 frame_data = self.data_frames[self.frame_list.index(frame)]
                 grid_data[fr_indx] = self.get_grid_data(tv_id, frame_data, driving_dir)
-            
+            #if self.file_num == 44 and tv_id ==290:
+            #    pdb.set_trace()
+
             label_array =  self.get_label(tv_idx, tv_data, driving_dir)
+            
             scenario = {
                     'file': self.file_num,
                     'tv':tv_id,
@@ -132,6 +134,7 @@ class ExtractScenarios:
                     label = 1 # right lane change
                 elif cur_lane < start_lane:
                     label = 2 # left lane change
+                    
             labels.append(label)
             if np.all(tv_lane == tv_lane[0]):
                 break
@@ -147,7 +150,8 @@ class ExtractScenarios:
             y_gradients.append(y_gradients[-1])
         
         y_gradients = np.array(y_gradients)
-        non_lc_y_gradient = lambda gradient_array, label, driving_dir: gradient_array<=0 if (label == 2 and driving_dir==1) or (label == 1 and driving_dir==2)   else gradient_array>=0
+        #Assumption: y axis from image bottom to top,
+        non_lc_y_gradient = lambda gradient_array, label, driving_dir: gradient_array>=0 if (label == 2 and driving_dir==1) or (label == 1 and driving_dir==2)   else gradient_array<=0
         for idx, last_idx in enumerate(last_idxs):
             non_lc_points_after_crossing_y = non_lc_y_gradient(y_gradients[last_idx:], labels[idx], driving_dir)
             if np.any(non_lc_points_after_crossing_y):
@@ -206,88 +210,22 @@ class ExtractScenarios:
             plt.close()
             
         return label_array_y
+    # TODO: to be updated
     def get_svs(
         self, 
-        tv_data:'Array containing track data of the TV', 
-        tv_first_idx:'First frame index of the scenario', 
-        tv_last_idx:'Last frame index of the scenario'
-        )-> 'Dict containing each svs id and visibility status (None for now)':
-        # Transition from right/left following, alongside and preceding to 3 closest vehicles on the right/left lane
-        tv_x = tv_data[rc.X][tv_first_idx:tv_last_idx]
-
+        tv_data,
+        tv_first_idx, 
+        tv_last_idx
+        ):
         pv_id = tv_data[rc.PRECEDING_ID][tv_first_idx:tv_last_idx]
         fv_id = tv_data[rc.FOLLOWING_ID][tv_first_idx:tv_last_idx]
-        rv_id = np.zeros_like(pv_id)
-        rfv_id = np.zeros_like(pv_id)
-        rpv_id = np.zeros_like(pv_id)
-        lv_id = np.zeros_like(pv_id)
-        lfv_id = np.zeros_like(pv_id)
-        lpv_id = np.zeros_like(pv_id)
-        frames = tv_data[rc.FRAME][tv_first_idx:tv_last_idx] 
-
-        for itr, tv_idx  in enumerate(range(tv_first_idx,tv_last_idx)):
-            if tv_data[rc.RIGHT_ALONGSIDE_ID][tv_idx] == 0:
-                rv_cand1_id = int(tv_data[rc.RIGHT_PRECEDING_ID][tv_idx])
-                rv_cand2_id = int(tv_data[rc.RIGHT_FOLLOWING_ID][tv_idx])
-                
-                rv_cand1_data = self.data_tracks[self.track_list.index(rv_cand1_id)] if rv_cand1_id != 0 else []
-                rv_cand2_data = self.data_tracks[self.track_list.index(rv_cand2_id)] if rv_cand2_id != 0 else []
-                if rv_cand1_id == rv_cand2_id == 0:
-                    continue
-                elif rv_cand1_id == 0:
-                    rv_id[itr] = rv_cand2_id
-                    rfv_id[itr] = rv_cand2_data[rc.FOLLOWING_ID][rv_cand2_data[rc.FRAME]==frames[itr]]
-                elif rv_cand2_id == 0:
-                    rv_id[itr] = rv_cand1_id
-                    rpv_id[itr] = rv_cand1_data[rc.PRECEDING_ID][rv_cand1_data[rc.FRAME]==frames[itr]]
-                else:
-                    rv_cand1_x = rv_cand1_data[rc.X][rv_cand1_data[rc.FRAME]==frames[itr]][0]
-                    rv_cand2_x = rv_cand2_data[rc.X][rv_cand2_data[rc.FRAME]==frames[itr]][0]
-                    if np.absolute(rv_cand1_x-tv_x[itr]) < np.absolute(rv_cand2_x-tv_x[itr]):
-                        rv_id[itr] = rv_cand1_id
-                        rpv_id[itr] = rv_cand1_data[rc.PRECEDING_ID][rv_cand1_data[rc.FRAME]==frames[itr]]
-                        rfv_id[itr] = rv_cand1_data[rc.FOLLOWING_ID][rv_cand1_data[rc.FRAME]==frames[itr]]
-                    else:
-                        rv_id[itr] = rv_cand2_id
-                        rpv_id[itr] = rv_cand2_data[rc.PRECEDING_ID][rv_cand2_data[rc.FRAME]==frames[itr]]
-                        rfv_id[itr] = rv_cand2_data[rc.FOLLOWING_ID][rv_cand2_data[rc.FRAME]==frames[itr]]
-
-            else:
-                rv_id[itr] = tv_data[rc.RIGHT_ALONGSIDE_ID][tv_idx]
-                rpv_id[itr] = tv_data[rc.RIGHT_PRECEDING_ID][tv_idx]
-                rfv_id[itr] = tv_data[rc.RIGHT_FOLLOWING_ID][tv_idx]
-
-            if tv_data[rc.LEFT_ALONGSIDE_ID][tv_idx] == 0:
-                lv_cand1_id = int(tv_data[rc.LEFT_PRECEDING_ID][tv_idx])
-                lv_cand2_id = int(tv_data[rc.LEFT_FOLLOWING_ID][tv_idx])
-                lv_cand1_data = self.data_tracks[self.track_list.index(lv_cand1_id)] if lv_cand1_id != 0 else []
-                lv_cand2_data = self.data_tracks[self.track_list.index(lv_cand2_id)] if lv_cand2_id != 0 else []
-                if lv_cand1_id == lv_cand2_id == 0:
-                    continue
-                elif lv_cand1_id == 0:
-                    lv_id[itr] = lv_cand2_id
-                    lfv_id[itr] = lv_cand2_data[rc.FOLLOWING_ID][lv_cand2_data[rc.FRAME]==frames[itr]]
-                elif lv_cand2_id == 0:
-                    lv_id[itr] = lv_cand1_id
-                    lpv_id[itr] = lv_cand1_data[rc.PRECEDING_ID][lv_cand1_data[rc.FRAME]==frames[itr]]
-                else:
-                    lv_cand1_x = lv_cand1_data[rc.X][lv_cand1_data[rc.FRAME]==frames[itr]][0]
-                    lv_cand2_x = lv_cand2_data[rc.X][lv_cand2_data[rc.FRAME]==frames[itr]][0]
-                    if np.absolute(lv_cand1_x-tv_x[itr]) < np.absolute(lv_cand2_x-tv_x[itr]):
-                        lv_id[itr] = lv_cand1_id
-                        lpv_id[itr] = lv_cand1_data[rc.PRECEDING_ID][lv_cand1_data[rc.FRAME]==frames[itr]]
-                        lfv_id[itr] = lv_cand1_data[rc.FOLLOWING_ID][lv_cand1_data[rc.FRAME]==frames[itr]]
-                    else:
-                        lv_id[itr] = lv_cand2_id
-                        lpv_id[itr] = lv_cand2_data[rc.PRECEDING_ID][lv_cand2_data[rc.FRAME]==frames[itr]]
-                        lfv_id[itr] = lv_cand2_data[rc.FOLLOWING_ID][lv_cand2_data[rc.FRAME]==frames[itr]]
-
-            else:
-                lv_id[itr] = tv_data[rc.LEFT_ALONGSIDE_ID][tv_idx]
-                lpv_id[itr] = tv_data[rc.LEFT_PRECEDING_ID][tv_idx]
-                lfv_id[itr] = tv_data[rc.LEFT_FOLLOWING_ID][tv_idx]
-
-        return {'id':np.stack([pv_id, fv_id, rv_id, rpv_id, rfv_id, lv_id, lpv_id, lfv_id], axis = 0), 'vis':None}
+        rv1_id = tv_data[rc.RIGHT_PRECEDING_ID][tv_first_idx:tv_last_idx]
+        rv2_id = tv_data[rc.RIGHT_ALONGSIDE_ID][tv_first_idx:tv_last_idx]
+        rv3_id = tv_data[rc.RIGHT_FOLLOWING_ID][tv_first_idx:tv_last_idx]
+        lv1_id = tv_data[rc.LEFT_PRECEDING_ID][tv_first_idx:tv_last_idx]
+        lv2_id = tv_data[rc.LEFT_ALONGSIDE_ID][tv_first_idx:tv_last_idx]
+        lv3_id = tv_data[rc.LEFT_FOLLOWING_ID][tv_first_idx:tv_last_idx]
+        return {'id':np.stack([pv_id, fv_id, rv1_id, rv2_id, rv3_id, lv1_id, lv2_id, lv3_id], axis = 0), 'vis':None}
     
     def get_grid_data(self, tv_id, frame_data, driving_dir):
         '''

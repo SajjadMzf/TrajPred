@@ -18,11 +18,22 @@ import matplotlib
 from matplotlib.backends.backend_pdf import PdfPages
 from debugging_utils import *
 import kpis
+import export
 import models_functions as mf
 font = {'size'   : 22}
 matplotlib.rcParams['figure.figsize'] = (18, 12)
 matplotlib.rc('font', **font)
 
+def deploy_top_func(p, model_deploy_func, model, de_dataset, device):
+    model = model.to(device)
+    de_loader = utils_data.DataLoader(dataset = de_dataset, shuffle = False, batch_size = p.BATCH_SIZE, drop_last= False, pin_memory= True, num_workers= 12)
+    vis_data_path = p.VIS_DIR + p.experiment_tag + '.pickle'
+    best_model_path = p.MODELS_DIR + p.experiment_tag + '.pt'
+    figure_name =  p.experiment_tag
+    if p.SELECTED_MODEL != 'CONSTANT_PARAMETER':
+        model.load_state_dict(torch.load(best_model_path))
+    export_dict = deploy_model(p, model, model_deploy_func, de_loader, de_dataset, device, vis_data_path = vis_data_path, figure_name=figure_name)
+    return export_dict
 
 def eval_top_func(p, model_eval_func, model_kpi_func, model, loss_func_tuple, te_dataset, device, tensorboard = None):
     model = model.to(device)
@@ -42,13 +53,10 @@ def eval_top_func(p, model_eval_func, model_kpi_func, model, loss_func_tuple, te
     for k in kpi_dict:
         if 'histogram' not in k:
             print(''.join('{}:{}'.format(k,kpi_dict[k])))
-
-    
     return kpi_dict
 
 
 def train_top_func(p, model_train_func, model_eval_func, model_kpi_func, model,loss_func_tuple, optimizer , tr_dataset, val_dataset, device, tensorboard = None):
-    
     
     tr_loader = utils_data.DataLoader(dataset = tr_dataset, shuffle = True, batch_size = p.BATCH_SIZE, drop_last= True, pin_memory= True, num_workers= 12)
     val_loader = utils_data.DataLoader(dataset = val_dataset, shuffle = True, batch_size = p.BATCH_SIZE, drop_last= True, pin_memory= True, num_workers= 12)
@@ -136,12 +144,7 @@ def train_top_func(p, model_train_func, model_eval_func, model_kpi_func, model,l
             print('Training Metrics:\n'+ ''.join(['{}:{}\n'.format(k,tr_print_dict[k]) for k in tr_print_dict]))
             
             for k in tr_print_dict:
-                tensorboard.add_scalar('Train_epoch_' + k, tr_print_dict[k], epoch)
-            
-            
-            
-        
-        
+                tensorboard.add_scalar('Train_epoch_' + k, tr_print_dict[k], epoch)   
 
     result_dic = {
         'EarlyStopping Epoch': best_epoch + 1,
@@ -161,7 +164,7 @@ def train_model(p, tb, model_train_func, model, loss_func_tuple, optimizer, sche
     vis_print_dict = []
     print_dict = []
     # Training loop over batches of data on train dataset
-    for batch_idx, (data_tuple, labels,_, _) in enumerate(train_loader):
+    for batch_idx, (data_tuple, labels,_) in enumerate(train_loader):
         
         if p.DEBUG_MODE == True:
             if batch_idx >50: ##Uncoment for debuggering
@@ -213,11 +216,34 @@ def train_model(p, tb, model_train_func, model, loss_func_tuple, optimizer, sche
            
     all_end = time()
     all_time = all_end - all_start
-    
-    
-    
+      
     return print_dict
-        
+
+def deploy_model(p, model, model_deploy_func, de_loader, de_dataset, device, vis_data_path = None, figure_name=None):
+    total = len(de_loader.dataset)
+    #print('Total test data',total)
+    #exit()
+    num_batch = int(np.floor(total/model.batch_size))
+    # Initialise Variables
+    export_dict = {}
+    #model.eval()
+    for batch_idx, (data_tuple, labels, plot_info) in enumerate(de_loader):
+        if p.DEBUG_MODE == True:
+            if batch_idx >2: 
+                break
+          
+        data_tuple = [data.to(device) for data in data_tuple]
+        label_tuple = (labels.to(device),)
+        with torch.no_grad():
+            batch_export_dict = model_deploy_func(p, data_tuple, plot_info, de_dataset, model, device)
+    
+        if batch_idx == 0:
+            for k in batch_export_dict:
+                export_dict[k] = [batch_export_dict[k]]
+        else:
+            for k in batch_export_dict:
+                export_dict[k].append(batch_export_dict[k])    
+    return export_dict        
 def eval_model(p, tb, model_eval_func, model_kpi_func, model, loss_func_tuple, test_loader, test_dataset, epoch, device, eval_type = 'Validation', vis_data_path = None, figure_name = None):
     total = len(test_loader.dataset)
     #print('Total test data',total)
@@ -229,18 +255,16 @@ def eval_model(p, tb, model_eval_func, model_kpi_func, model, loss_func_tuple, t
     print_dict = {}
     kpi_input_dict = {}
     #model.eval()
-    for batch_idx, (data_tuple, labels, plot_info, _) in enumerate(test_loader):
+    for batch_idx, (data_tuple, labels, plot_info) in enumerate(test_loader):
         if p.DEBUG_MODE == True:
             if batch_idx >2: 
                 break
-        
-        
+          
         data_tuple = [data.to(device) for data in data_tuple]
         label_tuple = (labels.to(device),)
         with torch.no_grad():
             batch_print_info_dict, batch_kpi_input_dict = model_eval_func(p, data_tuple, plot_info, test_dataset, label_tuple, model, loss_func_tuple, device, eval_type)
-
-            
+    
         if batch_idx == 0:
             for k in batch_kpi_input_dict:
                 kpi_input_dict[k] = [batch_kpi_input_dict[k]]
@@ -262,9 +286,3 @@ def eval_model(p, tb, model_eval_func, model_kpi_func, model, loss_func_tuple, t
             pickle.dump(kpi_input_dict, fp)
     
     return print_dict, kpi_dict
-
-
-    
-
-
-

@@ -3,12 +3,6 @@ DATASET = "Processed_exid" #Processed_highD #Processed_NGSIM
 
 
 FPS = 5
-# Rendering params
-GENERATE_IMAGE_DATA = False
-save_whole_imgs = False
-save_cropped_imgs = False
-image_scaleH = 4
-image_scaleW = 1
 
 LINFIT_WINDOW = 5 
 PLOT_LABELS = False
@@ -21,33 +15,32 @@ def generate_paths(first_leg, start_ind, end_ind, second_leg):
         path_list.append(first_leg + str(i).zfill(2) + second_leg)
     return path_list
 
-if DATASET == "Processed_highD":
-    track_paths = generate_paths('../../Dataset/HighD/Tracks/', 0, 61, '_tracks.csv')
-    frame_pickle_paths = generate_paths('../../Dataset/HighD/Pickles/', 0,  61, '_frames.pickle')
-    track_pickle_paths = generate_paths('../../Dataset/HighD/Pickles/', 0,  61, '_tracks.pickle')
-    meta_paths = generate_paths('../../Dataset/HighD/Metas/', 0,  61, '_recordingMeta.csv')
-    static_paths = generate_paths('../../Dataset/HighD/Statics/', 0,  61, '_tracksMeta.csv')
-    cropped_height = int(20 * image_scaleH)
-    cropped_width = int(200 * image_scaleW)
-elif DATASET == 'Processed_NGSIM':
-    track_paths = generate_paths('../../Dataset/NGSIM/Tracks/', 0, 7, '_tracks.csv') #start from zero to match with indexes
-    frame_pickle_paths = generate_paths('../../Dataset/NGSIM/Pickles/', 0,  7, '_frames.pickle')
-    track_pickle_paths = generate_paths('../../Dataset/NGSIM/Pickles/', 0,  7, '_tracks.pickle')
-    meta_paths = generate_paths('../../Dataset/NGSIM/Metas/', 0,  7, '_recordingMeta.csv')
-    static_paths = generate_paths('../../Dataset/NGSIM/Statics/', 0,  7, '_tracksMeta.csv')
-    #TODO: Tune parameters for NGSIM image dataset
-    cropped_height = int(20 * image_scaleH)
-    cropped_width = int(200 * image_scaleW)
-elif DATASET == 'Processed_exid':
-    track_paths = generate_paths('../../Dataset/exid/Tracks/', 0, 92, '_tracks.csv') #start from zero to match with indexes
-    frame_pickle_paths = generate_paths('../../Dataset/exid/Pickles/', 0,  92, '_frames.pickle')
-    track_pickle_paths = generate_paths('../../Dataset/exid/Pickles/', 0,  92, '_tracks.pickle')
-    map_paths = generate_paths('../../Dataset/exid/Maps/', 0,  92, '.pkl')
-    static_paths = [None]*92
-    meta_paths = [None]*92
+def generate_paths2(first_leg, ind_list, second_leg):
+    path_list = []
+    for i in ind_list:
+        path_list.append(first_leg + str(i).zfill(2) + second_leg)
+    return path_list
+
+
+
+if DATASET == 'Processed_exid':
+    
+    ind234 = list(range(39,73))
+    ind6 = list(range(78,93))
+    ind_list = []
+    ind_list.extend(ind234)
+    ind_list.extend(ind6)
+    track_paths = generate_paths('../../Dataset/exid/Tracks/', 0, 93, '_tracks.csv') #start from zero to match with indexes
+    frame_pickle_paths = generate_paths('../../Dataset/exid/Pickles/', 0,93, '_frames.pickle')
+    track_pickle_paths = generate_paths('../../Dataset/exid/Pickles/', 0,93, '_tracks.pickle')
+    map_paths = ['../../Dataset/exid/Maps/39-52.pickle',
+                '../../Dataset/exid/Maps/53-60.pickle',
+                '../../Dataset/exid/Maps/61-72.pickle',
+                '../../Dataset/exid/Maps/78-92.pickle',]
+    static_paths = [None]*93
+    meta_paths = [None]*93
     IN_FPS = 25
     driving_dir = 2
-    N_LANES = 3
     #cropped_height = int(20 * image_scaleH)
     #cropped_width = int(200 * image_scaleW)
 else:
