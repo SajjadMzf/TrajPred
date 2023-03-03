@@ -5,12 +5,12 @@ import numpy as np
 # General parameters
 MAX_PLOTS = 100
 PLOT_TEXTS = True
-PLOT_MAN = True
+PLOT_MAN = False
 
 #  Dataset/Model
 DATASET = 'exid'#'HIGHD'
 FPS = 5
-model_name =  'MMnTP_exid_train_2023-02-15 16:57:27.391252'#'MMnTP_exid_train_2023-02-16 11:49:58.237413'#''#'MMnTP_highD_2022-12-07 18:26:29.329486'#'DMTP_highD_2022-11-29 13:21:03.655754'#'MTPMTT_highD_2022-08-22 15:47:03.709155'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-06-27 14:46:40.899317'#'ManouvreTransformerTraj_highD_2022-06-14 15:14:02.050065'
+model_name =  'DMTP_exid_train_2023-02-22 11:38:01.533814'#'DMTP_exid_train_2023-02-21 18:56:42.572922'#'MMnTP_exid_train_2023-02-16 11:49:58.237413'#''#'MMnTP_highD_2022-12-07 18:26:29.329486'#'DMTP_highD_2022-11-29 13:21:03.655754'#'MTPMTT_highD_2022-08-22 15:47:03.709155'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-07-12 15:48:02.307560'#'ManouvreTransformerTraj_highD_2022-06-27 14:46:40.899317'#'ManouvreTransformerTraj_highD_2022-06-14 15:14:02.050065'
 RESULT_FILE = "../results/vis_data/"+ model_name +".pickle"
 
 

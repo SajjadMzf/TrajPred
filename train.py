@@ -13,23 +13,23 @@ from sklearn.metrics import  roc_curve, auc, roc_auc_score
 import matplotlib
 import matplotlib.pyplot as plt
 
-import Dataset 
-import models 
-import params
-import kpis
-import training_functions
-import model_specific_training_functions as mstf
-
 from torch.utils.tensorboard import SummaryWriter
+
+
 
 import torch.multiprocessing
 torch.multiprocessing.set_sharing_strategy('file_system')
 
-
-
 import matplotlib.colors as mcolors
 
+
+import Dataset
+import params
+import kpis
+import top_functions
 from evaluate import test_model_dict
+
+import TPMs
 
 def train_model_dict(p):
     # Set Random Seeds:
@@ -59,17 +59,19 @@ def train_model_dict(p):
     model_eval_func = p.model_dictionary['model evaluation function']
     model_kpi_func = p.model_dictionary['model kpi function']
     
-    tr_dataset = Dataset.LCDataset(p.TR.DATASET_DIR, p.TR.DATA_FILES,
+    tr_dataset = Dataset.LCDataset(p.TR.DATASET_DIR, p.TR.DATA_FILES, p.TR.MAP_INDEX, p.TR.MAP_DIRS,
         index_file = Dataset.get_index_file(p,p.TR, 'Tr'),
         data_type = p.model_dictionary['data type'], 
         state_type = p.model_dictionary['state type'], 
+        use_map_features = p.hyperparams['model']['use_map_features'],
         keep_plot_info= False, 
         force_recalc_start_indexes = False)
   
-    val_dataset = Dataset.LCDataset(p.TR.DATASET_DIR, p.TR.DATA_FILES,
+    val_dataset = Dataset.LCDataset(p.TR.DATASET_DIR, p.TR.DATA_FILES, p.TR.MAP_INDEX, p.TR.MAP_DIRS,
         index_file = Dataset.get_index_file(p,p.TR,  'Val'),
         data_type = p.model_dictionary['data type'], 
-        state_type = p.model_dictionary['state type'], 
+        state_type = p.model_dictionary['state type'],
+        use_map_features = p.hyperparams['model']['use_map_features'], 
         keep_plot_info= True, 
         import_states = True,
         force_recalc_start_indexes = False,
@@ -79,10 +81,11 @@ def train_model_dict(p):
         output_states_max = tr_dataset.output_states_max)
     
     
-    te_dataset = Dataset.LCDataset(p.TE.DATASET_DIR, p.TE.DATA_FILES,
+    te_dataset = Dataset.LCDataset(p.TE.DATASET_DIR, p.TE.DATA_FILES, p.TE.MAP_INDEX, p.TE.MAP_DIRS,
         index_file = Dataset.get_index_file(p,p.TE,  'Te'),
         data_type = p.model_dictionary['data type'],
         state_type = p.model_dictionary['state type'], 
+        use_map_features = p.hyperparams['model']['use_map_features'],
         keep_plot_info= True, 
         import_states = True,
         force_recalc_start_indexes = False,
@@ -97,8 +100,8 @@ def train_model_dict(p):
     else:
         tb_log_dir = "runs/{}/{}".format(p.experiment_group,p.experiment_file)
     tb = SummaryWriter(log_dir= tb_log_dir)
-    val_result_dic = training_functions.train_top_func(p,model_train_func, model_eval_func, model_kpi_func, model, (traj_loss_func, man_loss_func), optimizer, tr_dataset, val_dataset,device, tensorboard = tb)    
-    kpi_dic = training_functions.eval_top_func(p, model_eval_func, model_kpi_func, model, (traj_loss_func, man_loss_func), te_dataset, device,  tensorboard = tb)
+    val_result_dic = top_functions.train_top_func(p,model_train_func, model_eval_func, model_kpi_func, model, (traj_loss_func, man_loss_func), optimizer, tr_dataset, val_dataset,device, tensorboard = tb)    
+    kpi_dic = top_functions.eval_top_func(p, model_eval_func, model_kpi_func, model, (traj_loss_func, man_loss_func), te_dataset, device,  tensorboard = tb)
     #print('x')
     p.export_experiment()
     # Save results:
@@ -125,22 +128,139 @@ if __name__ == '__main__':
     #1
     train_model_dict(p)
     '''
-    
-    p = params.ParametersHandler('MMnTP.yaml', 'exid_train.yaml', './config')
+    # with map MM
+    p = params.ParametersHandler('MMnTP.yaml', 'exid_train.yaml', './config',seperate_test_dataset='exid_test.yaml', seperate_deploy_dataset='exid_deploy.yaml')
     p.hyperparams['experiment']['group'] = 'lrwub32'
     p.hyperparams['training']['batch_size'] = 32
     p.hyperparams['experiment']['debug_mode'] = False
     p.hyperparams['dataset']['ablation'] = False
     p.hyperparams['experiment']['multi_modal_eval'] = False
-    p.model['hyperparams']['number of modes'] = 1
-    p.hyperparams['model']['multi_modal'] =  False
-    p.hyperparams['model']['man_dec_out'] = False
+    p.hyperparams['model']['use_map_features'] = True
     p.match_parameters()
     #1
     train_model_dict(p)
+    p.hyperparams['experiment']['multi_modal_eval'] = True
+    p.match_parameters()
     test_model_dict(p)
     
    
+    # without map
+    p = params.ParametersHandler('MMnTP.yaml', 'exid_train.yaml', './config',seperate_test_dataset='exid_test.yaml', seperate_deploy_dataset='exid_deploy.yaml')
+    p.hyperparams['experiment']['group'] = 'lrwub32'
+    p.hyperparams['training']['batch_size'] = 32
+    p.hyperparams['experiment']['debug_mode'] = False
+    p.hyperparams['dataset']['ablation'] = False
+    p.hyperparams['experiment']['multi_modal_eval'] = False
+    p.hyperparams['model']['use_map_features'] = False
+    p.match_parameters()
+    #1
+    train_model_dict(p)
+    p.hyperparams['experiment']['multi_modal_eval'] = True
+    p.match_parameters()
+    test_model_dict(p)
 
 
+     # with map SM
+    p = params.ParametersHandler('MMnTP.yaml', 'exid_train.yaml', './config',seperate_test_dataset='exid_test.yaml', seperate_deploy_dataset='exid_deploy.yaml')
+    p.hyperparams['experiment']['group'] = 'lrwub32'
+    p.hyperparams['training']['batch_size'] = 32
+    p.hyperparams['experiment']['debug_mode'] = False
+    p.hyperparams['dataset']['ablation'] = False
+    p.hyperparams['experiment']['multi_modal_eval'] = False
+    p.hyperparams['model']['use_map_features'] = True
+    p.hyperparams['model']['multi_modal'] = False
+    p.hyperparams['model']['man_dec_in'] = False
+    p.match_parameters()
+    #1
+    train_model_dict(p)
+    p.hyperparams['experiment']['multi_modal_eval'] = False
+    p.match_parameters()
+    test_model_dict(p)
     
+   
+    # without map
+    p = params.ParametersHandler('MMnTP.yaml', 'exid_train.yaml', './config',seperate_test_dataset='exid_test.yaml', seperate_deploy_dataset='exid_deploy.yaml')
+    p.hyperparams['experiment']['group'] = 'lrwub32'
+    p.hyperparams['training']['batch_size'] = 32
+    p.hyperparams['experiment']['debug_mode'] = False
+    p.hyperparams['dataset']['ablation'] = False
+    p.hyperparams['experiment']['multi_modal_eval'] = False
+    p.hyperparams['model']['use_map_features'] = False
+    p.hyperparams['model']['multi_modal'] = False
+    p.hyperparams['model']['man_dec_in'] = False
+    
+    p.match_parameters()
+    #1
+    train_model_dict(p)
+    p.hyperparams['experiment']['multi_modal_eval'] = False
+    p.match_parameters()
+    test_model_dict(p)
+    
+
+    ''''
+    
+    # DMTP:
+    # with map
+    p = params.ParametersHandler('DMTP.yaml', 'exid_train.yaml', './config',seperate_test_dataset='exid_test.yaml', seperate_deploy_dataset='exid_deploy.yaml')
+    p.hyperparams['experiment']['group'] = 'lrwub32'
+    p.hyperparams['training']['batch_size'] = 32
+    p.hyperparams['experiment']['debug_mode'] = True
+    p.hyperparams['dataset']['ablation'] = False
+    p.hyperparams['experiment']['multi_modal_eval'] = False
+    p.hyperparams['model']['use_map_features'] = True
+    p.match_parameters()
+    #1
+    train_model_dict(p)
+    p.hyperparams['experiment']['multi_modal_eval'] = True
+    p.match_parameters()
+    test_model_dict(p)
+    
+   
+    # without map
+    p = params.ParametersHandler('DMTP.yaml', 'exid_train.yaml', './config',seperate_test_dataset='exid_test.yaml', seperate_deploy_dataset='exid_deploy.yaml')
+    p.hyperparams['experiment']['group'] = 'lrwub32'
+    p.hyperparams['training']['batch_size'] = 32
+    p.hyperparams['experiment']['debug_mode'] = True
+    p.hyperparams['dataset']['ablation'] = False
+    p.hyperparams['experiment']['multi_modal_eval'] = False
+    p.hyperparams['model']['use_map_features'] = False
+    p.match_parameters()
+    #1
+    train_model_dict(p)
+    p.hyperparams['experiment']['multi_modal_eval'] = True
+    p.match_parameters()
+    test_model_dict(p)
+
+
+    # SMTP:
+    # with map
+    p = params.ParametersHandler('SMTP.yaml', 'exid_train.yaml', './config',seperate_test_dataset='exid_test.yaml', seperate_deploy_dataset='exid_deploy.yaml')
+    p.hyperparams['experiment']['group'] = 'lrwub32'
+    p.hyperparams['training']['batch_size'] = 32
+    p.hyperparams['experiment']['debug_mode'] = True
+    p.hyperparams['dataset']['ablation'] = False
+    p.hyperparams['experiment']['multi_modal_eval'] = False
+    p.hyperparams['model']['use_map_features'] = True
+    p.match_parameters()
+    #1
+    train_model_dict(p)
+    p.hyperparams['experiment']['multi_modal_eval'] = True
+    p.match_parameters()
+    test_model_dict(p)
+    
+   
+    # without map
+    p = params.ParametersHandler('SMTP.yaml', 'exid_train.yaml', './config',seperate_test_dataset='exid_test.yaml', seperate_deploy_dataset='exid_deploy.yaml')
+    p.hyperparams['experiment']['group'] = 'lrwub32'
+    p.hyperparams['training']['batch_size'] = 32
+    p.hyperparams['experiment']['debug_mode'] = True
+    p.hyperparams['dataset']['ablation'] = False
+    p.hyperparams['experiment']['multi_modal_eval'] = False
+    p.hyperparams['model']['use_map_features'] = False
+    p.match_parameters()
+    #1
+    train_model_dict(p)
+    p.hyperparams['experiment']['multi_modal_eval'] = True
+    p.match_parameters()
+    test_model_dict(p)
+    '''

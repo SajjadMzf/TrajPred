@@ -87,6 +87,8 @@ class ExtractScenarios:
             scenario = {
                     'file': self.file_num,
                     'tv':tv_id,
+                    'x':tv_data[rc.X],
+                    'y': tv_data[rc.Y],
                     'ttlc_available':True,
                     'frames':tv_data[rc.FRAME], 
                     'grid': grid_data, 

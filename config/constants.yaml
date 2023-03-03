@@ -1,3 +1,6 @@
+MODELS:
+  FEATURE_SIZE: 21
+  MAP_FEATURES: 2
 TASKS:
   CLASSIFICATION: 0
   REGRESSION: 1
@@ -6,6 +9,7 @@ TASKS:
 
 DIRS:
   MODELS_DIR: 'models/'
+  WEIGHTS_DIR: 'weights/'
   RESULTS_DIR: 'results/'
   VISUALISE_DIR: 'results/visualisation'
   TABLES_DIR: 'results/tables/'

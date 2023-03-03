@@ -27,9 +27,9 @@ import sys
 
 sys.path.insert(1,'../')
 import Dataset 
-import models 
+import TPMs 
 import params 
-import training_functions 
+import top_functions 
 import kpis
 import utils
 import read_csv as rc
@@ -123,7 +123,7 @@ class BEVPlotter:
             images.append(image)
         images = np.array(images)
         scenario_id = 'File{}_TV{}_SN{}_F{}'.format(data_file, tv_id, scenario_itr, frames[0])
-        #pf.save_image_sequence(p.model_name, images, self.traj_vis_dir, scenario_id, self.remove_ids_list is not None)              
+        pf.save_image_sequence(p.model_name, images, self.traj_vis_dir, scenario_id, self.remove_ids_list is not None)              
 
     
     def plot_one_frame(self, scenario_itr, tv_id, scenario_tuple, time):
@@ -148,8 +148,7 @@ class BEVPlotter:
         traj_preds = np.cumsum(traj_preds, axis = 1)
         #print(traj_labels.shape)
         #pdb.set_trace()  
-        image = 0
-        '''
+        
         image = pf.plot_frame(
             lane_markings,
             frame_data,
@@ -163,7 +162,6 @@ class BEVPlotter:
             traj_preds,
             image_width,
             image_height)            
-        '''
         return image
         
         

@@ -1,5 +1,5 @@
 name: SMTP #Static Multi-modal Trajectory Prediction
-ref: models.SMTP
+ref: TPMs.SMTP.model.SMTP
 hyperparams:
   layer number: 1
   model dim: 512
@@ -7,14 +7,15 @@ hyperparams:
   classifier dim: 256
   head number: 8
   probabilistic output: True
-  number of modes: 3
+  number of modes: 6
   manouvre per mode: 1
 
 optimizer: torch.optim.Adam
 man loss function: torch.nn.CrossEntropyLoss # This is the loss function to evaluate mode prob estimation
 traj loss function: torch.nn.MSELoss
-model training function: mstf.SMTP_training
-model evaluation function: mstf.SMTP_evaluation
+model training function: TPMs.SMTP.functions.SMTP_training
+model evaluation function: TPMs.SMTP.functions.SMTP_evaluation
+model deploy function: TPMs.MMnTP.functions.MMnTP_deploy # TODO: deploy model needs to be modified for DMTP
 model kpi function: kpis.XMTP_kpis
 data type: 'state'
-state type: 'wirth'
+state type: 'merging'

@@ -5,16 +5,19 @@ import numpy as np
 import h5py
 import matplotlib.pyplot as plt
 import sys
-from debugging_utils import *
+import pickle
 from random import shuffle
 import pdb
 class LCDataset(Dataset):
     def __init__(self, 
     dataset_dir, 
-    data_files, 
+    data_files,
+    map_inds,
+    map_files, 
     data_type, 
-    index_file,#'in_seq_len, out_seq_len, skip_seq_len, _B for balanced(_U for unbalanced),tr_ratio,abb_val_ratio,val_ratio,test_ratio,  
+    index_file,#'max_in_seq_len, out_seq_len, skip_seq_len, _B for balanced(_U for unbalanced),tr_ratio,abb_val_ratio,val_ratio,test_ratio,  
     state_type = '',
+    use_map_features = False,
     keep_plot_info = True, 
     states_min = 0, 
     states_max = 0, 
@@ -29,6 +32,8 @@ class LCDataset(Dataset):
         BalancedIndex Option: B for balanced, U for unbalanced.
         '''
         super(LCDataset, self).__init__()
+        self.map_data_list = self.get_map_data(map_files)
+        self.map_inds = map_inds
         self.data_files = data_files
         #print(data_files)
         #exit()
@@ -43,13 +48,8 @@ class LCDataset(Dataset):
         self.data_type= data_type
         self.deploy_data = deploy_data
         self.parse_index_file()
+        self.use_map_features = use_map_features
         
-        if data_type == 'image':
-            self.image_only = True
-            self.state_only = False
-        elif data_type == 'state':
-            self.image_only = False
-            self.state_only = True
         
         self.keep_plot_info = keep_plot_info
         
@@ -86,14 +86,25 @@ class LCDataset(Dataset):
     def __len__(self):
         return self.dataset_size
 
+    def get_map_data(self, map_files):
+        map_data_list = []
+        for map_file in map_files:
+            with open(map_file, 'rb') as handle:
+                (map_data, x_min, y_max, x_res, y_res) = pickle.load(handle)
+            
+            # = (0,0,0,0,0)
+            map_dict = {'data': np.transpose(map_data, (0,1,3,2)), 'xmin': x_min, 'ymax': y_max, 'xres':x_res, 'yres':y_res}
+            map_data_list.append(map_dict)
+        return map_data_list
+
     def parse_index_file(self):
         index_data = self.index_file.split('_')
         try:
             self.index_group = index_data[0]
-            self.in_seq_len = int(index_data[1])
+            self.max_in_seq_len = int(index_data[1])
             self.out_seq_len = int(index_data[2])
             self.end_of_seq_skip_len = int(index_data[3])
-            self.total_seq_len = self.in_seq_len + self.out_seq_len if self.index_group != 'De' else self.in_seq_len
+            self.total_seq_len = self.max_in_seq_len + self.out_seq_len if self.index_group != 'De' else self.max_in_seq_len
             self.unbalanced_status = index_data[4]
             if index_data[4] == 'B':
                 self.unbalanced = False
@@ -137,27 +148,31 @@ class LCDataset(Dataset):
     def get_samples_start_index(self,force_recalc = False):
         
         if force_recalc or (not os.path.exists(self.index_file_dirs)):
-            sample_seq_len = self.in_seq_len if self.index_group =='De'else self.in_seq_len+self.out_seq_len+self.end_of_seq_skip_len 
-            print('Extracing start indexes for all index groups')
             samples_start_index = []
-            valid_tv = -1
-            for file_itr, data_file in enumerate(self.dataset_dirs):
-                #if file_itr>1:
-                #    break
-                print('File: {}'.format(data_file))
-                with h5py.File(data_file, 'r') as f:
-                    tv_ids = f['tv_data']
-                    len_scenario = tv_ids.shape[0]
-                    current_tv = -1
-                    for itr, tv_id in enumerate(tv_ids):
-                        print('{}/{}'.format(itr, len(tv_ids)), end = '\r')
-                        if (itr+sample_seq_len) <= len_scenario:
-                            if np.all(tv_ids[itr:(itr+sample_seq_len)] == tv_id):
-                                if tv_id != current_tv:
-                                    samples_start_index.append([])
-                                    valid_tv+=1
-                                    current_tv = tv_id
-                                samples_start_index[valid_tv].append([file_itr, itr])
+            if self.index_group != 'De':# not deployment
+                for in_seq_len in range(1, self.max_in_seq_len+1):
+                    sample_seq_len =  in_seq_len+self.out_seq_len+self.end_of_seq_skip_len 
+                    print('Extracing start indexes for all index groups')
+                    valid_tv = -1
+                    for file_itr, data_file in enumerate(self.dataset_dirs):
+                        #if file_itr>1:
+                        #    break
+                        print('File: {}'.format(data_file))
+                        with h5py.File(data_file, 'r') as f:
+                            tv_ids = f['tv_data']
+                            len_scenario = tv_ids.shape[0]
+                            current_tv = -1
+                            for itr, tv_id in enumerate(tv_ids):
+                                print('{}/{}/{}'.format(in_seq_len, itr, len(tv_ids)), end = '\r')
+                                if (itr+sample_seq_len) <= len_scenario:
+                                    if np.all(tv_ids[itr:(itr+sample_seq_len)] == tv_id):
+                                        if tv_id != current_tv:
+                                            samples_start_index.append([])
+                                            valid_tv+=1
+                                            current_tv = tv_id
+                                        samples_start_index[valid_tv].append([file_itr, itr])
+            else: #if deployment
+            
             samples_start_index = [np.array(samples_start_index[itr]) for itr in range(len(samples_start_index))]
             shuffle(samples_start_index)
             
@@ -223,7 +238,7 @@ class LCDataset(Dataset):
             with h5py.File(self.dataset_dirs[file_itr], 'r') as f: #TODO you may save all labels in an array before this loop
                 labels_data = f['labels']
                 start_itr = start_index[itr,1]
-                label = abs(labels_data[(start_itr+self.in_seq_len):(start_itr+self.total_seq_len)])    
+                label = abs(labels_data[(start_itr+self.max_in_seq_len):(start_itr+self.total_seq_len)])    
                 balanced_scenarios[itr] = np.any(label)*2 # 2 is lc scenario, if there is a lc man at any time-step of sample, considered it in balanced dataset
                 if np.any(label):
                     lc_count_in_lc_scenarios += np.count_nonzero(label>0)
@@ -241,49 +256,70 @@ class LCDataset(Dataset):
     def __getitem__(self, idx):
         file_itr = self.start_indexes[idx,0]
         start_index = self.start_indexes[idx,1]
+        
         with h5py.File(self.dataset_dirs[file_itr], 'r') as f:
             
             if self.data_type == 'state':
                 state_data = f[self.state_data_name]
+                
+                
+                states = state_data[start_index:(start_index+self.max_in_seq_len)]
+                
+                states = (states-self.states_min)/(self.states_max-self.states_min)
+                if self.use_map_features:
+                    x = f['x_data']
+                    y = f['y_data']
+                    x = x[start_index+self.max_in_seq_len-1]
+                    y = y[start_index+self.max_in_seq_len-1]
+                    #tv_data = f['tv_data']
+                    #frame_data = f['frame_data']
+                    #frame = frame_data[start_index+self.max_in_seq_len-1]
+                    #tv_id = tv_data[start_index] # constant number for all frames of same scenario  
+                
+                    map_data = self.map_data_list[self.map_inds[file_itr]]['data']
+                    x_min = self.map_data_list[self.map_inds[file_itr]]['xmin']
+                    y_max = self.map_data_list[self.map_inds[file_itr]]['ymax']
+                    xres = self.map_data_list[self.map_inds[file_itr]]['xres']
+                    yres = self.map_data_list[self.map_inds[file_itr]]['yres']
+                    x_size = map_data.shape[0]
+                    y_size = map_data.shape[1]
+                    x_loc = max(min(np.floor((x-x_min)/xres).astype(int), x_size-1),0)
+                    y_loc = max(min(np.floor((y_max-y)/yres).astype(int), y_size-1),0)
+                    map_features = map_data[x_loc, y_loc, :, 1:]
+                    
+                    #print('File:{},TV: {}, frame:{}, x:{}, y:{}, Xloc:{}, Yloc:{}, Xsize:{}, Ysize:{} \n Map:\n {}'.format(self.dataset_dirs[file_itr],tv_id, frame,x,y,x_loc,y_loc, x_size, y_size, map_features))
+                    
+                    states = np.concatenate((states, map_features), axis = 1)
+                
+                states = torch.from_numpy(states.astype(np.float32))
+                data_output = [states]
             
-            labels_data = f['labels']
+            elif self.data_type == 'image':
+                image_data = f['image_data']
+                images = torch.from_numpy(image_data[start_index:(start_index+self.max_in_seq_len)].astype(np.float32))
+                data_output = [images]
+            else:
+                raise(ValueError('undefined data type'))
 
             if self.keep_plot_info:
                 frame_data = f['frame_data']
                 tv_data = f['tv_data']
                 tv_id = tv_data[start_index] # constant number for all frames of same scenario  
-                frames = frame_data[start_index:(start_index+self.total_seq_len)]
+                frames =  frame_data[start_index:(start_index+self.total_seq_len)]
                 plot_output = [tv_id, frames, self.data_files[file_itr]]
             else:
                 plot_output = ()
-            
-            if self.image_only:
-                image_data = f['image_data']
-                images = torch.from_numpy(image_data[start_index:(start_index+self.in_seq_len)].astype(np.float32))
-                data_output = [images]
-            elif self.state_only:
-                states = state_data[start_index:(start_index+self.in_seq_len)]
-                
-                states = (states-self.states_min)/(self.states_max-self.states_min)
-                states = torch.from_numpy(states.astype(np.float32))
-                data_output = [states]
-            else:
-                states = state_data[start_index:(start_index+self.in_seq_len)]
-                states = (states-self.states_min)/(self.states_max-self.states_min)
-                images = torch.from_numpy(image_data[start_index:(start_index+self.in_seq_len)].astype(np.float32))
-                states = torch.from_numpy(states.astype(np.float32))
-                data_output = [images, states]
             
             output_state_data = f['output_states_data']
             output_states = output_state_data[(start_index):(start_index+self.total_seq_len)]
             output_states = (output_states-self.output_states_min)/(self.output_states_max-self.output_states_min)
             
             output_states = torch.from_numpy(output_states.astype(np.float32))
-            #label = torch.from_numpy(label)
             data_output.append(output_states)
-                
-
+            labels_data = f['labels']
             label = np.absolute(labels_data[(start_index):(start_index+self.total_seq_len)].astype(np.long))
+
+            
         return data_output, label, plot_output
 
 def get_index_file(p, d_class, index_group):
@@ -298,7 +334,7 @@ def get_index_file(p, d_class, index_group):
         unbalanced_ind = 'U'
     else:
         unbalanced_ind = 'B'
-    index_file = '{}_{}_{}_{}_{}_{}_{}_{}_{}_{}_{}.npy'.format(index_group, p.IN_SEQ_LEN, p.TGT_SEQ_LEN, p.SKIP_SEQ_LEN, unbalanced_ind, d_class.TR_RATIO, d_class.ABBVAL_RATIO, d_class.VAL_RATIO, d_class.TE_RATIO, d_class.DE_RATIO, d_class.SELECTED_DATASET)
+    index_file = '{}_{}_{}_{}_{}_{}_{}_{}_{}_{}_{}.npy'.format(index_group, p.MAX_IN_SEQ_LEN, p.TGT_SEQ_LEN, p.SKIP_SEQ_LEN, unbalanced_ind, d_class.TR_RATIO, d_class.ABBVAL_RATIO, d_class.VAL_RATIO, d_class.TE_RATIO, d_class.DE_RATIO, d_class.SELECTED_DATASET)
     return index_file
 
 def modify_index_file(index_file,index_group = None, unbalanced_ind = None):

@@ -1,3 +1,13 @@
+### GENERATE_MAP PARAMs
+MAP_XRES = 1
+MAP_YRES = 0.1
+MAP_LENGTH_EXT = 300
+MAP_CELL_LENGTH = 15
+MAP_CELL_CHANNEL = 3
+MAP_VISION = 150
+#######################
+
+
 
 DATASET = "Processed_exid" #Processed_highD #Processed_NGSIM
 
@@ -36,7 +46,7 @@ if DATASET == 'Processed_exid':
     map_paths = ['../../Dataset/exid/Maps/39-52.pickle',
                 '../../Dataset/exid/Maps/53-60.pickle',
                 '../../Dataset/exid/Maps/61-72.pickle',
-                '../../Dataset/exid/Maps/78-92.pickle',]
+                '../../Dataset/exid/Maps/78-92.pickle']
     static_paths = [None]*93
     meta_paths = [None]*93
     IN_FPS = 25

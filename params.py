@@ -2,13 +2,13 @@ import os
 import torch
 import torch.utils.data as utils_data
 import numpy as np
-import models
 from datetime import datetime
 import yaml
 import copy
-import kpis
-import model_specific_training_functions as mstf
 import pickle
+
+import kpis
+import TPMs
 
 class ParametersHandler:
     def __init__(self, model, dataset, parameters_dir, seperate_deploy_dataset = None, seperate_test_dataset = None, experiments_dir = 'experiments/', evaluation_dir = 'evaluations/', models_dir = 'models/', datasets_dir = 'datasets/', constants_file = 'constants.yaml', hyperparams_file = 'hyperparams.yaml'):
@@ -63,6 +63,9 @@ class ParametersHandler:
     def create_dirs(self):
         if not os.path.exists(self.constants['DIRS']['MODELS_DIR']):
             os.mkdir(self.constants['DIRS']['MODELS_DIR'])
+        if not os.path.exists(self.constants['DIRS']['WEIGHTS_DIR']):
+            os.mkdir(self.constants['DIRS']['WEIGHTS_DIR'])
+        
         if not os.path.exists(self.constants['DIRS']['RESULTS_DIR']):
             os.mkdir(self.constants['DIRS']['RESULTS_DIR'])
         if not os.path.exists(self.constants['DIRS']['TABLES_DIR']):
@@ -93,6 +96,7 @@ class ParametersHandler:
         self.MAN_DEC_IN = self.hyperparams['model']['man_dec_in']
         self.MAN_DEC_OUT = self.hyperparams['model']['man_dec_out']
         self.MULTI_MODAL = self.hyperparams['model']['multi_modal']
+        self.USE_MAP_FEATURES = self.hyperparams['model']['use_map_features']
         self.VAL_SCORE = self.hyperparams['model']['validation_score']
         self.LOWER_BETTER_VAL_SCORE = self.hyperparams['model']['lower_better_val_score']
         
@@ -101,7 +105,7 @@ class ParametersHandler:
         #exit()
         # Prediction Problem Hyperparameters:
         self.FPS = self.hyperparams['problem']['FPS']
-        self.IN_SEQ_LEN = self.hyperparams['problem']['IN_SEQ_LEN']
+        self.MAX_IN_SEQ_LEN = self.hyperparams['problem']['MAX_IN_SEQ_LEN']
         self.TGT_SEQ_LEN = self.hyperparams['problem']['TGT_SEQ_LEN'] # out_Seq_len
         self.SKIP_SEQ_LEN = self.hyperparams['problem']['SKIP_SEQ_LEN'] # end_of_seq_skip_len
         
@@ -126,7 +130,9 @@ class ParametersHandler:
             self.unblanaced_ext = ''
         
         
-
+        self.FEATURE_SIZE = self.constants['MODELS']['FEATURE_SIZE']
+        self.MAP_FEATURES = self.constants['MODELS']['MAP_FEATURES']
+        self.WEIGHTS_DIR = self.constants['DIRS']['WEIGHTS_DIR']
         self.MODELS_DIR = self.constants['DIRS']['MODELS_DIR']
         self.RESULTS_DIR = self.constants['DIRS']['RESULTS_DIR']
         self.TABLES_DIR = self.constants['DIRS']['TABLES_DIR']
@@ -184,7 +190,7 @@ class ParametersHandler:
             self.model = experiment_list[2]
             self.tr_dataset = experiment_list[3]
             self.te_dataset = experiment_list[4]
-            self.de_dataset = experiment_list[5]
+            #self.de_dataset = experiment_list[5]
         self.latest_experiment_file = name_dict['experiment file name']
         self.experiment_file = self.latest_experiment_file.split('/')[-1]
         print('Experiment file is: ', self.latest_experiment_file)
@@ -193,6 +199,7 @@ class ParametersHandler:
 class DataClass:
     def __init__(self,dataset):
         self.SELECTED_DATASET = dataset['name']
+        #print(self.SELECTED_DATASET)
         self.DATASET_DIR = dataset['dataset_dir']
         self.IMAGE_HEIGHT = dataset['image_height']
         self.IMAGE_WIDTH = dataset['image_width']
@@ -202,3 +209,5 @@ class DataClass:
         self.ABBVAL_RATIO = dataset['abblation_val']
         self.DE_RATIO = dataset['deploy']
         self.DATA_FILES = [ str(i).zfill(2)+'.h5' for i in eval(dataset['dataset_ind'])]
+        self.MAP_DIRS = dataset['map_dirs']
+        self.MAP_INDEX = [i for i in eval(dataset['map_ind'])]

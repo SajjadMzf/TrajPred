@@ -67,10 +67,13 @@ class RenderScenarios:
             total_frames += len(self.scenarios[itr]['frames'])
 
         frame_data = hf.create_dataset('frame_data', shape = (total_frames,), dtype = np.float32)       
+        x_data = hf.create_dataset('x_data', shape = (total_frames,), dtype = np.float32)       
+        y_data = hf.create_dataset('y_data', shape = (total_frames,), dtype = np.float32)       
+        
         file_ids = hf.create_dataset('file_ids', shape = (total_frames,), dtype = np.int)
         tv_data = hf.create_dataset('tv_data', shape = (total_frames,), dtype = np.int)
         labels = hf.create_dataset('labels', shape = (total_frames,), dtype = np.float32)
-        state_merging_data = hf.create_dataset('state_merging', shape = (total_frames, 23), dtype = np.float32)
+        state_merging_data = hf.create_dataset('state_merging', shape = (total_frames, 21), dtype = np.float32)
         output_states_data = hf.create_dataset('output_states_data', shape = (total_frames, 2), dtype = np.float32)
         
         cur_frame = 0
@@ -79,6 +82,8 @@ class RenderScenarios:
             state_merging_data[cur_frame:(cur_frame+scenario_length), :] = self.scenarios[itr]['states_merging']
             output_states_data[cur_frame:(cur_frame+scenario_length), :] = self.scenarios[itr]['output_states']
             frame_data[cur_frame:(cur_frame+scenario_length)] = self.scenarios[itr]['frames']
+            x_data[cur_frame:(cur_frame+scenario_length)] = self.scenarios[itr]['x']
+            y_data[cur_frame:(cur_frame+scenario_length)] = self.scenarios[itr]['y']
             tv_data[cur_frame:(cur_frame+scenario_length)] = self.scenarios[itr]['tv']
             file_ids[cur_frame:(cur_frame+scenario_length)] = self.scenarios[itr]['file']
             labels[cur_frame:(cur_frame+scenario_length)] = self.scenarios[itr]['label']
@@ -185,7 +190,7 @@ class RenderScenarios:
         
         
         ###################################### State Merging #####################################################
-        state_merging = np.zeros((23)) # a proposed features  
+        state_merging = np.zeros((21)) # a proposed features  
         # (1) Lateral Pos
         state_merging[0] = lateral_pos(tv_itr)
         # (2) Long Velo
@@ -228,10 +233,6 @@ class RenderScenarios:
         state_merging[19] = rel_distance_y(lv3_itr) if lv3_itr != None else -30
         # (21) Lane width
         state_merging[20] = lane_width
-        # (22) Right lane boundry type
-        state_merging[21] = lane_width#right_lane_type
-        # (23) Left lane boundry type
-        state_merging[22] = lane_width#left_lane_type
 
         return state_merging, output_state, tv_lane_ind, 
     

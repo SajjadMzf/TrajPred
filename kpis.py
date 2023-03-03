@@ -16,12 +16,11 @@ from sklearn import metrics
 import pandas as pd
 import matplotlib
 from matplotlib.backends.backend_pdf import PdfPages
-from debugging_utils import *
+
 font = {'size'   : 22}
 matplotlib.rcParams['figure.figsize'] = (18, 12)
 matplotlib.rc('font', **font)
 
-import models_functions as mf
 import pdb
 
 def MMnTP_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
@@ -507,86 +506,6 @@ def NLL_loss(y_pred, y_gt):
     
 
 
-def MTPM_loss(p, man_pred, man_vec_gt, n_mode, man_per_mode, device, test_phase = False, time_reg = True):
-    # man pred: [batch_size, (1+3*man_per_mode + tgt_seq_len)*modes]
-    # man_gt: [batch_size, tgt_seq_len]
-    
-    tgt_seq_len = man_vec_gt.shape[1]
-    w_ind = mf.divide_prediction_window(tgt_seq_len, man_per_mode)
-    man_gt, time_gt = mf.man_vector2man_n_timing(man_vec_gt, man_per_mode, w_ind)
-    man_gt = man_gt.to(device).type(torch.long)
-    time_gt = time_gt.to(device).type(torch.long)
-    man_vec_gt = man_vec_gt.to(device).type(torch.long)
-    batch_size = man_pred.shape[0]
-    #mode probabilities
-    mode_pr = man_pred[:, 0:n_mode] # mode prediction: probability of modes
-    man_pr = man_pred[:,n_mode:n_mode+ n_mode*3*man_per_mode] # manouvre prediction: order of manouvres 
-    time_pr = man_pred[:,n_mode+ n_mode*3*man_per_mode:] # timing of the manouvre
-    
-    
-
-    man_pr = man_pr.reshape(batch_size, n_mode, man_per_mode, 3)
-    man_pr_class = torch.argmax(man_pr, dim = -1)
-    man_pr = torch.permute(man_pr,(0,1,3,2))
-    if time_reg:
-        time_pr = time_pr.reshape(batch_size, n_mode, man_per_mode-1).clone()
-        for i in range(man_per_mode-1):
-            time_pr[:,:,i] = (time_pr[:,:,i]/2 + 0.5)*(w_ind[i,1]-w_ind[i,0]) 
-        time_bar_pred = time_pr
-        
-    else:
-        time_pr = time_pr.reshape(batch_size, n_mode, tgt_seq_len)
-    
-        time_pr_list = []
-        for i in range(len(w_ind)):
-            time_pr_list.append(time_pr[:,:,w_ind[i,0]:w_ind[i,1]])
-        
-    
-    loss_func = torch.nn.CrossEntropyLoss(ignore_index = -1)
-    loss_func_no_r = torch.nn.CrossEntropyLoss(ignore_index = -1, reduction = 'none')
-    reg_loss_func_no_r = torch.nn.MSELoss(reduction = 'none')
-    man_loss_list = []
-    time_loss_list = []
-    for mode_itr in range(n_mode):
-        
-        man_loss_list.append(torch.sum(loss_func_no_r(man_pr[:,mode_itr], man_gt), dim = 1)) 
-        if time_reg:
-            mode_time_loss = torch.sum(torch.mul(reg_loss_func_no_r(time_pr[:,mode_itr], time_gt.float()), (time_gt!=-1).float()), dim = -1)
-        else:
-            mode_time_loss = 0
-            for i, mode_time_pr in enumerate(time_pr_list):
-                mode_time_loss += loss_func_no_r(mode_time_pr[:,mode_itr], time_gt[:,i])
-        time_loss_list.append(mode_time_loss)
-    man_losses = torch.stack(man_loss_list, dim = 1)
-    time_losses = torch.stack(time_loss_list, dim = 1)
-    
-    man_pr = torch.permute(man_pr, (0,1,3,2))
-    man_pr = man_pr.reshape(batch_size*n_mode, man_per_mode,3)
-    man_pr_argmax = torch.argmax(man_pr, dim = -1)
-    #time_pr = time_pr.reshape(batch_size*n_mode, tgt_seq_len)
-    # Un comment for man acc loss calculation
-    '''
-    time_pr_arg_list = []
-    for i in range(len(w_ind)):
-        time_pr_arg_list.append(torch.argmax(time_pr[:,w_ind[i,0]:w_ind[i,1]], dim = -1))
-    
-    man_vec_pr = mf.man_n_timing2man_vector(man_pr_argmax, time_pr_arg_list, tgt_seq_len, w_ind, device)
-    man_vec_pr = man_vec_pr.reshape(batch_size, n_mode, tgt_seq_len)
-    #print(man_vec_pr[:,0].shape)
-    man_acc = calc_man_acc_torch( man_vec_pr, man_vec_gt, device)
-    '''
-    if test_phase:
-        winning_mode = torch.argmax(mode_pr, dim=1)
-    else:
-        #winning_mode = torch.argmin(man_vec_loss, dim = 1)
-        winning_mode = torch.argmin(man_losses, dim = 1)
-        #winning_mode = torch.argmin(man_acc, dim = 1)
-
-    mode_loss = loss_func(mode_pr, winning_mode)
-    man_loss = torch.mean(man_losses[np.arange(batch_size), winning_mode])
-    time_loss = torch.mean(time_losses[np.arange(batch_size), winning_mode])
-    lossVal = mode_loss + man_loss + time_loss 
-    return lossVal, mode_loss, man_loss, time_loss, time_bar_pred
 
 
 

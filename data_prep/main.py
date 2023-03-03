@@ -56,11 +56,8 @@ if __name__ =="__main__":
     
     np.random.seed(0)   
     
-    # Single Core (For Debugging purposes)
     
-    #i = np.arange(39,40)#np.arange(1,61)
-    
-    extract(1, p.ind_list)    
+    #extract(1, p.ind_list)    
     render(1, p.ind_list)
     exit()
     
