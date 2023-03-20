@@ -1,0 +1,18 @@
+name: POVL_SM #Multi-Modal Manouvre and Trajectory Prediction
+ref: TPMs.POVL_SM.model.POVL_SM
+hyperparams:
+  layer number: 2
+  model dim: 512
+  feedforward dim: 128
+  classifier dim: 256
+  head number: 8
+  probabilistic output: True
+optimizer: torch.optim.Adam
+man loss function: TPMs.POVL.functions.MTPM_loss #not used
+traj loss function: torch.nn.MSELoss
+model training function: TPMs.POVL_SM.functions.POVL_SM_training
+model evaluation function: TPMs.POVL_SM.functions.POVL_SM_evaluation
+model deploy function: TPMs.POVL_SM.functions.POVL_SM_deploy
+model kpi function: TPMs.POVL_SM.kpis.POVL_SM_kpis
+data type: 'state'
+state type: 'merging'
