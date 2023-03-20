@@ -79,20 +79,15 @@ def test_model_dict(p):
 
 if __name__ == '__main__':
 
-   
-    #torch.cuda.empty_cache()
-    #p = params.ParametersHandler('Constant_Parameter.yaml', 'highD.yaml', './config')
-    p = params.ParametersHandler('DMTP.yaml', 'exid_train.yaml', './config',seperate_test_dataset='exid_test.yaml')
-  
-    experiment_file = 'experiments/MMnTP_exid_train_2023-02-22 16:23:16.871626'#'experiments/DMTP_exid_train_2023-02-22 11:38:01.533814' # DMTP_exid_train_2023-02-21 18:56:42.572922' # mode 1
+    p = params.ParametersHandler('POVL_SM.yaml', 'exid_train.yaml', './config', seperate_test_dataset='exid_test.yaml',seperate_deploy_dataset='exid_deploy.yaml')
+    experiment_file = 'experiments/POVL_SM_exid_train_2023-03-11 13:42:13.664618'#'experiments/DMTP_exid_train_2023-02-22 11:38:01.533814' # DMTP_exid_train_2023-02-21 18:56:42.572922' # mode 1
     p.import_experiment(experiment_file)
+    p.hyperparams['training']['batch_size'] = 128
     p.hyperparams['experiment']['debug_mode'] = False
-    p.hyperparams['dataset']['balanced'] = True
-    p.hyperparams['training']['batch_size'] = 64
-    p.hyperparams['experiment']['multi_modal_eval'] = True
-    if p.hyperparams['model']['multi_modal'] == False:
-        p.hyperparams['experiment']['multi_modal_eval'] = False
-    # make sure to use following function to update hyperparameters
+    p.hyperparams['dataset']['ablation'] = False
+    p.hyperparams['experiment']['multi_modal_eval'] = False
+    p.hyperparams['model']['use_map_features'] = True
+    p.hyperparams['dataset']['balanced'] = False
     p.match_parameters()
     test_model_dict(p)
 

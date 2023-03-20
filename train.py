@@ -33,7 +33,7 @@ import TPMs
 
 def train_model_dict(p):
     # Set Random Seeds:
-    if torch.cuda.is_available() and p.CUDA:
+    if torch.cuda.is_available() and False:#p.CUDA:
             device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
             torch.cuda.manual_seed_all(0)
     else:
@@ -101,8 +101,6 @@ def train_model_dict(p):
         tb_log_dir = "runs/{}/{}".format(p.experiment_group,p.experiment_file)
     tb = SummaryWriter(log_dir= tb_log_dir)
     val_result_dic = top_functions.train_top_func(p,model_train_func, model_eval_func, model_kpi_func, model, (traj_loss_func, man_loss_func), optimizer, tr_dataset, val_dataset,device, tensorboard = tb)    
-    kpi_dic = top_functions.eval_top_func(p, model_eval_func, model_kpi_func, model, (traj_loss_func, man_loss_func), te_dataset, device,  tensorboard = tb)
-    #print('x')
     p.export_experiment()
     # Save results:
     if p.parameter_tuning_experiment:
@@ -129,138 +127,20 @@ if __name__ == '__main__':
     train_model_dict(p)
     '''
     # with map MM
-    p = params.ParametersHandler('MMnTP.yaml', 'exid_train.yaml', './config',seperate_test_dataset='exid_test.yaml', seperate_deploy_dataset='exid_deploy.yaml')
-    p.hyperparams['experiment']['group'] = 'lrwub32'
-    p.hyperparams['training']['batch_size'] = 32
+    p = params.ParametersHandler('POVL.yaml', 'exid_train.yaml', './config', seperate_test_dataset='exid_test.yaml',seperate_deploy_dataset='exid_deploy.yaml')
+    p.hyperparams['experiment']['group'] = 'povl'
+    p.hyperparams['training']['batch_size'] = 128
     p.hyperparams['experiment']['debug_mode'] = False
     p.hyperparams['dataset']['ablation'] = False
     p.hyperparams['experiment']['multi_modal_eval'] = False
     p.hyperparams['model']['use_map_features'] = True
+    p.hyperparams['dataset']['balanced'] = True
     p.match_parameters()
     #1
     train_model_dict(p)
     p.hyperparams['experiment']['multi_modal_eval'] = True
+    p.hyperparams['dataset']['balanced'] = False
     p.match_parameters()
     test_model_dict(p)
     
-   
-    # without map
-    p = params.ParametersHandler('MMnTP.yaml', 'exid_train.yaml', './config',seperate_test_dataset='exid_test.yaml', seperate_deploy_dataset='exid_deploy.yaml')
-    p.hyperparams['experiment']['group'] = 'lrwub32'
-    p.hyperparams['training']['batch_size'] = 32
-    p.hyperparams['experiment']['debug_mode'] = False
-    p.hyperparams['dataset']['ablation'] = False
-    p.hyperparams['experiment']['multi_modal_eval'] = False
-    p.hyperparams['model']['use_map_features'] = False
-    p.match_parameters()
-    #1
-    train_model_dict(p)
-    p.hyperparams['experiment']['multi_modal_eval'] = True
-    p.match_parameters()
-    test_model_dict(p)
-
-
-     # with map SM
-    p = params.ParametersHandler('MMnTP.yaml', 'exid_train.yaml', './config',seperate_test_dataset='exid_test.yaml', seperate_deploy_dataset='exid_deploy.yaml')
-    p.hyperparams['experiment']['group'] = 'lrwub32'
-    p.hyperparams['training']['batch_size'] = 32
-    p.hyperparams['experiment']['debug_mode'] = False
-    p.hyperparams['dataset']['ablation'] = False
-    p.hyperparams['experiment']['multi_modal_eval'] = False
-    p.hyperparams['model']['use_map_features'] = True
-    p.hyperparams['model']['multi_modal'] = False
-    p.hyperparams['model']['man_dec_in'] = False
-    p.match_parameters()
-    #1
-    train_model_dict(p)
-    p.hyperparams['experiment']['multi_modal_eval'] = False
-    p.match_parameters()
-    test_model_dict(p)
     
-   
-    # without map
-    p = params.ParametersHandler('MMnTP.yaml', 'exid_train.yaml', './config',seperate_test_dataset='exid_test.yaml', seperate_deploy_dataset='exid_deploy.yaml')
-    p.hyperparams['experiment']['group'] = 'lrwub32'
-    p.hyperparams['training']['batch_size'] = 32
-    p.hyperparams['experiment']['debug_mode'] = False
-    p.hyperparams['dataset']['ablation'] = False
-    p.hyperparams['experiment']['multi_modal_eval'] = False
-    p.hyperparams['model']['use_map_features'] = False
-    p.hyperparams['model']['multi_modal'] = False
-    p.hyperparams['model']['man_dec_in'] = False
-    
-    p.match_parameters()
-    #1
-    train_model_dict(p)
-    p.hyperparams['experiment']['multi_modal_eval'] = False
-    p.match_parameters()
-    test_model_dict(p)
-    
-
-    ''''
-    
-    # DMTP:
-    # with map
-    p = params.ParametersHandler('DMTP.yaml', 'exid_train.yaml', './config',seperate_test_dataset='exid_test.yaml', seperate_deploy_dataset='exid_deploy.yaml')
-    p.hyperparams['experiment']['group'] = 'lrwub32'
-    p.hyperparams['training']['batch_size'] = 32
-    p.hyperparams['experiment']['debug_mode'] = True
-    p.hyperparams['dataset']['ablation'] = False
-    p.hyperparams['experiment']['multi_modal_eval'] = False
-    p.hyperparams['model']['use_map_features'] = True
-    p.match_parameters()
-    #1
-    train_model_dict(p)
-    p.hyperparams['experiment']['multi_modal_eval'] = True
-    p.match_parameters()
-    test_model_dict(p)
-    
-   
-    # without map
-    p = params.ParametersHandler('DMTP.yaml', 'exid_train.yaml', './config',seperate_test_dataset='exid_test.yaml', seperate_deploy_dataset='exid_deploy.yaml')
-    p.hyperparams['experiment']['group'] = 'lrwub32'
-    p.hyperparams['training']['batch_size'] = 32
-    p.hyperparams['experiment']['debug_mode'] = True
-    p.hyperparams['dataset']['ablation'] = False
-    p.hyperparams['experiment']['multi_modal_eval'] = False
-    p.hyperparams['model']['use_map_features'] = False
-    p.match_parameters()
-    #1
-    train_model_dict(p)
-    p.hyperparams['experiment']['multi_modal_eval'] = True
-    p.match_parameters()
-    test_model_dict(p)
-
-
-    # SMTP:
-    # with map
-    p = params.ParametersHandler('SMTP.yaml', 'exid_train.yaml', './config',seperate_test_dataset='exid_test.yaml', seperate_deploy_dataset='exid_deploy.yaml')
-    p.hyperparams['experiment']['group'] = 'lrwub32'
-    p.hyperparams['training']['batch_size'] = 32
-    p.hyperparams['experiment']['debug_mode'] = True
-    p.hyperparams['dataset']['ablation'] = False
-    p.hyperparams['experiment']['multi_modal_eval'] = False
-    p.hyperparams['model']['use_map_features'] = True
-    p.match_parameters()
-    #1
-    train_model_dict(p)
-    p.hyperparams['experiment']['multi_modal_eval'] = True
-    p.match_parameters()
-    test_model_dict(p)
-    
-   
-    # without map
-    p = params.ParametersHandler('SMTP.yaml', 'exid_train.yaml', './config',seperate_test_dataset='exid_test.yaml', seperate_deploy_dataset='exid_deploy.yaml')
-    p.hyperparams['experiment']['group'] = 'lrwub32'
-    p.hyperparams['training']['batch_size'] = 32
-    p.hyperparams['experiment']['debug_mode'] = True
-    p.hyperparams['dataset']['ablation'] = False
-    p.hyperparams['experiment']['multi_modal_eval'] = False
-    p.hyperparams['model']['use_map_features'] = False
-    p.match_parameters()
-    #1
-    train_model_dict(p)
-    p.hyperparams['experiment']['multi_modal_eval'] = True
-    p.match_parameters()
-    test_model_dict(p)
-    '''

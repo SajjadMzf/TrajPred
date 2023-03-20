@@ -23,6 +23,167 @@ matplotlib.rc('font', **font)
 
 import pdb
 
+
+# 
+
+def POVL_SM_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
+    '''
+    1. NLL (TBD)
+    2. error based 
+    Miss Rate (MR):  The number of scenarios where none of the forecasted trajectories are within 2.0 meters of ground truth according to endpoint error.
+    Minimum Final Displacement Error  (minFDE): The L2 distance between the endpoint of the best forecasted trajectory and the ground truth.  The best here refers to the trajectory that has the minimum endpoint error.
+    Minimum Average Displacement Error  (minADE): The average L2 distance between the best forecasted trajectory and the ground truth.  The best here refers to the trajectory that has the minimum endpoint error.
+    Probabilistic minimum Final Displacement Error  (p-minFDE): This is similar to minFDE. The only difference is we add min(-log(p), -log(0.05)) to the endpoint L2 distance, where p corresponds to the probability of the best forecasted trajectory.
+    Probabilistic minimum Average Displacement Error  (p-minADE): This is similar to minADE. The only difference is we add min(-log(p), -log(0.05)) to the average L2 distance, where p corresponds to the probability of the best forecasted trajectory.
+    3. N accident, N road violation (not here)
+    '''
+    '''
+     batch_kpi_input_dict = {    
+        'data_file': data_file,
+        'tv': tv_id.numpy(),
+        'frames': frames.numpy(),
+        'traj_min': dataset.output_states_min,
+        'traj_max': dataset.output_states_max,  
+        'input_features': feature_data.cpu().data.numpy(),
+        'traj_gt': traj_gt.cpu().data.numpy(),
+        'traj_dist_preds': BM_predicted_data_dist.cpu().data.numpy(),
+        'man_gt': man_gt.cpu().data.numpy(),
+        'man_preds': man_vectors.cpu().data.numpy(),
+        'mode_prob': mode_prob.detach().cpu().data.numpy(),
+    }
+    '''
+    input_padding_mask = np.concatenate(kpi_input_dict['input padding mask'], axis = 0)
+    input_padding_mask = p.MAX_IN_SEQ_LEN - np.argmin(input_padding_mask, axis = -1)
+    ovl_index = [None]*p.MAX_IN_SEQ_LEN
+    for o_len in range(1, p.MAX_IN_SEQ_LEN+1):
+        ovl_index[o_len-1] = input_padding_mask==o_len
+    
+    
+    dtraj_gt = np.concatenate(kpi_input_dict['traj_gt'], axis = 0)
+    
+    dtraj_pred = np.concatenate(kpi_input_dict['traj_dist_preds'], axis = 0)
+    
+    traj_max = kpi_input_dict['traj_max'][0]
+    traj_min = kpi_input_dict['traj_min'][0]
+    
+    #denormalise
+    dtraj_pred[:,:,:2] = dtraj_pred[:,:,:2]*(traj_max-traj_min) + traj_min
+    dtraj_pred[:,:,2:4] = dtraj_pred[:,:,2:4]*(traj_max-traj_min)
+    
+    dtraj_gt = dtraj_gt*(traj_max-traj_min) + traj_min
+    #from diff to actual
+    traj_pred = np.cumsum(dtraj_pred[:,:,:2], axis = 1)
+    traj_gt = np.cumsum(dtraj_gt, axis = 1)
+    
+    rmse_ol, n_samples_ovl = calc_ovl_rmse(p, traj_pred, traj_gt, ovl_index)
+    rmse_time = calc_rmse(p, traj_pred, traj_gt)
+    return {
+        'rmseVSol': rmse_ol,
+        'rmseVStime':rmse_time,
+        'n_samples_ovl_list': n_samples_ovl,
+        'rmse': rmse # minRMSE K=1 max pred horizon
+    }
+
+
+
+
+def POVL_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
+    '''
+    1. NLL (TBD)
+    2. error based 
+    Miss Rate (MR):  The number of scenarios where none of the forecasted trajectories are within 2.0 meters of ground truth according to endpoint error.
+    Minimum Final Displacement Error  (minFDE): The L2 distance between the endpoint of the best forecasted trajectory and the ground truth.  The best here refers to the trajectory that has the minimum endpoint error.
+    Minimum Average Displacement Error  (minADE): The average L2 distance between the best forecasted trajectory and the ground truth.  The best here refers to the trajectory that has the minimum endpoint error.
+    Probabilistic minimum Final Displacement Error  (p-minFDE): This is similar to minFDE. The only difference is we add min(-log(p), -log(0.05)) to the endpoint L2 distance, where p corresponds to the probability of the best forecasted trajectory.
+    Probabilistic minimum Average Displacement Error  (p-minADE): This is similar to minADE. The only difference is we add min(-log(p), -log(0.05)) to the average L2 distance, where p corresponds to the probability of the best forecasted trajectory.
+    3. N accident, N road violation (not here)
+    '''
+    '''
+     batch_kpi_input_dict = {    
+        'data_file': data_file,
+        'tv': tv_id.numpy(),
+        'frames': frames.numpy(),
+        'traj_min': dataset.output_states_min,
+        'traj_max': dataset.output_states_max,  
+        'input_features': feature_data.cpu().data.numpy(),
+        'traj_gt': traj_gt.cpu().data.numpy(),
+        'traj_dist_preds': BM_predicted_data_dist.cpu().data.numpy(),
+        'man_gt': man_gt.cpu().data.numpy(),
+        'man_preds': man_vectors.cpu().data.numpy(),
+        'mode_prob': mode_prob.detach().cpu().data.numpy(),
+    }
+    '''
+    input_padding_mask = np.concatenate(kpi_input_dict['input padding mask'], axis = 0)
+    input_padding_mask = p.MAX_IN_SEQ_LEN - np.argmin(input_padding_mask, axis = -1)
+    ovl_index = [None]*p.MAX_IN_SEQ_LEN
+    for o_len in range(1, p.MAX_IN_SEQ_LEN+1):
+        ovl_index[o_len-1] = input_padding_mask==o_len
+    
+    time_bar_gt = np.concatenate(kpi_input_dict['time_bar_gt'], axis = 0)
+    time_bar_preds = np.concatenate(kpi_input_dict['time_bar_preds'], axis = 0)
+    
+    man_gt = np.concatenate(kpi_input_dict['man_gt'], axis = 0)
+    man_preds = np.concatenate(kpi_input_dict['man_preds'], axis = 0)
+    mode_prob = np.concatenate(kpi_input_dict['mode_prob'], axis = 0)
+    total_samples = mode_prob.shape[0]
+    hp_mode = np.argmax(mode_prob, axis = 1)
+    (unique_modes, mode_freq) = np.unique(hp_mode, return_counts = True)
+    sorted_args = np.argsort(unique_modes)
+    unique_modes = unique_modes[sorted_args]
+    mode_freq = mode_freq[sorted_args]
+    
+    dtraj_gt = np.concatenate(kpi_input_dict['traj_gt'], axis = 0)
+    
+    dtraj_pred = np.concatenate(kpi_input_dict['traj_dist_preds'], axis = 0)
+    
+    traj_max = kpi_input_dict['traj_max'][0]
+    traj_min = kpi_input_dict['traj_min'][0]
+    
+    #denormalise
+    dtraj_pred[:,:,:,:2] = dtraj_pred[:,:,:,:2]*(traj_max-traj_min) + traj_min
+    dtraj_pred[:,:,:,2:4] = dtraj_pred[:,:,:,2:4]*(traj_max-traj_min)
+    
+    dtraj_gt = dtraj_gt*(traj_max-traj_min) + traj_min
+    #from diff to actual
+    traj_pred = np.cumsum(dtraj_pred[:,:,:,:2], axis = 2)
+    traj_gt = np.cumsum(dtraj_gt, axis = 1)
+    hp_traj_pred = traj_pred[np.arange(total_samples), hp_mode]
+    
+    mnlld, mnll = calc_meanNLL(p, dtraj_pred, dtraj_gt, traj_gt, mode_prob)
+    #minFDE = {}
+    minRMSE = {}
+    minRMSE_ovl ={}
+    #minMR = {}
+    minACC = {}
+    #minTimeACC = {}
+    minTimeMAE = {}
+    rmse = {}
+
+    for K in range(1,min(10,mode_prob.shape[1])+1):
+        if K>1 and p.MULTI_MODAL_EVAL == False:
+            break
+        key = 'K={}'.format(K)
+        kbest_modes = np.argpartition(mode_prob, -1*K, axis = 1)[:,-1*K:]
+        index_array = np.repeat(np.arange(total_samples),K).reshape(total_samples, K)
+        
+
+        kbest_traj_pred = traj_pred[index_array, kbest_modes]
+        kbest_modes_probs = mode_prob[index_array, kbest_modes]
+        kbest_modes_probs = np.divide(kbest_modes_probs, np.sum(kbest_modes_probs, axis = 1).reshape(total_samples,1)) 
+        
+        minRMSE_ovl[key],rmse_table, rmse[key], n_samples_ovl = calc_ovl_minRMSE(p, kbest_traj_pred, kbest_modes_probs, traj_gt, ovl_index)
+    
+    return {
+        'mnlld': mnlld,
+        'mnll': mnll,
+        #'minRMSE_ovl': minRMSE_ovl,
+        'rmse_table':rmse_table,
+        'n_samples_ovl_list': n_samples_ovl,
+        'rmse': rmse['K=1'] # minRMSE K=1 max pred horizon
+    }
+
+
+
 def MMnTP_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
     '''
     1. NLL (TBD)
@@ -321,6 +482,43 @@ def calc_minFDE(p, traj_pred, mode_prob, traj_gt, mr_thr = 2):
     minFDE = calc_fde_vs_time(p,traj_pred[np.arange(total_samples), best_mode], traj_gt, mr_thr)
     
     return minFDE
+
+
+def calc_ovl_minRMSE(p, traj_pred, mode_prob, traj_gt, ovl_index):
+    n_samples = traj_pred.shape[0]
+    seq_len = traj_pred.shape[2]
+    n_mode = traj_pred.shape[1]
+    columns = ['<{} fr'.format(ol+1) for ol in range(p.MAX_IN_SEQ_LEN)]
+    index = ['RMSE_OVL']
+    rmse_table = np.zeros((1, p.MAX_IN_SEQ_LEN))
+    n_sample_ovl = np.zeros((p.MAX_IN_SEQ_LEN))
+    for ol in range(p.MAX_IN_SEQ_LEN):
+        cur_n_samples = np.sum(ovl_index[ol])
+        if cur_n_samples==0:
+            continue
+        n_sample_ovl[ol] = cur_n_samples
+        cur_traj_pred = traj_pred[ovl_index[ol]]
+        cur_traj_gt = traj_gt[ovl_index[ol]]
+        rmse = np.zeros((cur_n_samples, n_mode))
+        for i in range(n_mode):
+            rmse[:,i] = np.sqrt(np.sum(np.sum((cur_traj_pred[:,i]-cur_traj_gt)**2, axis=-1), axis = -1)/(cur_n_samples*seq_len))
+        
+        best_mode = np.argmin(rmse, axis = 1)
+        cur_best_traj_pred = cur_traj_pred[np.arange(cur_n_samples), best_mode]
+        rmse_table[0,ol] = np.sqrt(
+            np.sum((cur_best_traj_pred-cur_traj_gt)**2)/(cur_n_samples*seq_len)
+            )
+    rmse_df = pd.DataFrame(data= rmse_table, columns = columns, index = index)
+    
+    rmse = np.zeros((n_samples, n_mode))
+    for i in range(n_mode):
+        rmse[:,i] = np.sqrt(np.sum(np.sum((traj_pred[:,i]-traj_gt)**2, axis=-1), axis = -1)/(n_samples*seq_len))
+    best_mode = np.argmin(rmse, axis = 1)
+    best_traj_pred = traj_pred[np.arange(n_samples), best_mode]
+    rmse = np.sqrt(np.sum((best_traj_pred-traj_gt)**2)/n_samples)
+    return rmse_df, rmse_table, rmse, n_sample_ovl
+
+
 
 def calc_minRMSE(p, traj_pred, mode_prob, traj_gt):
     n_samples = traj_pred.shape[0]

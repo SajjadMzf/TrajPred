@@ -57,7 +57,7 @@ if __name__ =="__main__":
     np.random.seed(0)   
     
     
-    #extract(1, p.ind_list)    
+    extract(1, p.ind_list)    
     render(1, p.ind_list)
     exit()
     
