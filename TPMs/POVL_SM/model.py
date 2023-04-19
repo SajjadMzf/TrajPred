@@ -46,17 +46,29 @@ class POVL_SM(nn.Module):
         self.map_ff = nn.Linear(self.map_dim*15, 128)
 
         ''' 1. Positional encoder: '''
-        self.positional_encoder = PositionalEncoding(dim_model=self.model_dim, dropout_p=drop_prob, max_len=100)
+        self.positional_encoder = PositionalEncoding(dim_model=self.model_dim,
+                                                      dropout_p=drop_prob, 
+                                                      max_len=100)
         
         ''' 2. Transformer Encoder: '''
         self.encoder_embedding = nn.Linear(self.input_dim, self.model_dim)
-        encoder_layers = nn.TransformerEncoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
-        self.transformer_encoder = nn.TransformerEncoder(encoder_layers, self.layers_num)
+        encoder_layers = nn.TransformerEncoderLayer(self.model_dim, 
+                                                    self.head_num, 
+                                                    self.ff_dim, 
+                                                    drop_prob, 
+                                                    batch_first = True)
+        self.transformer_encoder = nn.TransformerEncoder(encoder_layers, 
+                                                         self.layers_num)
         
         ''' 3. Transformer Decoder: '''
         self.decoder_embedding = nn.Linear(self.decoder_in_dim, self.model_dim)
-        decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
-        self.transformer_decoder = nn.TransformerDecoder(decoder_layers, self.layers_num)
+        decoder_layers = nn.TransformerDecoderLayer(self.model_dim, 
+                                                    self.head_num, 
+                                                    self.ff_dim, 
+                                                    drop_prob, 
+                                                    batch_first = True)
+        self.transformer_decoder = nn.TransformerDecoder(decoder_layers, 
+                                                         self.layers_num)
         
         ''' 5. Trajectory Output '''
         
@@ -66,8 +78,13 @@ class POVL_SM(nn.Module):
         
     def forward(self, x, y,map, input_padding_mask, y_mask):      
         self.batch_size = x.shape[0]
-        encoder_out, map_encoder_out = self.encoder_forward(x, map, input_padding_mask)
-        traj_pred = self.traj_decoder_forward(y, input_padding_mask,y_mask, encoder_out)
+        encoder_out, map_encoder_out = self.encoder_forward(x, 
+                                                            map, 
+                                                            input_padding_mask)
+        traj_pred = self.traj_decoder_forward(y, 
+                                              input_padding_mask,
+                                              y_mask, 
+                                              encoder_out)
         
         return {'traj_pred':traj_pred}
     
@@ -77,7 +94,8 @@ class POVL_SM(nn.Module):
         
         x = self.encoder_embedding(x)
         x = self.positional_encoder(x)
-        encoder_out = self.transformer_encoder(x, src_key_padding_mask = input_padding_mask)
+        encoder_out = self.transformer_encoder(x, 
+                                               src_key_padding_mask = input_padding_mask)
         if self.MAP_ENCODER:
             map_encoder_out = F.relu(self.map_ff(map.reshape(self.batch_size, -1)))
         else:
@@ -89,9 +107,11 @@ class POVL_SM(nn.Module):
             
         y = self.decoder_embedding(y[:,:,:self.decoder_in_dim])
         y = self.positional_encoder(y)
-        #print(input_padding_mask.shape)
-        #print(y_mask.shape)
-        decoder_out = self.transformer_decoder(y, encoder_out, memory_key_padding_mask = input_padding_mask,tgt_mask = y_mask)
+        
+        decoder_out = self.transformer_decoder(y, 
+                                               encoder_out, 
+                                               memory_key_padding_mask = input_padding_mask,
+                                               tgt_mask = y_mask)
         
         traj_pred = self.trajectory_fc(decoder_out)
         if self.prob_output:
@@ -102,14 +122,17 @@ class POVL_SM(nn.Module):
 class PositionalEncoding(nn.Module):
     def __init__(self, dim_model, dropout_p, max_len):
         super().__init__()
-        # Modified (batch first) version from: https://towardsdatascience.com/a-detailed-guide-to-pytorchs-nn-transformer-module-c80afbc9ffb1
+        # Modified (batch first) version from:
+        #  https://towardsdatascience.com/a-detailed-guide-to-pytorchs-nn-transformer-module-c80afbc9ffb1
         # Info
         self.dropout = nn.Dropout(dropout_p)
         
         # Encoding - From formula
         pos_encoding = torch.zeros(max_len, dim_model)
-        positions_list = torch.arange(0, max_len, dtype=torch.float).view(-1, 1) # 0, 1, 2, 3, 4, 5
-        division_term = torch.exp(torch.arange(0, dim_model, 2).float() * (-math.log(10000.0)) / dim_model) # 1000^(2i/dim_model)
+        positions_list = torch.arange(0, max_len, 
+                                      dtype=torch.float).view(-1, 1) # 0, 1, 2, 3, 4, 5
+        division_term = torch.exp(
+            torch.arange(0, dim_model, 2).float() * (-math.log(10000.0)) / dim_model) # 1000^(2i/dim_model)
         
         # PE(pos, 2i) = sin(pos/1000^(2i/dim_model))
         pos_encoding[:, 0::2] = torch.sin(positions_list * division_term)
@@ -125,5 +148,6 @@ class PositionalEncoding(nn.Module):
         # Residual connection + pos encoding
         #print(token_embedding.size())
         #exit()
-        return self.dropout(token_embedding + self.pos_encoding[:, :token_embedding.size(1), :])
+        return self.dropout(token_embedding + 
+                            self.pos_encoding[:, :token_embedding.size(1), :])
   

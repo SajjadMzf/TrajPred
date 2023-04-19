@@ -11,7 +11,6 @@ import logging
 from time import time
 import math
 
-
 from . import utils
 
 class POVL(nn.Module): 

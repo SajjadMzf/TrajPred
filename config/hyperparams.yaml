@@ -16,8 +16,8 @@ training:
   lr_wu_current_batch: 0
   traj2class_loss_ratio: 1
   lr_decay: 'none' # 'inv-sqrt' or 'none'
-  num_epochs: 2 #300
-  patience: 2 #300
+  num_epochs: 5 #300
+  patience: 5 #300
   skip_validation_epoch: 0
   tr_jump_step: 1  
 
@@ -26,7 +26,7 @@ model:
   man_dec_in: False # If True Manouvre will be inputted to Trajectory decoders
   man_dec_out: True # True means the model can predict manouvre, and manouvre prediction will be considered in loss function calculation
   multi_modal: True
-  use_map_features: True
+  use_map_features: False
   validation_score: 'rmse' #'Traj Loss'
   lower_better_val_score: True
 

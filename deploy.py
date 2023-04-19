@@ -41,10 +41,12 @@ def deploy_model_dict(p):
 
     # Instantiate Model:
     
-    model = p.model_dictionary['ref'](p.BATCH_SIZE, device, p.model_dictionary['hyperparams'], p)
+    model = p.model_dictionary['ref'](p.BATCH_SIZE, device, 
+                                      p.model_dictionary['hyperparams'], p)
     model_deploy_func = p.model_dictionary['model deploy function']
     # Instantiate Dataset: 
-    tr_dataset = Dataset.LCDataset(p.TR.DATASET_DIR, p.TR.DATA_FILES, p.TR.MAP_INDEX, p.TR.MAP_DIRS,
+    tr_dataset = Dataset.LCDataset(p.TR.DATASET_DIR, p.TR.DATA_FILES, 
+                                   p.TR.MAP_INDEX, p.TR.MAP_DIRS,
         index_file = Dataset.get_index_file(p, p.TR,  'Tr'),
         data_type = p.model_dictionary['data type'], 
         state_type = p.model_dictionary['state type'], 
@@ -54,7 +56,8 @@ def deploy_model_dict(p):
     #val_dataset = Dataset.LCDataset(p.TRAIN_DATASET_DIR, p.VAL_DATA_FILES,  data_type = p.model_dictionary['data type'], state_type = p.model_dictionary['state type'], keep_plot_info= False, states_min = tr_dataset.states_min, states_max = tr_dataset.states_max, output_states_min = tr_dataset.output_states_min, output_states_max = tr_dataset.output_states_max)
     
     #exit()
-    de_dataset = Dataset.LCDataset(p.DE.DATASET_DIR, p.DE.DATA_FILES, p.DE.MAP_INDEX, p.DE.MAP_DIRS,
+    de_dataset = Dataset.LCDataset(p.DE.DATASET_DIR, p.DE.DATA_FILES, 
+                                   p.DE.MAP_INDEX, p.DE.MAP_DIRS,
         index_file = Dataset.get_index_file(p,p.DE,  'De'),
         data_type = p.model_dictionary['data type'], 
         state_type = p.model_dictionary['state type'], 
@@ -68,21 +71,65 @@ def deploy_model_dict(p):
         output_states_min = tr_dataset.output_states_min, 
         output_states_max = tr_dataset.output_states_max)
     
-    export_dict = top_functions.deploy_top_func(p, model_deploy_func, model, de_dataset, device)
-    export.export_results_SM(export_dict)
+    te_dataset = Dataset.LCDataset(p.TE.DATASET_DIR, p.TE.DATA_FILES, 
+                                   p.TE.MAP_INDEX, p.TE.MAP_DIRS,
+        index_file = Dataset.get_index_file(p,p.TE,  'Te'),
+        data_type = p.model_dictionary['data type'], 
+        state_type = p.model_dictionary['state type'], 
+        use_map_features = p.hyperparams['model']['use_map_features'],
+        keep_plot_info= True, 
+        import_states = True,
+        force_recalc_start_indexes = False,
+        deploy_data = True,
+        states_min = tr_dataset.states_min, 
+        states_max = tr_dataset.states_max,
+        output_states_min = tr_dataset.output_states_min, 
+        output_states_max = tr_dataset.output_states_max)
+    
+
+
+    de_export_dict = top_functions.deploy_top_func(p, model_deploy_func, model,
+                                                  de_dataset, device)
+    
+    #te_export_dict = top_functions.deploy_top_func(p, model_deploy_func, model,
+    #                                             te_dataset, device)
+    if p.MULTI_MODAL:
+        export.export_results(de_export_dict, 'De')     
+    #    export.export_results(te_export_dict, 'Te')     
+    
+    else:
+        export.export_results_SM(de_export_dict, 'De')
+    #    export.export_results_SM(te_export_dict, 'Te')
+        
 if __name__ == '__main__':
 
    
-    p = params.ParametersHandler('POVL_SM.yaml', 'exid_train.yaml', './config', seperate_test_dataset='exid_test.yaml',seperate_deploy_dataset='exid_deploy.yaml')
+    p = params.ParametersHandler('POVL_SM.yaml', 'exid_train.yaml', './config',
+                                  seperate_test_dataset='exid_test.yaml',
+                                  seperate_deploy_dataset='exid_deploy.yaml')
+    experiment_file = 'experiments/POVL_SM_exid_train_2023-04-01 16:35:41.320395'
+    p.import_experiment(experiment_file)
+    p.hyperparams['experiment']['debug_mode'] = False
+    p.hyperparams['dataset']['balanced'] = False
+    p.hyperparams['training']['batch_size'] = 64
+    p.hyperparams['experiment']['multi_modal_eval'] = False
+    # make sure to use following function to update hyperparameters
+    p.match_parameters()
+    deploy_model_dict(p)
+    
+    '''
+    p = params.ParametersHandler('POVL_SM.yaml', 'exid_train.yaml', './config',
+      seperate_test_dataset='exid_test.yaml',seperate_deploy_dataset='exid_deploy.yaml')
     experiment_file = 'experiments/POVL_SM_exid_train_2023-03-11 13:42:13.664618'
     p.import_experiment(experiment_file)
     p.hyperparams['experiment']['debug_mode'] = False
     p.hyperparams['dataset']['balanced'] = False
     p.hyperparams['training']['batch_size'] = 64
     p.hyperparams['experiment']['multi_modal_eval'] = False
-    p.hyperparams['problem']['SKIP_SEQ_LEN'] = 0 # TODO: remove (already set in .yaml), also uncomment in import experiment line 5
+    p.hyperparams['problem']['SKIP_SEQ_LEN'] = 0 
+    # TODO: remove (already set in .yaml), also uncomment in import experiment line 5
     # make sure to use following function to update hyperparameters
     p.match_parameters()
     deploy_model_dict(p)
-
+    '''
 

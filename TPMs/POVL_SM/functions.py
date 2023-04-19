@@ -31,7 +31,11 @@ def POVL_SM_training(p, data_tuple, label_tuple, model, dataset, loss_func_tuple
     map_data = data_tuple[2]
 
     #start_model.record()
-    output_dict = model(x = feature_data, y = decoder_input, map = map_data, input_padding_mask = input_padding_mask, y_mask = utils.get_y_mask(p.TGT_SEQ_LEN).to(device))
+    output_dict = model(x = feature_data, 
+                        y = decoder_input, 
+                        map = map_data, 
+                        input_padding_mask = input_padding_mask, 
+                        y_mask = utils.get_y_mask(p.TGT_SEQ_LEN).to(device))
     traj_pred = output_dict['traj_pred']
     #end_model.record()
     #torch.cuda.synchronize()
@@ -58,34 +62,47 @@ def POVL_SM_deploy(p, data_tuple, plot_info, dataset, model, device):
     (tv_id, frames, data_file) = plot_info
     
     traj_data = data_tuple[-1]
+    
     traj_initial_input = traj_data[:,(p.MAX_IN_SEQ_LEN-1):p.MAX_IN_SEQ_LEN] 
+    traj_gt = traj_data[:,p.MAX_IN_SEQ_LEN:]
     feature_data = data_tuple[0]
     input_padding_mask = data_tuple[1]
     map_data = data_tuple[2]
     with torch.no_grad():
-        encoder_out, map_out = model.encoder_forward(x = feature_data, map = map_data, input_padding_mask = input_padding_mask)
+        encoder_out, map_out = model.encoder_forward(x = feature_data, 
+                                                     map = map_data, 
+                                                     input_padding_mask = input_padding_mask)
     
     decoder_input = traj_initial_input
-    BM_predicted_data_dist, BM_traj_pred = POVL_SM_trajectory_inference(p, model, device, decoder_input, input_padding_mask, encoder_out)
+    BM_predicted_data_dist, BM_traj_pred = POVL_SM_trajectory_inference(p, 
+                                                                        model, 
+                                                                        device, 
+                                                                        decoder_input, 
+                                                                        input_padding_mask, 
+                                                                        encoder_out)
 
     
     # Trajectory inference for all modes!
     unnormalised_traj_pred = BM_traj_pred.cpu().data.numpy()
     unnormalised_traj_pred = unnormalised_traj_pred[:,:,:2]
-    traj_max = dataset.output_states_min
-    traj_min = dataset.output_states_max
+    traj_max = dataset.output_states_max
+    traj_min = dataset.output_states_min
     unnormalised_traj_pred = unnormalised_traj_pred*(traj_max-traj_min) + traj_min 
     unnormalised_traj_pred = np.cumsum(unnormalised_traj_pred, axis = 1)
+    unnormalised_traj_gt = traj_gt*(traj_max-traj_min) + traj_min
+    unnormalised_traj_gt = np.cumsum(unnormalised_traj_gt, axis = 1)
     batch_export_dict = {    
         'data_file': data_file,
         'tv': tv_id.numpy(),
         'frames': frames.numpy(),
         'traj_pred': unnormalised_traj_pred,
+        'traj_gt': unnormalised_traj_gt,
     }
 
     return batch_export_dict
 
-def POVL_SM_evaluation(p, data_tuple, plot_info, dataset, label_tuple, model, loss_func_tuple, device, eval_type):
+def POVL_SM_evaluation(p, data_tuple, plot_info, dataset, label_tuple, 
+                       model, loss_func_tuple, device, eval_type):
     (tv_id, frames, data_file) = plot_info
     
     traj_loss_func = loss_func_tuple[0]
@@ -101,10 +118,17 @@ def POVL_SM_evaluation(p, data_tuple, plot_info, dataset, label_tuple, model, lo
     input_padding_mask = data_tuple[1]
     map_data = data_tuple[2]
     with torch.no_grad():
-        encoder_out, map_out = model.encoder_forward(x = feature_data, map = map_data, input_padding_mask = input_padding_mask)
+        encoder_out, map_out = model.encoder_forward(x = feature_data, 
+                                                     map = map_data, 
+                                                     input_padding_mask = input_padding_mask)
     
     decoder_input = traj_initial_input
-    predicted_data_dist, traj_pred = POVL_SM_trajectory_inference(p, model, device, decoder_input,input_padding_mask, encoder_out)
+    predicted_data_dist, traj_pred = POVL_SM_trajectory_inference(p, 
+                                                                  model, 
+                                                                  device, 
+                                                                  decoder_input,
+                                                                  input_padding_mask, 
+                                                                  encoder_out)
 
     traj_loss = traj_loss_func(predicted_data_dist, traj_gt)
     evaluation_loss =  traj_loss 
@@ -130,7 +154,8 @@ def POVL_SM_evaluation(p, data_tuple, plot_info, dataset, label_tuple, model, lo
     }
     return batch_print_info_dict, batch_kpi_input_dict
 
-def POVL_SM_trajectory_inference(p, model, device, decoder_input, input_padding_mask, encoder_out):
+def POVL_SM_trajectory_inference(p, model, device, decoder_input, 
+                                 input_padding_mask, encoder_out):
     for out_seq_itr in range(p.TGT_SEQ_LEN):
         #output_dict = model(x = encoder_input, y =decoder_input, y_mask = utils.get_y_mask(decoder_input.size(2)).to(device))
         with torch.no_grad():

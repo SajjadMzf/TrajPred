@@ -18,7 +18,10 @@ class LCDataset(Dataset):
     map_inds,
     map_files, 
     data_type, 
-    index_file,#'max_in_seq_len, out_seq_len, skip_seq_len, _B for balanced(_U for unbalanced),tr_ratio,abb_val_ratio,val_ratio,test_ratio,  
+    index_file,
+        #'max_in_seq_len, out_seq_len, skip_seq_len,
+        # _B for balanced(_U for unbalanced),tr_ratio,
+        # abb_val_ratio,val_ratio,test_ratio,  
     state_type = '',
     use_map_features = False,
     keep_plot_info = True, 
@@ -43,7 +46,8 @@ class LCDataset(Dataset):
         self.index_file = index_file
         print(index_file)
         self.main_dir = dataset_dir
-        self.dataset_dirs = [os.path.join(dataset_dir, data_file) for data_file in data_files]
+        self.dataset_dirs = \
+            [os.path.join(dataset_dir, data_file) for data_file in data_files]
         self.index_file_dirs = os.path.join(dataset_dir, self.index_file)
         self.file_size = []
         self.dataset_size = 0
@@ -56,7 +60,8 @@ class LCDataset(Dataset):
         
         self.keep_plot_info = keep_plot_info
         
-        self.start_indexes = self.get_samples_start_index(force_recalc_start_indexes)
+        self.start_indexes = \
+            self.get_samples_start_index(force_recalc_start_indexes)
         
         self.dataset_size = len(self.start_indexes)
         print('{}: {}'.format(self.index_group, self.dataset_size))
@@ -66,7 +71,8 @@ class LCDataset(Dataset):
                 self.states_min = states_min
                 self.states_max = states_max
             else:
-                self.states_min, self.states_max = self.get_features_range(self.state_data_name)
+                self.states_min, self.states_max = \
+                    self.get_features_range(self.state_data_name)
 
             for i in range(len(self.states_min)):
                 if self.states_min[i] == self.states_max[i]:
@@ -80,7 +86,8 @@ class LCDataset(Dataset):
             self.output_states_min = output_states_min
             self.output_states_max = output_states_max
         else:
-            self.output_states_min, self.output_states_max = self.get_features_range('output_states_data')
+            self.output_states_min, self.output_states_max = \
+                self.get_features_range('output_states_data')
         
         for i in range(len(self.output_states_min)):
             if self.output_states_min[i] == self.output_states_max[i]:
@@ -96,7 +103,8 @@ class LCDataset(Dataset):
                 (map_data, x_min, y_max, x_res, y_res) = pickle.load(handle)
             
             # = (0,0,0,0,0)
-            map_dict = {'data': np.transpose(map_data, (0,1,3,2)), 'xmin': x_min, 'ymax': y_max, 'xres':x_res, 'yres':y_res}
+            map_dict = {'data': np.transpose(map_data, (0,1,3,2)), 
+                        'xmin': x_min, 'ymax': y_max, 'xres':x_res, 'yres':y_res}
             map_data_list.append(map_dict)
         return map_data_list
 
@@ -128,7 +136,6 @@ class LCDataset(Dataset):
             states_max = []
             with h5py.File(dataset_dir, 'r') as f:
                 state_data = f[feature_name]
-                #state_data = state_data.reshape((state_data.shape[0]*state_data.shape[1],state_data.shape[2]))
                 states_min.append(np.min(state_data, axis = 0))
                 states_max.append(np.max(state_data, axis = 0))
         states_min = np.stack(states_min, axis = 0)
@@ -207,7 +214,8 @@ class LCDataset(Dataset):
                         
                             
     
-            samples_start_index = [np.array(samples_start_index[itr]) for itr in range(len(samples_start_index))]
+            samples_start_index = \
+                [np.array(samples_start_index[itr]) for itr in range(len(samples_start_index))]
             shuffle(samples_start_index)
             
 
@@ -225,12 +233,19 @@ class LCDataset(Dataset):
             start_indexes['U'] = {}
             
             start_indexes['U']['Tr'] = samples_start_index[:tr_samples]
-            start_indexes['U']['Val'] = samples_start_index[tr_samples:(tr_samples + val_samples)]
-            start_indexes['U']['AbbTe'] = samples_start_index[tr_samples:(tr_samples + val_samples)]
-            start_indexes['U']['Te'] = samples_start_index[(tr_samples + val_samples):(tr_samples + val_samples + te_samples)]
-            start_indexes['U']['AbbTr'] = samples_start_index[abbVal_samples:tr_samples]
+            start_indexes['U']['Val'] = \
+                samples_start_index[tr_samples:(tr_samples + val_samples)]
+            start_indexes['U']['AbbTe'] = \
+                samples_start_index[tr_samples:(tr_samples + val_samples)]
+            start_indexes['U']['Te'] = \
+                samples_start_index[(tr_samples + val_samples):\
+                                    (tr_samples + val_samples + te_samples)]
+            start_indexes['U']['AbbTr'] = \
+                samples_start_index[abbVal_samples:tr_samples]
             start_indexes['U']['AbbVal'] = samples_start_index[:abbVal_samples]
-            start_indexes['U']['De'] = samples_start_index[(tr_samples+val_samples+ te_samples):(tr_samples+val_samples+ te_samples+de_samples)]
+            start_indexes['U']['De'] = \
+                samples_start_index[(tr_samples+val_samples+ te_samples):\
+                                    (tr_samples+val_samples+ te_samples+de_samples)]
             for index_group in index_groups: 
                 print('Balancing {} dataset...'.format(index_group))
                 #print(len(start_indexes['U'][index_group]))
@@ -240,8 +255,11 @@ class LCDataset(Dataset):
                 else:
                     #print(index_group)
                     #print(start_indexes['U'][index_group])
-                    start_indexes['U'][index_group] = np.concatenate(start_indexes['U'][index_group] , axis = 0)
-                    start_indexes['B'][index_group] = self.balance_dataset(start_indexes['U'][index_group]) if index_group != 'De' else np.array([])
+                    start_indexes['U'][index_group] = \
+                        np.concatenate(start_indexes['U'][index_group] , axis = 0)
+                    start_indexes['B'][index_group] = \
+                        self.balance_dataset(start_indexes['U'][index_group]) \
+                            if index_group != 'De' else np.array([])
             
             for ub_ind in unbalanced_inds:
                 index_file = modify_index_file(self.index_file, unbalanced_ind = ub_ind)
@@ -271,12 +289,15 @@ class LCDataset(Dataset):
         for itr in range(len(start_index)):
             print('{}/{}'.format(itr, len(start_index)), end = '\r')
             file_itr = start_index[itr, 0]
-            with h5py.File(self.dataset_dirs[file_itr], 'r') as f: #TODO you may save all labels in an array before this loop
+            with h5py.File(self.dataset_dirs[file_itr], 'r') as f: 
+                #TODO you may save all labels in an array before this loop
                 labels_data = f['labels']
                 start_itr = start_index[itr,1]
                 in_seq_len = start_index[itr,2]
                 label = abs(labels_data[(start_itr+in_seq_len):(start_itr + in_seq_len + self.out_seq_len)])    
-                balanced_scenarios[itr] = np.any(label)*2 # 2 is lc scenario, if there is a lc man at any time-step of sample, considered it in balanced dataset
+                balanced_scenarios[itr] = np.any(label)*2 \
+                    # 2 is lc scenario, if there is a lc man at any time-step 
+                    # of sample, considered it in balanced dataset
                 if np.any(label):
                     lc_count_in_lc_scenarios += np.count_nonzero(label>0)
                     lk_count_in_lc_scenarios += np.count_nonzero(label==0)
@@ -323,7 +344,8 @@ class LCDataset(Dataset):
                     x_loc = max(min(np.floor((x-x_min)/xres).astype(int), x_size-1),0)
                     y_loc = max(min(np.floor((y_max-y)/yres).astype(int), y_size-1),0)
                     map_features = map_data[x_loc, y_loc, :, 1:]
-                    
+                else:
+                    map_features = np.zeros((15,2))
                     #print('File:{},TV: {}, frame:{}, x:{}, y:{}, Xloc:{}, Yloc:{}, Xsize:{}, Ysize:{} \n Map:\n {}'.format(self.dataset_dirs[file_itr],tv_id, frame,x,y,x_loc,y_loc, x_size, y_size, map_features))
                     
                     
@@ -340,7 +362,9 @@ class LCDataset(Dataset):
             
             elif self.data_type == 'image': #TODO:requires update
                 image_data = f['image_data']
-                images = torch.from_numpy(image_data[start_index:(start_index+in_seq_len)].astype(np.float32))
+                images = \
+                    torch.from_numpy(image_data[start_index:(start_index+in_seq_len)]\
+                                     .astype(np.float32))
                 data_output = [images]
             else:
                 raise(ValueError('undefined data type'))
@@ -359,15 +383,19 @@ class LCDataset(Dataset):
                 plot_output = ()
             
             output_state_data = f['output_states_data']
-            output_states = output_state_data[(start_index):(start_index + in_seq_len + self.out_seq_len)]
-            output_states = (output_states-self.output_states_min)/(self.output_states_max-self.output_states_min)
+            output_states = \
+                output_state_data[(start_index):(start_index + in_seq_len + self.out_seq_len)]
+            output_states = (output_states-self.output_states_min)/\
+                (self.output_states_max-self.output_states_min)
             
             output_states = torch.from_numpy(output_states.astype(np.float32))
             p2d = (0,0, self.max_in_seq_len-in_seq_len,0)
             output_states = F.pad(output_states, p2d, 'constant', -1)
             data_output.append(output_states)
             labels_data = f['labels']
-            label = np.absolute(labels_data[(start_index):(start_index + in_seq_len + self.out_seq_len)].astype(np.long))
+            label = np.absolute(\
+                labels_data[(start_index):(start_index + in_seq_len + self.out_seq_len)]\
+                    .astype(np.long))
             label = torch.from_numpy(label)
             p1d = (self.max_in_seq_len-in_seq_len,0)
             label = F.pad(label, p1d, 'constant', -1)
@@ -386,7 +414,11 @@ def get_index_file(p, d_class, index_group):
         unbalanced_ind = 'U'
     else:
         unbalanced_ind = 'B'
-    index_file = '{}_{}_{}_{}_{}_{}_{}_{}_{}_{}_{}.npy'.format(index_group, p.MAX_IN_SEQ_LEN, p.TGT_SEQ_LEN, p.SKIP_SEQ_LEN, unbalanced_ind, d_class.TR_RATIO, d_class.ABBVAL_RATIO, d_class.VAL_RATIO, d_class.TE_RATIO, d_class.DE_RATIO, d_class.SELECTED_DATASET)
+    index_file = '{}_{}_{}_{}_{}_{}_{}_{}_{}_{}_{}.npy'\
+        .format(index_group, p.MAX_IN_SEQ_LEN, p.TGT_SEQ_LEN, p.SKIP_SEQ_LEN,\
+                 unbalanced_ind, d_class.TR_RATIO, d_class.ABBVAL_RATIO, \
+                    d_class.VAL_RATIO, d_class.TE_RATIO, d_class.DE_RATIO, \
+                        d_class.SELECTED_DATASET)
     return index_file
 
 def modify_index_file(index_file,index_group = None, unbalanced_ind = None):
