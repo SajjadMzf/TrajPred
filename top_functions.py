@@ -25,7 +25,10 @@ matplotlib.rc('font', **font)
 
 def deploy_top_func(p, model_deploy_func, model, de_dataset, device):
     model = model.to(device)
-    de_loader = utils_data.DataLoader(dataset = de_dataset, shuffle = False, batch_size = p.BATCH_SIZE, drop_last= False, pin_memory= True, num_workers= 12)
+    de_loader = utils_data.DataLoader(dataset = de_dataset, shuffle = False,
+                                       batch_size = p.BATCH_SIZE, 
+                                       drop_last= False, 
+                                       num_workers= 0)
     vis_data_path = p.VIS_DIR + p.experiment_tag + '.pickle'
     best_model_path = p.WEIGHTS_DIR + p.experiment_tag + '.pt'
     figure_name =  p.experiment_tag
@@ -57,8 +60,16 @@ def eval_top_func(p, model_eval_func, model_kpi_func, model, loss_func_tuple, te
 
 def train_top_func(p, model_train_func, model_eval_func, model_kpi_func, model,loss_func_tuple, optimizer , tr_dataset, val_dataset, device, tensorboard = None):
     
-    tr_loader = utils_data.DataLoader(dataset = tr_dataset, shuffle = True, batch_size = p.BATCH_SIZE, drop_last= True, pin_memory= True, num_workers= 12)
-    val_loader = utils_data.DataLoader(dataset = val_dataset, shuffle = True, batch_size = p.BATCH_SIZE, drop_last= True, pin_memory= True, num_workers= 12)
+    tr_loader = utils_data.DataLoader(dataset = tr_dataset, 
+                                      shuffle = True, 
+                                      batch_size = p.BATCH_SIZE,
+                                      drop_last= True,
+                                      num_workers= 12)
+    val_loader = utils_data.DataLoader(dataset = val_dataset, 
+                                       shuffle = True, 
+                                       batch_size = p.BATCH_SIZE, 
+                                       drop_last= True, 
+                                       num_workers= 12)
     
     scheduler = optim.lr_scheduler.StepLR(optimizer, 1, 1)
     
@@ -164,33 +175,36 @@ def train_model(p, tb, model_train_func, model, loss_func_tuple, optimizer, sche
     vis_print_dict = []
     print_dict = []
     # Training loop over batches of data on train dataset
-    for batch_idx, (data_tuple, labels,_) in enumerate(train_loader):
+    for batch_idx, (data_tuple,_) in enumerate(train_loader):
         
         if p.DEBUG_MODE == True:
             if batch_idx >2: ##Uncoment for debuggering
                 break
-        data_tuple = [data.to(device) for data in data_tuple]
-        label_tuple = (labels.to(device),)
         
+        data_tuple = [data.to(device) for data in data_tuple]
         # 1. Clearing previous gradient values.
         optimizer.zero_grad()
         
         # 2. Run the Model 
         #print(model_train_func)
-        loss, batch_print_info_dict = model_train_func(p, data_tuple, label_tuple, model, train_dataset, loss_func_tuple, device)
+        loss, batch_print_info_dict = model_train_func(p, data_tuple, model, train_dataset, loss_func_tuple, device)
 
         # 3. Calculating new grdients given the loss value
         loss.backward()
 
         # 4. Updating the weights
-        if p.LR_WU and p.LR_WU_CURRENT_BATCH<=p.LR_WU_BATCHES:
-            p.LR_WU_CURRENT_BATCH +=1
-            lr = p.LR*p.LR_WU_CURRENT_BATCH/p.LR_WU_BATCHES
-            for g in optimizer.param_groups:
-                g['lr'] = lr
+        p.LR_WU_CURRENT_BATCH +=1
+        if p.LR_WU:
+            if p.LR_WU_CURRENT_BATCH<=p.LR_WU_BATCHES:
+                lr = p.LR*p.LR_WU_CURRENT_BATCH/p.LR_WU_BATCHES
+                for g in optimizer.param_groups:
+                    g['lr'] = lr
+            else:
+                lr = p.LR/math.sqrt(p.LR_WU_CURRENT_BATCH/p.LR_WU_BATCHES)
+                for g in optimizer.param_groups:
+                    g['lr'] = lr
         else:
-            p.LR_WU_CURRENT_BATCH +=1
-            lr = p.LR/math.sqrt(p.LR_WU_CURRENT_BATCH+1)
+            lr = p.LR/math.sqrt(p.LR_WU_CURRENT_BATCH)
             for g in optimizer.param_groups:
                 g['lr'] = lr
 
@@ -234,13 +248,12 @@ def deploy_model(p, model, model_deploy_func, de_loader, de_dataset, device, vis
     # Initialise Variables
     export_dict = {}
     #model.eval()
-    for batch_idx, (data_tuple, labels, plot_info) in enumerate(de_loader):
+    for batch_idx, (data_tuple, plot_info) in enumerate(de_loader):
         if p.DEBUG_MODE == True:
             if batch_idx >2: 
                 break
-          
-        data_tuple = [data.to(device) for data in data_tuple]
-        label_tuple = (labels.to(device),)
+
+        data_tuple = [data.to(device) for data in data_tuple]  
         with torch.no_grad():
             batch_export_dict = model_deploy_func(p, data_tuple, plot_info, de_dataset, model, device)
     
@@ -265,15 +278,14 @@ def eval_model(p, tb, model_eval_func, model_kpi_func, model, loss_func_tuple, t
     print_dict = {}
     kpi_input_dict = {}
     #model.eval()
-    for batch_idx, (data_tuple, labels, plot_info) in enumerate(test_loader):
+    for batch_idx, (data_tuple, plot_info) in enumerate(test_loader):
         if p.DEBUG_MODE == True:
             if batch_idx >2: 
                 break
         
         data_tuple = [data.to(device) for data in data_tuple]
-        label_tuple = (labels.to(device),)
         with torch.no_grad():
-            batch_print_info_dict, batch_kpi_input_dict = model_eval_func(p, data_tuple, plot_info, test_dataset, label_tuple, model, loss_func_tuple, device, eval_type)
+            batch_print_info_dict, batch_kpi_input_dict = model_eval_func(p, data_tuple, plot_info, test_dataset, model, loss_func_tuple, device, eval_type)
     
         if batch_idx == 0:
             for k in batch_kpi_input_dict:

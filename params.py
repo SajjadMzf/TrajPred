@@ -105,6 +105,7 @@ class ParametersHandler:
         #exit()
         # Prediction Problem Hyperparameters:
         self.FPS = self.hyperparams['problem']['FPS']
+        self.MIN_IN_SEQ_LEN = self.hyperparams['problem']['MIN_IN_SEQ_LEN']
         self.MAX_IN_SEQ_LEN = self.hyperparams['problem']['MAX_IN_SEQ_LEN']
         self.TGT_SEQ_LEN = self.hyperparams['problem']['TGT_SEQ_LEN'] # out_Seq_len
         self.SKIP_SEQ_LEN = self.hyperparams['problem']['SKIP_SEQ_LEN'] # end_of_seq_skip_len
@@ -170,13 +171,16 @@ class ParametersHandler:
     # Export experiment after training a model (Do not export an imported experiment or it will overwrite it!,use export evalution)
     
     def export_experiment(self):
-        name_dict = {'experiment file name': self.latest_experiment_file}
-        #if self.DEBUG_MODE:
-        #    print('Experiment export is skipped due to debug mode.')
-        #else:
-        print('Experiment file is: ', self.latest_experiment_file)
-        with open(self.latest_experiment_file, 'w') as f:
-            experiment = yaml.dump_all([name_dict, self.hyperparams, self.model, self.tr_dataset, self.te_dataset, self.de_dataset], f, default_flow_style= False, explicit_start = True ) 
+        if self.DEBUG_MODE:
+            print('Debug Mode Active (No Experiment export)')
+        else:
+            name_dict = {'experiment file name': self.latest_experiment_file}
+            #if self.DEBUG_MODE:
+            #    print('Experiment export is skipped due to debug mode.')
+            #else:
+            print('Experiment file is: ', self.latest_experiment_file)
+            with open(self.latest_experiment_file, 'w') as f:
+                experiment = yaml.dump_all([name_dict, self.hyperparams, self.model, self.tr_dataset, self.te_dataset, self.de_dataset], f, default_flow_style= False, explicit_start = True ) 
         
     # Import an already trained model for evaluation or reproducing the results
     def import_experiment(self, experiment_file):

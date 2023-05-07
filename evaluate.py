@@ -26,7 +26,7 @@ import matplotlib.colors as mcolors
 import TPMs
 def test_model_dict(p):
     # Set Random Seeds:
-    if torch.cuda.is_available() and p.CUDA:
+    if False:#torch.cuda.is_available() and p.CUDA:
             device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
             torch.cuda.manual_seed_all(0)
     else:
@@ -79,21 +79,42 @@ def test_model_dict(p):
 
 if __name__ == '__main__':
 
-    p = params.ParametersHandler('POVL_SM.yaml', 'exid_train.yaml', './config',
+    
+    p = params.ParametersHandler('Constant_Parameter.yaml', 'exid_train.yaml', './config', # POVL_SM.yaml
                                   seperate_test_dataset='exid_test.yaml',
                                   seperate_deploy_dataset='exid_deploy.yaml')
-    experiment_file = 'experiments/POVL_SM_exid_train_2023-04-01 16:35:41.320395'
-    #'experiments/DMTP_exid_train_2023-02-22 11:38:01.533814' 
-    # # DMTP_exid_train_2023-02-21 18:56:42.572922' # mode 1
-    p.import_experiment(experiment_file)
     p.hyperparams['training']['batch_size'] = 128
     p.hyperparams['experiment']['debug_mode'] = False
     p.hyperparams['dataset']['ablation'] = False
+    p.hyperparams['model']['multi_modal'] = False
+    p.hyperparams['model']['man_dec_out'] = False
     p.hyperparams['experiment']['multi_modal_eval'] = False
-    p.hyperparams['model']['use_map_features'] = True
+    p.hyperparams['model']['use_map_features'] = False
     p.hyperparams['dataset']['balanced'] = False
     p.match_parameters()
     test_model_dict(p)
 
+    
+    exit()
+    
+    
+    p = params.ParametersHandler('POVL_SM.yaml', 'exid_train.yaml', './config', # POVL_SM.yaml
+                                  seperate_test_dataset='exid_test.yaml',
+                                  seperate_deploy_dataset='exid_deploy.yaml')
+    
+    experiment_file = 'POVL_SM_exid_train_2023-05-02 16:24:19.527042' # POVL_SM_exid_train_2023-04-23 11:49:31.851129' # POVL_SM_exid_train_2023-04-01 16:35:41.320395'
+    #'experiments/DMTP_exid_train_2023-02-22 11:38:01.533814' 
+    # # DMTP_exid_train_2023-02-21 18:56:42.572922' # mode 1
+    p.experiment_file = experiment_file
+    p.experiment_tag = experiment_file
+    #p.import_experiment(experiment_file)
+    p.hyperparams['training']['batch_size'] = 1000
+    p.hyperparams['experiment']['debug_mode'] = False
+    p.hyperparams['dataset']['ablation'] = False
+    p.hyperparams['experiment']['multi_modal_eval'] = False
+    p.hyperparams['model']['use_map_features'] = False
+    p.hyperparams['dataset']['balanced'] = False
+    p.match_parameters()
+    test_model_dict(p)
 
 

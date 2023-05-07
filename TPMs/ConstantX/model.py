@@ -10,35 +10,48 @@ import torch.nn.functional as F
 import logging
 from time import time
 import math
-
+import pdb
 
 class ConstantX(nn.Module):
-    def __init__(self, batch_size, device, hyperparams_dict, parameters, drop_prob = 0.1):
+    def __init__(self, batch_size, device, hyperparams_dict, parameters,
+                  drop_prob = 0.1):
         super(ConstantX, self).__init__()
 
         self.batch_size = batch_size
         self.device = device
+        ## Parameters set for campatibility with framework
         self.multi_modal = parameters.MULTI_MODAL
         self.man_dec_out = parameters.MAN_DEC_OUT
         if self.multi_modal or self.man_dec_out:
-            raise(ValueError('multi modality or manouvre based outputs are not supported in ConstantX model'))
+            raise(ValueError('multi modality or manouvre based outputs are\
+                              not supported in ConstantX model'))
             exit()
-        self.constant_parameter = hyperparams_dict['parameter']# Dimension of transformer model ()
-        
-        self.in_seq_len = parameters.IN_SEQ_LEN
+        self.in_seq_len = parameters.MAX_IN_SEQ_LEN
         self.out_seq_len = parameters.TGT_SEQ_LEN
         self.fps = parameters.FPS
         self.input_dim = 18
         self.output_dim = 2
-        #print('Constant Model should only be run with ours_states that includes velocity, acceleration features')
-        
-
+        #print('Constant Model should only be run with ours_
+        # states that includes velocity, acceleration features')
         self.unused_layer = nn.Linear(1,1)   
-    def forward(self, x, states_min, states_max, output_states_min, output_states_max, traj_labels):
-        traj_pred = torch.ones((self.batch_size, self.out_seq_len, 2), requires_grad = False )
+
+        # Dimension of transformer model ()
+        self.constant_parameter = hyperparams_dict['parameter']
+        
+        
+    def forward(self, 
+                x, 
+                input_padding_mask,
+                states_min, 
+                states_max,
+                output_states_min, 
+                output_states_max):
+        traj_pred = torch.ones((self.batch_size, self.out_seq_len, 2),
+                                requires_grad = False )
         #print(len(x))
         
         x = x.cpu()
+        input_padding_mask = input_padding_mask.cpu()
         #classification => always lane keeping
 
         #trajectory prediction
@@ -55,9 +68,12 @@ class ConstantX(nn.Module):
         long_acc_min = states_min[3]
         long_acc_max = states_max[3]
         
-        if self.constant_parameter == 'Last Velocity':
-            lat_vel_unnormalised = (lat_vel_max-lat_vel_min)*lat_vel[:,-1] + lat_vel_min
-            long_vel_unnormalised = (long_vel_max-long_vel_min)*long_vel[:,-1] + long_vel_min
+        if self.constant_parameter == 'Final Velocity':
+            lat_vel_unnormalised = (lat_vel_max-lat_vel_min)*lat_vel[:,-1] +\
+                  lat_vel_min
+            long_vel_unnormalised = (long_vel_max-long_vel_min)*long_vel[:,-1] +\
+                  long_vel_min
+            #TODO: remove "*5" after getting new data by running the data preprocess.
             lat_dist_unnormalised = lat_vel_unnormalised/self.fps
             long_dist_unnormalised = long_vel_unnormalised/self.fps
             #print(self.traj_pred.shape)
@@ -67,26 +83,30 @@ class ConstantX(nn.Module):
             traj_pred[:,:,1] *= long_dist_unnormalised.unsqueeze(-1)
             
         elif self.constant_parameter == 'Mean Velocity':
-            lat_vel_unnormalised = (lat_vel_max-lat_vel_min)*lat_vel.mean(-1) + lat_vel_min
-            long_vel_unnormalised = (long_vel_max-long_vel_min)*long_vel.mean(-1) + long_vel_min
+            in_seq_len = torch.sum(input_padding_mask==False, dim = 1)
+            lat_vel = torch.mul(lat_vel, input_padding_mask==False)
+            long_vel = torch.mul(long_vel, input_padding_mask==False)
+            lat_vel_mean = torch.div(torch.sum(lat_vel, dim = 1),in_seq_len)
+            long_vel_mean = torch.div(torch.sum(long_vel, dim = 1),in_seq_len)
+            lat_vel_unnormalised = (lat_vel_max-lat_vel_min)*lat_vel_mean +\
+                  lat_vel_min
+            long_vel_unnormalised = (long_vel_max-long_vel_min)*long_vel_mean +\
+                  long_vel_min
             lat_dist_unnormalised = lat_vel_unnormalised/self.fps
             long_dist_unnormalised = long_vel_unnormalised/self.fps
+            #pdb.set_trace()
             #print(self.traj_pred.shape)
             #exit()
 
             traj_pred[:,:,0] *= lat_dist_unnormalised.unsqueeze(-1)
             traj_pred[:,:,1] *= long_dist_unnormalised.unsqueeze(-1)
-        elif self.constant_parameter == 'Last Acceleration':
+        elif self.constant_parameter == 'Final Acceleration':
             raise ValueError('TBD')
         elif self.constant_parameter == 'Mean Acceleration':
             raise ValueError('TBD')
-        
-        traj_pred = (traj_pred-output_states_min)/(output_states_max-output_states_min)
-        
-        labels = torch.zeros_like(traj_pred)
-        return {'traj_pred':traj_pred.to(self.device),
-        'man_pred':torch.zeros((traj_pred.shape[0],traj_pred.shape[1],3), device=self.device),
-        'enc_man_pred': torch.zeros((traj_pred.shape[0],3), device = self.device)}
+        traj_pred = (traj_pred-output_states_min)/\
+            (output_states_max-output_states_min)
+        return traj_pred
 
 
 

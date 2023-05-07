@@ -104,7 +104,7 @@ def DMTPOVL_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
     return {
         'mnlld': mnlld,
         'mnll': mnll,
-        #'minRMSE_ovl': minRMSE_ovl,
+        'minRMSE_ovl': minRMSE_ovl,
         'rmse_table':rmse_table,
         'n_samples_ovl_list': n_samples_ovl,
         'rmse': rmse['K=1'] # minRMSE K=1 max pred horizon

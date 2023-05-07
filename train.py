@@ -15,13 +15,8 @@ import matplotlib.pyplot as plt
 
 from torch.utils.tensorboard import SummaryWriter
 
-
-
 import torch.multiprocessing
-torch.multiprocessing.set_sharing_strategy('file_system')
-
 import matplotlib.colors as mcolors
-
 
 import Dataset
 import params
@@ -31,12 +26,18 @@ from evaluate import test_model_dict
 
 import TPMs
 
+
+
 def train_model_dict(p):
     # Set Random Seeds:
-    if torch.cuda.is_available() and False:#p.CUDA:
+    if torch.cuda.is_available() and p.CUDA:
             device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
             torch.cuda.manual_seed_all(0)
+            print('Running on:', device)
+
     else:
+        print('Running on CPU!!!')
+        exit()
         device = torch.device("cpu")
             
     torch.manual_seed(1)
@@ -100,8 +101,10 @@ def train_model_dict(p):
     else:
         tb_log_dir = "runs/{}/{}".format(p.experiment_group,p.experiment_file)
     tb = SummaryWriter(log_dir= tb_log_dir)
-    val_result_dic = top_functions.train_top_func(p,model_train_func, model_eval_func, model_kpi_func, model, (traj_loss_func, man_loss_func), optimizer, tr_dataset, val_dataset,device, tensorboard = tb)    
-    p.export_experiment()
+    val_result_dic = top_functions.train_top_func(p,model_train_func, model_eval_func,
+                                                   model_kpi_func, model, (traj_loss_func, man_loss_func),
+                                                     optimizer, tr_dataset, val_dataset,device, tensorboard = tb)    
+    
     # Save results:
     if p.parameter_tuning_experiment:
         log_file_dir = os.path.join(p.TABLES_DIR,p.tuning_experiment_name + '.csv')  
@@ -119,6 +122,7 @@ def train_model_dict(p):
 
 if __name__ == '__main__':
     
+    torch.multiprocessing.set_sharing_strategy('file_system')
     '''
     p = params.ParametersHandler('MMnTP.yaml', 'highD.yaml', './config')
     p.hyperparams['experiment']['debug_mode'] = True
@@ -128,14 +132,15 @@ if __name__ == '__main__':
     '''
     # with map MM
     p = params.ParametersHandler('DMT_POVL.yaml', 'exid_train.yaml', './config', seperate_test_dataset='exid_test.yaml',seperate_deploy_dataset='exid_deploy.yaml')
-    p.hyperparams['experiment']['group'] = 'dmtpovl'
-    p.hyperparams['training']['batch_size'] = 128
+    p.hyperparams['experiment']['group'] = 'dmt_povl'
+    p.hyperparams['training']['batch_size'] = 1000
     p.hyperparams['experiment']['debug_mode'] = False
     p.hyperparams['dataset']['ablation'] = False
     p.hyperparams['experiment']['multi_modal_eval'] = False
     p.hyperparams['model']['use_map_features'] = False
     p.hyperparams['dataset']['balanced'] = True
     p.match_parameters()
+    p.export_experiment()
     #1
     train_model_dict(p)
     p.hyperparams['experiment']['multi_modal_eval'] = True

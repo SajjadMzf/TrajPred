@@ -83,6 +83,7 @@ class DMT_POVL(nn.Module):
     
     def encoder_forward(self, x, input_padding_mask):
         #encoder
+        self.batch_size = x.shape[0]
         x = self.encoder_embedding(x)
         x = self.positional_encoder(x)
         encoder_out = \

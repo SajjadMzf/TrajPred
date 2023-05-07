@@ -92,7 +92,7 @@ def list2str(x):
     return ''.join(str(x))
 
 def export_results_SM(scenarios, eval_type):
-    in_seq_len = 20#scenarios['frames'][0][0].shape[0]
+    in_seq_len = scenarios['frames'][0][0].shape[0]
     file_tv_pairs = []
     sorted_scenarios_dict = []
     for batch_grp in range(len(scenarios['tv'])):

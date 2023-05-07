@@ -42,9 +42,7 @@ class POVL_SM(nn.Module):
         
         self.dropout = nn.Dropout(drop_prob)
         
-        ''' 0. map encoder '''
-        self.map_ff = nn.Linear(self.map_dim*15, 128)
-
+        
         ''' 1. Positional encoder: '''
         self.positional_encoder = PositionalEncoding(dim_model=self.model_dim,
                                                       dropout_p=drop_prob, 
@@ -76,11 +74,10 @@ class POVL_SM(nn.Module):
         self.trajectory_fc = nn.Linear(self.model_dim, self.output_dim)       
         
         
-    def forward(self, x, y,map, input_padding_mask, y_mask):      
+    def forward(self, x, y, input_padding_mask, y_mask):      
         self.batch_size = x.shape[0]
-        encoder_out, map_encoder_out = self.encoder_forward(x, 
-                                                            map, 
-                                                            input_padding_mask)
+        encoder_out = self.encoder_forward(x, 
+                                            input_padding_mask)
         traj_pred = self.traj_decoder_forward(y, 
                                               input_padding_mask,
                                               y_mask, 
@@ -88,7 +85,7 @@ class POVL_SM(nn.Module):
         
         return {'traj_pred':traj_pred}
     
-    def encoder_forward(self, x, map, input_padding_mask):
+    def encoder_forward(self, x, input_padding_mask):
         #encoder
         self.batch_size = x.shape[0]
         
@@ -96,11 +93,7 @@ class POVL_SM(nn.Module):
         x = self.positional_encoder(x)
         encoder_out = self.transformer_encoder(x, 
                                                src_key_padding_mask = input_padding_mask)
-        if self.MAP_ENCODER:
-            map_encoder_out = F.relu(self.map_ff(map.reshape(self.batch_size, -1)))
-        else:
-            map_encoder_out = 0
-        return encoder_out, map_encoder_out
+        return encoder_out
     
     
     def traj_decoder_forward(self, y, input_padding_mask, y_mask, encoder_out):

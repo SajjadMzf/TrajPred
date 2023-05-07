@@ -6,7 +6,7 @@ from time import time
 from . import utils
 
 
-def DMTPOVL_training(p, data_tuple, label_tuple, model, 
+def DMTPOVL_training(p, data_tuple, model, 
                      dataset, loss_func_tuple, device):
     traj_loss_func = loss_func_tuple[0]
     mode_loss_func = loss_func_tuple[1]
@@ -65,7 +65,7 @@ def DMTPOVL_training(p, data_tuple, label_tuple, model,
 
 
 
-def DMTPOVL_evaluation(p, data_tuple, plot_info, dataset, label_tuple, 
+def DMTPOVL_evaluation(p, data_tuple, plot_info, dataset, 
                     model, loss_func_tuple, device, eval_type):
     
     (tv_id, frames, data_file) = plot_info
@@ -144,6 +144,80 @@ def DMTPOVL_evaluation(p, data_tuple, plot_info, dataset, label_tuple,
         'mode_prob': mode_prob_pred.detach().cpu().data.numpy(),
     }
     return batch_print_info_dict, batch_kpi_input_dict
+
+
+
+def DMTPOVL_deploy(p, data_tuple, plot_info, dataset, model, device):
+    
+    (tv_id, frames, data_file) = plot_info
+    
+    traj_data = data_tuple[-1]
+    
+    traj_initial_input = traj_data[:,(p.MAX_IN_SEQ_LEN-1):p.MAX_IN_SEQ_LEN] 
+    traj_gt = traj_data[:,p.MAX_IN_SEQ_LEN:]
+    feature_data = data_tuple[0]
+    input_padding_mask = data_tuple[1]
+    
+    with torch.no_grad():
+        encoder_out = model.encoder_forward(x = feature_data,
+                                            input_padding_mask = input_padding_mask)
+        mode_prob_pred = model.mode_decoder_forward(encoder_out,
+                                                    input_padding_mask = input_padding_mask)
+    mode_prob_pred = F.softmax(mode_prob_pred, dim = 1)
+    decoder_input = traj_initial_input
+    hp_mode = np.argmax(mode_prob_pred.cpu().detach().numpy(), axis = 1)
+
+    
+   
+    
+
+    # Trajectory inference for all modes!
+    if p.MULTI_MODAL_EVAL == True:
+        traj_preds = []
+        data_dist_preds = []
+        for mode_itr in range(model.n_mode):
+            selected_mode = np.ones_like(hp_mode)*mode_itr
+            decoder_input = traj_initial_input
+            predicted_data_dist, traj_pred = \
+                DMTPOVL_trajectory_inference(p, model, device, decoder_input,\
+                                          input_padding_mask, encoder_out, selected_mode)
+            traj_preds.append(traj_pred)
+            data_dist_preds.append(predicted_data_dist)
+        traj_preds = torch.stack(traj_preds, dim = 1)
+        data_dist_preds = torch.stack(data_dist_preds, dim =1)
+    else:
+        data_dist_preds = []
+        BM_predicted_data_dist, BM_traj_pred = \
+            DMTPOVL_trajectory_inference(p, model, device, decoder_input, 
+                                        input_padding_mask, encoder_out, hp_mode)
+        for mode_itr in range(model.n_mode):
+            data_dist_preds.append(BM_predicted_data_dist)
+        data_dist_preds = torch.stack(data_dist_preds, dim =1)
+    
+    
+    traj_gt = traj_gt.cpu().data.numpy()
+    unnormalised_traj_pred = data_dist_preds.cpu().data.numpy()
+    unnormalised_traj_pred = unnormalised_traj_pred[:,:,:,:2]
+    traj_max = dataset.output_states_max
+    traj_min = dataset.output_states_min
+    unnormalised_traj_pred = unnormalised_traj_pred*(traj_max-traj_min) + traj_min 
+    unnormalised_traj_pred = np.cumsum(unnormalised_traj_pred, axis = 2)
+    unnormalised_traj_gt = traj_gt*(traj_max-traj_min) + traj_min
+    unnormalised_traj_gt = np.cumsum(unnormalised_traj_gt, axis = 1)
+    batch_export_dict = {    
+        'data_file': data_file,
+        'tv': tv_id.numpy(),
+        'frames': frames.numpy(),
+        'traj_pred': unnormalised_traj_pred,
+        'traj_gt': unnormalised_traj_gt,
+        'mode_prob': mode_prob_pred.detach().cpu().data.numpy(),
+    }
+
+
+    return batch_export_dict
+
+
+
 
 def DMTPOVL_trajectory_inference(p, model, device, decoder_input, 
                                  input_padding_mask, encoder_out, selected_mode):

@@ -19,7 +19,6 @@ import params
 import top_functions
 
 import torch.multiprocessing
-torch.multiprocessing.set_sharing_strategy('file_system')
 
 import kpis
 import matplotlib.colors as mcolors
@@ -32,7 +31,7 @@ def deploy_model_dict(p):
             torch.cuda.manual_seed_all(0)
     else:
         device = torch.device("cpu")
-            
+    print(device)        
     torch.manual_seed(1)
     torch.cuda.manual_seed_all(1)
     torch.backends.cudnn.deterministic = True
@@ -103,33 +102,37 @@ def deploy_model_dict(p):
         
 if __name__ == '__main__':
 
-   
-    p = params.ParametersHandler('POVL_SM.yaml', 'exid_train.yaml', './config',
+    '''
+    p = params.ParametersHandler('Constant_Parameter.yaml', 'exid_train.yaml', './config',
                                   seperate_test_dataset='exid_test.yaml',
                                   seperate_deploy_dataset='exid_deploy.yaml')
-    experiment_file = 'experiments/POVL_SM_exid_train_2023-04-01 16:35:41.320395'
-    p.import_experiment(experiment_file)
+    p.hyperparams['training']['batch_size'] = 1 # ConstantX doesnt support variable batch size
     p.hyperparams['experiment']['debug_mode'] = False
-    p.hyperparams['dataset']['balanced'] = False
-    p.hyperparams['training']['batch_size'] = 64
+    p.hyperparams['dataset']['ablation'] = False
+    p.hyperparams['model']['multi_modal'] = False
+    p.hyperparams['model']['man_dec_out'] = False
     p.hyperparams['experiment']['multi_modal_eval'] = False
+    p.hyperparams['model']['use_map_features'] = False
+    p.hyperparams['dataset']['balanced'] = False
     # make sure to use following function to update hyperparameters
     p.match_parameters()
     deploy_model_dict(p)
     
     '''
-    p = params.ParametersHandler('POVL_SM.yaml', 'exid_train.yaml', './config',
-      seperate_test_dataset='exid_test.yaml',seperate_deploy_dataset='exid_deploy.yaml')
-    experiment_file = 'experiments/POVL_SM_exid_train_2023-03-11 13:42:13.664618'
+
+    p = params.ParametersHandler('DMT_POVL.yaml', 'exid_train.yaml', './config',
+                                  seperate_test_dataset='exid_test.yaml',
+                                  seperate_deploy_dataset='exid_deploy.yaml')
+    experiment_file = 'experiments/DMT_POVL_exid_train_2023-05-05 12:23:47.848009'
     p.import_experiment(experiment_file)
     p.hyperparams['experiment']['debug_mode'] = False
     p.hyperparams['dataset']['balanced'] = False
-    p.hyperparams['training']['batch_size'] = 64
-    p.hyperparams['experiment']['multi_modal_eval'] = False
-    p.hyperparams['problem']['SKIP_SEQ_LEN'] = 0 
-    # TODO: remove (already set in .yaml), also uncomment in import experiment line 5
+    p.hyperparams['training']['batch_size'] = 1000
+    p.hyperparams['experiment']['multi_modal_eval'] = True
+    p.hyperparams['model']['multi_modal'] = True
     # make sure to use following function to update hyperparameters
     p.match_parameters()
     deploy_model_dict(p)
-    '''
+    
+   
 
