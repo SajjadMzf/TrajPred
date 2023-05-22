@@ -214,4 +214,4 @@ class DataClass:
         self.DE_RATIO = dataset['deploy']
         self.DATA_FILES = [ str(i).zfill(2)+'.h5' for i in eval(dataset['dataset_ind'])]
         self.MAP_DIRS = dataset['map_dirs']
-        self.MAP_INDEX = [i for i in eval(dataset['map_ind'])]
+        

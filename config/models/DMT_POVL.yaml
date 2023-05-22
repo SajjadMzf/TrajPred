@@ -1,0 +1,21 @@
+name: DMT_POVL #Dynamic Multi-Modal Trajectory POVL
+ref: TPMs.DMT_POVL.model.DMT_POVL
+hyperparams:
+  layer number: 1
+  model dim: 512
+  feedforward dim: 128
+  classifier dim: 256
+  head number: 8
+  probabilistic output: True
+  number of modes: 3
+  manouvre per mode: 3
+
+optimizer: torch.optim.Adam
+man loss function: torch.nn.CrossEntropyLoss # This is the loss function to evaluate mode prob estimation
+traj loss function: torch.nn.MSELoss
+model training function: TPMs.DMT_POVL.functions.DMTPOVL_training
+model evaluation function: TPMs.DMT_POVL.functions.DMTPOVL_evaluation
+model deploy function: TPMs.DMT_POVL.functions.DMTPOVL_deploy # TODO: deploy model needs to be modified for DMTP
+model kpi function: TPMs.DMT_POVL.kpis.DMTPOVL_kpis
+data type: 'state'
+state type: 'povl'

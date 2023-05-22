@@ -175,19 +175,20 @@ def train_model(p, tb, model_train_func, model, loss_func_tuple, optimizer, sche
     vis_print_dict = []
     print_dict = []
     # Training loop over batches of data on train dataset
-    for batch_idx, (data_tuple,_) in enumerate(train_loader):
+    for batch_idx, (data_tuple, man,_) in enumerate(train_loader):
         
         if p.DEBUG_MODE == True:
             if batch_idx >2: ##Uncoment for debuggering
                 break
         
         data_tuple = [data.to(device) for data in data_tuple]
+        man = man.to(device)
         # 1. Clearing previous gradient values.
         optimizer.zero_grad()
         
         # 2. Run the Model 
         #print(model_train_func)
-        loss, batch_print_info_dict = model_train_func(p, data_tuple, model, train_dataset, loss_func_tuple, device)
+        loss, batch_print_info_dict = model_train_func(p, data_tuple, man, model, train_dataset, loss_func_tuple, device)
 
         # 3. Calculating new grdients given the loss value
         loss.backward()
@@ -248,7 +249,7 @@ def deploy_model(p, model, model_deploy_func, de_loader, de_dataset, device, vis
     # Initialise Variables
     export_dict = {}
     #model.eval()
-    for batch_idx, (data_tuple, plot_info) in enumerate(de_loader):
+    for batch_idx, (data_tuple, man, plot_info) in enumerate(de_loader):
         if p.DEBUG_MODE == True:
             if batch_idx >2: 
                 break
@@ -278,14 +279,15 @@ def eval_model(p, tb, model_eval_func, model_kpi_func, model, loss_func_tuple, t
     print_dict = {}
     kpi_input_dict = {}
     #model.eval()
-    for batch_idx, (data_tuple, plot_info) in enumerate(test_loader):
+    for batch_idx, (data_tuple, man, plot_info) in enumerate(test_loader):
         if p.DEBUG_MODE == True:
             if batch_idx >2: 
                 break
         
         data_tuple = [data.to(device) for data in data_tuple]
+        man = man.to(device)
         with torch.no_grad():
-            batch_print_info_dict, batch_kpi_input_dict = model_eval_func(p, data_tuple, plot_info, test_dataset, model, loss_func_tuple, device, eval_type)
+            batch_print_info_dict, batch_kpi_input_dict = model_eval_func(p, data_tuple, man, plot_info, test_dataset, model, loss_func_tuple, device, eval_type)
     
         if batch_idx == 0:
             for k in batch_kpi_input_dict:

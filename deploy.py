@@ -45,7 +45,6 @@ def deploy_model_dict(p):
     model_deploy_func = p.model_dictionary['model deploy function']
     # Instantiate Dataset: 
     tr_dataset = Dataset.LCDataset(p.TR.DATASET_DIR, p.TR.DATA_FILES, 
-                                   p.TR.MAP_INDEX, p.TR.MAP_DIRS,
         index_file = Dataset.get_index_file(p, p.TR,  'Tr'),
         data_type = p.model_dictionary['data type'], 
         state_type = p.model_dictionary['state type'], 
@@ -56,7 +55,6 @@ def deploy_model_dict(p):
     
     #exit()
     de_dataset = Dataset.LCDataset(p.DE.DATASET_DIR, p.DE.DATA_FILES, 
-                                   p.DE.MAP_INDEX, p.DE.MAP_DIRS,
         index_file = Dataset.get_index_file(p,p.DE,  'De'),
         data_type = p.model_dictionary['data type'], 
         state_type = p.model_dictionary['state type'], 
@@ -71,7 +69,6 @@ def deploy_model_dict(p):
         output_states_max = tr_dataset.output_states_max)
     
     te_dataset = Dataset.LCDataset(p.TE.DATASET_DIR, p.TE.DATA_FILES, 
-                                   p.TE.MAP_INDEX, p.TE.MAP_DIRS,
         index_file = Dataset.get_index_file(p,p.TE,  'Te'),
         data_type = p.model_dictionary['data type'], 
         state_type = p.model_dictionary['state type'], 
@@ -118,18 +115,25 @@ if __name__ == '__main__':
     p.match_parameters()
     deploy_model_dict(p)
     
+    exit()
     '''
-
-    p = params.ParametersHandler('DMT_POVL.yaml', 'exid_train.yaml', './config',
+    p = params.ParametersHandler('POVL_SM.yaml', 'exid_train.yaml', './config',
                                   seperate_test_dataset='exid_test.yaml',
                                   seperate_deploy_dataset='exid_deploy.yaml')
-    experiment_file = 'experiments/DMT_POVL_exid_train_2023-05-05 12:23:47.848009'
+    experiment_file = 'experiments/POVL_SM_exid_train_2023-05-04 10:49:00.060446'
+    '''
+    Constant Parameters
+    'experiments/POVL_SM_exid_train_2023-05-04 10:49:00.060446'
+    'experiments/POVL_exid_train_2023-05-09 12:48:30.344067'
+    'experiments/DMT_POVL_exid_train_2023-05-05 12:23:47.848009'
+
+    '''
     p.import_experiment(experiment_file)
     p.hyperparams['experiment']['debug_mode'] = False
     p.hyperparams['dataset']['balanced'] = False
     p.hyperparams['training']['batch_size'] = 1000
-    p.hyperparams['experiment']['multi_modal_eval'] = True
-    p.hyperparams['model']['multi_modal'] = True
+    p.hyperparams['experiment']['multi_modal_eval'] = False
+    p.hyperparams['model']['multi_modal'] = False
     # make sure to use following function to update hyperparameters
     p.match_parameters()
     deploy_model_dict(p)

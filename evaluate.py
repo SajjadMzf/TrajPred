@@ -50,7 +50,7 @@ def test_model_dict(p):
     else:
         traj_loss_func = p.model_dictionary['traj loss function']()
     # Instantiate Dataset: 
-    tr_dataset = Dataset.LCDataset(p.TR.DATASET_DIR, p.TR.DATA_FILES, p.TR.MAP_INDEX, p.TR.MAP_DIRS,
+    tr_dataset = Dataset.LCDataset(p.TR.DATASET_DIR, p.TR.DATA_FILES, 
         index_file = Dataset.get_index_file(p, p.TR,  'Tr'),
         data_type = p.model_dictionary['data type'], 
         state_type = p.model_dictionary['state type'], 
@@ -60,7 +60,7 @@ def test_model_dict(p):
     #val_dataset = Dataset.LCDataset(p.TRAIN_DATASET_DIR, p.VAL_DATA_FILES,  data_type = p.model_dictionary['data type'], state_type = p.model_dictionary['state type'], keep_plot_info= False, states_min = tr_dataset.states_min, states_max = tr_dataset.states_max, output_states_min = tr_dataset.output_states_min, output_states_max = tr_dataset.output_states_max)
     
     #exit()
-    te_dataset = Dataset.LCDataset(p.TE.DATASET_DIR, p.TE.DATA_FILES, p.TE.MAP_INDEX, p.TE.MAP_DIRS,
+    te_dataset = Dataset.LCDataset(p.TE.DATASET_DIR, p.TE.DATA_FILES,
         index_file = Dataset.get_index_file(p,p.TE,  'Te'),
         data_type = p.model_dictionary['data type'], 
         state_type = p.model_dictionary['state type'], 

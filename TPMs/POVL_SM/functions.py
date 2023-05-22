@@ -7,7 +7,7 @@ from functools import reduce
 import operator as op
 from . import utils
 
-def POVL_SM_training(p, data_tuple, model, dataset, loss_func_tuple, device):
+def POVL_SM_training(p, data_tuple, man_data, model, dataset, loss_func_tuple, device):
     '''
     start_all = torch.cuda.Event(enable_timing=True)
     end_all = torch.cuda.Event(enable_timing=True)
@@ -112,7 +112,7 @@ def POVL_SM_deploy(p, data_tuple, plot_info, dataset, model, device):
 
     return batch_export_dict
 
-def POVL_SM_evaluation(p, data_tuple, plot_info, dataset, 
+def POVL_SM_evaluation(p, data_tuple, man_data, plot_info, dataset, 
                        model, loss_func_tuple, device, eval_type):
     (tv_id, frames, data_file) = plot_info
     

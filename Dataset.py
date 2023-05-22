@@ -16,8 +16,6 @@ class LCDataset(Dataset):
     def __init__(self, 
     dataset_dir, 
     data_files,
-    map_inds,
-    map_files, 
     data_type, 
     index_file,
         #'max_in_seq_len, out_seq_len, skip_seq_len,
@@ -39,8 +37,7 @@ class LCDataset(Dataset):
         BalancedIndex Option: B for balanced, U for unbalanced.
         '''
         super(LCDataset, self).__init__()
-        self.map_data_list = self.get_map_data(map_files)
-        self.map_inds = map_inds
+        
         self.data_files = data_files
         #print(data_files)
         #exit()
@@ -98,18 +95,6 @@ class LCDataset(Dataset):
 
     def __len__(self):
         return self.dataset_size
-
-    def get_map_data(self, map_files):
-        map_data_list = []
-        for map_file in map_files:
-            with open(map_file, 'rb') as handle:
-                (map_data, x_min, y_max, x_res, y_res) = pickle.load(handle)
-            
-            # = (0,0,0,0,0)
-            map_dict = {'data': np.transpose(map_data, (0,1,3,2)), 
-                        'xmin': x_min, 'ymax': y_max, 'xres':x_res, 'yres':y_res}
-            map_data_list.append(map_dict)
-        return map_data_list
 
     def parse_index_file(self):
         index_data = self.index_file.split('_')
@@ -326,7 +311,7 @@ class LCDataset(Dataset):
         self.frame_data = [] 
         self.tv_data = []
         self.output_data = [] 
-        self.label_data = []
+        self.man_data = []
         
         start_time = time.time()
         for dataset_dir in self.dataset_dirs:
@@ -344,6 +329,9 @@ class LCDataset(Dataset):
                 output_data_i = torch.from_numpy(output_data_i.\
                                                  astype(np.float32))
                 self.output_data.append(output_data_i)
+                man_data_i = f['labels']
+                man_data_i = man_data_i[:]
+                self.man_data.append(man_data_i)
                 frame_data_i = f['frame_data']
                 self.frame_data.append(frame_data_i[:])
                 tv_data_i = f['tv_data']
@@ -393,7 +381,16 @@ class LCDataset(Dataset):
         p2d = (0,0, self.max_in_seq_len-in_seq_len,0)
         output_states = F.pad(output_states, p2d, 'constant', -1)
         data_output.append(output_states)
-        return data_output, plot_output
+
+
+        man_data = self.man_data[file_itr]
+        man = np.absolute(\
+            man_data[(start_index):(start_index + in_seq_len + self.out_seq_len)]\
+                .astype(np.int64))
+        man = torch.from_numpy(man)
+        p1d = (self.max_in_seq_len-in_seq_len,0)
+        man = F.pad(man, p1d, 'constant', -1)
+        return data_output, man, plot_output
 
 def get_index_file(p, d_class, index_group):
     '''

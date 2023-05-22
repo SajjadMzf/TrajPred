@@ -5,7 +5,7 @@ from time import time
 
 from . import utils
 
-def POVL_training(p, data_tuple, label_tuple, model, dataset, loss_func_tuple, device):
+def POVL_training(p, data_tuple, man_data, model, dataset, loss_func_tuple, device):
     '''
     start_all = torch.cuda.Event(enable_timing=True)
     end_all = torch.cuda.Event(enable_timing=True)
@@ -21,7 +21,6 @@ def POVL_training(p, data_tuple, label_tuple, model, dataset, loss_func_tuple, d
     '''
     traj_loss_func = loss_func_tuple[0]
     man_loss_func = loss_func_tuple[1]
-    man_data = label_tuple[0]
     man_input = man_data[:,(p.MAX_IN_SEQ_LEN-1):(p.MAX_IN_SEQ_LEN-1+p.TGT_SEQ_LEN)]
     man_input = F.one_hot(man_input, num_classes= 3)
     
@@ -167,13 +166,12 @@ def POVL_deploy(p, data_tuple, plot_info, dataset, model, device):
 
 
 
-def POVL_evaluation(p, data_tuple, plot_info, dataset, label_tuple, model, loss_func_tuple, device, eval_type):
+def POVL_evaluation(p, data_tuple,man_data, plot_info, dataset, model, loss_func_tuple, device, eval_type):
     (tv_id, frames, data_file) = plot_info
     
     traj_loss_func = loss_func_tuple[0]
     man_loss_func = loss_func_tuple[1]
 
-    man_data = label_tuple[0]
     man_gt = man_data[:, p.MAX_IN_SEQ_LEN:(p.MAX_IN_SEQ_LEN+p.TGT_SEQ_LEN)]
     
     w_ind = utils.divide_prediction_window(p.TGT_SEQ_LEN, model.man_per_mode)

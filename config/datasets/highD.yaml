@@ -3,7 +3,9 @@ train: 0.7
 abblation_val: 0.1
 val: 0.1
 test: 0.2
+deploy: 0.0
 image_width: 200
 image_height: 80
+map_dirs : 'None'
 dataset_dir: '../../Dataset/Processed_highD/RenderedDataset/'
-dataset_ind: range(1,60)
+dataset_ind: range(1,61)

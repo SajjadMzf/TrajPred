@@ -18,4 +18,4 @@ model evaluation function: TPMs.POVL.functions.POVL_evaluation
 model deploy function: TPMs.POVL.functions.POVL_deploy
 model kpi function: TPMs.POVL.kpis.POVL_kpis
 data type: 'state'
-state type: 'merging'
+state type: 'povl'

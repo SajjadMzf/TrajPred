@@ -60,7 +60,7 @@ def train_model_dict(p):
     model_eval_func = p.model_dictionary['model evaluation function']
     model_kpi_func = p.model_dictionary['model kpi function']
     
-    tr_dataset = Dataset.LCDataset(p.TR.DATASET_DIR, p.TR.DATA_FILES, p.TR.MAP_INDEX, p.TR.MAP_DIRS,
+    tr_dataset = Dataset.LCDataset(p.TR.DATASET_DIR, p.TR.DATA_FILES, 
         index_file = Dataset.get_index_file(p,p.TR, 'Tr'),
         data_type = p.model_dictionary['data type'], 
         state_type = p.model_dictionary['state type'], 
@@ -68,7 +68,7 @@ def train_model_dict(p):
         keep_plot_info= False, 
         force_recalc_start_indexes = False)
   
-    val_dataset = Dataset.LCDataset(p.TR.DATASET_DIR, p.TR.DATA_FILES, p.TR.MAP_INDEX, p.TR.MAP_DIRS,
+    val_dataset = Dataset.LCDataset(p.TR.DATASET_DIR, p.TR.DATA_FILES,
         index_file = Dataset.get_index_file(p,p.TR,  'Val'),
         data_type = p.model_dictionary['data type'], 
         state_type = p.model_dictionary['state type'],
@@ -82,7 +82,7 @@ def train_model_dict(p):
         output_states_max = tr_dataset.output_states_max)
     
     
-    te_dataset = Dataset.LCDataset(p.TE.DATASET_DIR, p.TE.DATA_FILES, p.TE.MAP_INDEX, p.TE.MAP_DIRS,
+    te_dataset = Dataset.LCDataset(p.TE.DATASET_DIR, p.TE.DATA_FILES,
         index_file = Dataset.get_index_file(p,p.TE,  'Te'),
         data_type = p.model_dictionary['data type'],
         state_type = p.model_dictionary['state type'], 
@@ -131,8 +131,10 @@ if __name__ == '__main__':
     train_model_dict(p)
     '''
     # with map MM
-    p = params.ParametersHandler('DMT_POVL.yaml', 'exid_train.yaml', './config', seperate_test_dataset='exid_test.yaml',seperate_deploy_dataset='exid_deploy.yaml')
-    p.hyperparams['experiment']['group'] = 'dmt_povl'
+    #p = params.ParametersHandler('POVL_SM.yaml', 'exid_train.yaml', './config', seperate_test_dataset='exid_test.yaml',seperate_deploy_dataset='exid_deploy.yaml')
+    p = params.ParametersHandler('POVL_SM.yaml', 'highD.yaml', './config')
+    
+    p.hyperparams['experiment']['group'] = 'povl'
     p.hyperparams['training']['batch_size'] = 1000
     p.hyperparams['experiment']['debug_mode'] = False
     p.hyperparams['dataset']['ablation'] = False
@@ -143,9 +145,7 @@ if __name__ == '__main__':
     p.export_experiment()
     #1
     train_model_dict(p)
-    p.hyperparams['experiment']['multi_modal_eval'] = True
+    p.hyperparams['experiment']['multi_modal_eval'] = False
     p.hyperparams['dataset']['balanced'] = False
     p.match_parameters()
     test_model_dict(p)
-    
-    
