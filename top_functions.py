@@ -260,7 +260,11 @@ def eval_model(p, tb, model_eval_func, model_kpi_func, model, loss_func_tuple, t
     print_dict = {}
     kpi_input_dict = {}
     #model.eval()
+    
+    n_batchs = len(test_loader) if eval_type != 'Validation' else p.MAX_VAL_ITR
     for batch_idx, (data_tuple, man, plot_info) in enumerate(test_loader):
+        if eval_type== 'Validation' and batch_idx>=p.MAX_VAL_ITR:
+            break
         if p.DEBUG_MODE == True:
             if batch_idx >2: 
                 break
@@ -280,10 +284,10 @@ def eval_model(p, tb, model_eval_func, model_kpi_func, model, loss_func_tuple, t
                 kpi_input_dict[k].append(batch_kpi_input_dict[k])
             
             for k in batch_print_info_dict:
-                print_dict[k] += batch_print_info_dict[k]/len(test_loader)
+                print_dict[k] += batch_print_info_dict[k]/n_batchs
         
-        if (batch_idx+1) % 500 == 0:
-            print('Epoch: ',epoch, ' Batch: ', batch_idx+1, '/{}'.format(len(test_loader)))
+        if (batch_idx+1) % 20 == 0:
+            print('Epoch: ',epoch, ' Batch: ', batch_idx+1, '/{}'.format(n_batchs))
                
     kpi_dict = model_kpi_func(p, kpi_input_dict, test_dataset.output_states_min, test_dataset.output_states_max, figure_name)
     if eval_type == 'Test':

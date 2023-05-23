@@ -123,7 +123,7 @@ class ParametersHandler:
         self.TR_JUMP_STEP = self.hyperparams['training']['tr_jump_step']
         self.SKIP_VAL_ITRS = self.hyperparams['training']['skip_validation_itrs']
         self.VAL_FREQ = self.hyperparams['training']['val_freq']
-        
+        self.MAX_VAL_ITR = self.hyperparams['training']['max_val_itr']
         if self.UNBALANCED:
             self.unblanaced_ext = self.constants['DIRS']['UNBALANCED_EXT']
         else:
