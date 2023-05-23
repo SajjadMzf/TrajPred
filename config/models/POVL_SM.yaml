@@ -15,4 +15,4 @@ model evaluation function: TPMs.POVL_SM.functions.POVL_SM_evaluation
 model deploy function: TPMs.POVL_SM.functions.POVL_SM_deploy
 model kpi function: TPMs.POVL_SM.kpis.POVL_SM_kpis
 data type: 'state'
-state type: 'wirth'
+state type: 'povl'

@@ -93,6 +93,7 @@ class POVL_SM(nn.Module):
         x = self.positional_encoder(x)
         encoder_out = self.transformer_encoder(x, 
                                                src_key_padding_mask = input_padding_mask)
+        
         return encoder_out
     
     

@@ -9,7 +9,7 @@ import pickle
 
 import kpis
 import TPMs
-
+import math
 class ParametersHandler:
     def __init__(self, model, dataset, parameters_dir, seperate_deploy_dataset = None, seperate_test_dataset = None, experiments_dir = 'experiments/', evaluation_dir = 'evaluations/', models_dir = 'models/', datasets_dir = 'datasets/', constants_file = 'constants.yaml', hyperparams_file = 'hyperparams.yaml'):
         self.parameter_tuning_experiment = False 
@@ -113,18 +113,17 @@ class ParametersHandler:
 
         # Training  Hyperparameters
         self.CUDA = self.hyperparams['experiment']['cuda']
-        self.BATCH_SIZE = self.hyperparams['training']['batch_size'] #64
-        self.LR = self.hyperparams['training']['lr']#  0.001
+        self.BATCH_SIZE = self.hyperparams['training']['batch_size'] 
+        self.LR = eval(self.hyperparams['training']['lr'])
         self.LR_WU = self.hyperparams['training']['lr_wu']
-        self.LR_WU_BATCHES = self.hyperparams['training']['lr_wu_batches']
-        self.LR_WU_CURRENT_BATCH = self.hyperparams['training']['lr_wu_current_batch']
+        self.LR_WU_BATCHES = int(eval(self.hyperparams['training']['lr_wu_batches']))
         self.TRAJ2CLASS_LOSS_RATIO = self.hyperparams['training']['traj2class_loss_ratio']
         self.LR_DECAY = self.hyperparams['training']['lr_decay']
-        self.NUM_EPOCHS = self.hyperparams['training']['num_epochs']
-        self.PATIENCE = self.hyperparams['training']['patience']
+        self.NUM_ITRS = int(eval(self.hyperparams['training']['num_itrs']))
         self.TR_JUMP_STEP = self.hyperparams['training']['tr_jump_step']
-        self.SKIP_VAL_EPOCHS = self.hyperparams['training']['skip_validation_epoch']
-
+        self.SKIP_VAL_ITRS = self.hyperparams['training']['skip_validation_itrs']
+        self.VAL_FREQ = self.hyperparams['training']['val_freq']
+        
         if self.UNBALANCED:
             self.unblanaced_ext = self.constants['DIRS']['UNBALANCED_EXT']
         else:

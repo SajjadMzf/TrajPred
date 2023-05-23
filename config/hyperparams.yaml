@@ -3,29 +3,29 @@ dataset:
   ablation: False
 
 experiment:
-  group: 'miscellaneous'
+  group: 'povl_sm'
   cuda: True
   debug_mode: False
   multi_modal_eval: True
 
 training:
   batch_size: 1000
-  lr: 0.002 # 0.001 #0.0015 #0.000001 0.01#0.00001
-  lr_wu: False #True
-  lr_wu_batches: 20000
+  lr: 0.001*math.sqrt(1e+3) # 0.001 #0.0015 #0.000001 0.01#0.00001
+  lr_wu: True #True
+  lr_wu_batches: 1e+3
   lr_wu_current_batch: 0
   traj2class_loss_ratio: 1
-  lr_decay: 'none' # 'inv-sqrt' or 'none'
-  num_epochs: 200 #300
-  patience: 200 #300
-  skip_validation_epoch: 0
+  lr_decay: 'inv-sqrt' # 'inv-sqrt' or 'none'
+  num_itrs: 1e+4
+  val_freq: 1
+  skip_validation_itrs: 0
   tr_jump_step: 1  
 
 
 model:
   man_dec_in: False # If True Manouvre will be inputted to Trajectory decoders
-  man_dec_out: True # True means the model can predict manouvre, and manouvre prediction will be considered in loss function calculation
-  multi_modal: True
+  man_dec_out: False # True means the model can predict manouvre, and manouvre prediction will be considered in loss function calculation
+  multi_modal: False
   use_map_features: False
   validation_score: 'rmse' #'Traj Loss'
   lower_better_val_score: True

@@ -28,7 +28,7 @@ import TPMs
 
 
 
-def train_model_dict(p):
+def train_model_dict(p, prev_best_model = None, prev_itr = 1):
     # Set Random Seeds:
     if torch.cuda.is_available() and p.CUDA:
             device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -38,7 +38,7 @@ def train_model_dict(p):
     else:
         print('Running on CPU!!!')
         exit()
-        device = torch.device("cpu")
+        #device = torch.device("cpu")
             
     torch.manual_seed(1)
     torch.cuda.manual_seed_all(1)
@@ -103,7 +103,10 @@ def train_model_dict(p):
     tb = SummaryWriter(log_dir= tb_log_dir)
     val_result_dic = top_functions.train_top_func(p,model_train_func, model_eval_func,
                                                    model_kpi_func, model, (traj_loss_func, man_loss_func),
-                                                     optimizer, tr_dataset, val_dataset,device, tensorboard = tb)    
+                                                     optimizer, tr_dataset, val_dataset,device,
+                                                    prev_best_model= prev_best_model,
+                                                    prev_itr = prev_itr,
+                                                    tensorboard = tb)    
     
     # Save results:
     if p.parameter_tuning_experiment:
@@ -135,17 +138,9 @@ if __name__ == '__main__':
     p = params.ParametersHandler('POVL_SM.yaml', 'highD.yaml', './config')
     
     p.hyperparams['experiment']['group'] = 'povl'
-    p.hyperparams['training']['batch_size'] = 1000
-    p.hyperparams['experiment']['debug_mode'] = False
-    p.hyperparams['dataset']['ablation'] = False
-    p.hyperparams['experiment']['multi_modal_eval'] = False
-    p.hyperparams['model']['use_map_features'] = False
-    p.hyperparams['dataset']['balanced'] = True
     p.match_parameters()
     p.export_experiment()
     #1
     train_model_dict(p)
-    p.hyperparams['experiment']['multi_modal_eval'] = False
-    p.hyperparams['dataset']['balanced'] = False
     p.match_parameters()
     test_model_dict(p)

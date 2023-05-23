@@ -125,7 +125,7 @@ class POVL(nn.Module):
         #print(encoder_out.shape)
         #print(input_padding_mask.shape)
         input_padding_mask = torch.unsqueeze(input_padding_mask, dim = -1)
-        encoder_out = torch.mul(encoder_out, input_padding_mask)
+        encoder_out = torch.mul(encoder_out, torch.logical_not(input_padding_mask))
         man_dec_in = encoder_out.reshape(self.batch_size, self.max_in_seq_len*self.model_dim)
         if self.MAP_ENCODER:
             man_dec_in = torch.cat((man_dec_in, map_encoder_out), dim=1)

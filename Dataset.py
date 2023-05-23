@@ -107,6 +107,7 @@ class LCDataset(Dataset):
             self.unbalanced_status = index_data[4]
             if index_data[4] == 'B':
                 self.unbalanced = False
+                raise(ValueError('Balancing not supported'))
             elif index_data[4] == 'U':
                 self.unbalanced = True
             else: 
@@ -221,10 +222,10 @@ class LCDataset(Dataset):
             te_samples = int(n_tracks*self.te_ratio)
             de_samples = int(n_tracks*self.de_ratio)
             index_groups = ['Tr', 'Val', 'AbbTe', 'Te', 'AbbTr', 'AbbVal', 'De']
-            unbalanced_inds = ['U', 'B']
+            unbalanced_inds = ['U']#, 'B']
             
             start_indexes = {}
-            start_indexes['B'] = {}
+            #start_indexes['B'] = {}
             start_indexes['U'] = {}
             
             start_indexes['U']['Tr'] = samples_start_index[:tr_samples]
@@ -246,15 +247,15 @@ class LCDataset(Dataset):
                 #print(len(start_indexes['U'][index_group]))
                 if len(start_indexes['U'][index_group]) == 0:
                     start_indexes['U'][index_group] = np.array([])
-                    start_indexes['B'][index_group] = np.array([])
+                    #start_indexes['B'][index_group] = np.array([])
                 else:
                     #print(index_group)
                     #print(start_indexes['U'][index_group])
                     start_indexes['U'][index_group] = \
                         np.concatenate(start_indexes['U'][index_group] , axis = 0)
-                    start_indexes['B'][index_group] = \
-                        self.balance_dataset(start_indexes['U'][index_group]) \
-                            if index_group != 'De' else np.array([])
+                    #start_indexes['B'][index_group] = \
+                    #    self.balance_dataset(start_indexes['U'][index_group]) \
+                    #        if index_group != 'De' else np.array([])
             
             for ub_ind in unbalanced_inds:
                 index_file = modify_index_file(self.index_file, unbalanced_ind = ub_ind)
@@ -358,7 +359,7 @@ class LCDataset(Dataset):
             
             padding_mask = torch.from_numpy(padding_mask.astype(bool))
             data_output = [states, padding_mask]
-          
+            
         else:
             raise(ValueError('undefined data type'))
 
