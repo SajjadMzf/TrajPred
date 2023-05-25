@@ -83,14 +83,6 @@ if __name__ == '__main__':
     p = params.ParametersHandler('Constant_Parameter.yaml', 'exid_train.yaml', './config', # POVL_SM.yaml
                                   seperate_test_dataset='exid_test.yaml',
                                   seperate_deploy_dataset='exid_deploy.yaml')
-    p.hyperparams['training']['batch_size'] = 128
-    p.hyperparams['experiment']['debug_mode'] = False
-    p.hyperparams['dataset']['ablation'] = False
-    p.hyperparams['model']['multi_modal'] = False
-    p.hyperparams['model']['man_dec_out'] = False
-    p.hyperparams['experiment']['multi_modal_eval'] = False
-    p.hyperparams['model']['use_map_features'] = False
-    p.hyperparams['dataset']['balanced'] = False
     p.match_parameters()
     test_model_dict(p)
 

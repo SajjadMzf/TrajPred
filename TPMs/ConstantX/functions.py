@@ -4,7 +4,7 @@ import numpy as np
 from time import time
 import pdb
 
-def CONSTANTX_training(p, data_tuple, model, dataset, loss_func_tuple, device):
+def CONSTANTX_training(p, data_tuple, man, model, dataset, loss_func_tuple, device):
     print('ConstantX does not require training!')
     exit()
 
@@ -46,7 +46,7 @@ def CONSTANTX_deploy(p, data_tuple, plot_info, dataset, model, device):
 
     return batch_export_dict
 
-def CONSTANTX_evaluation(p, data_tuple, plot_info, dataset, 
+def CONSTANTX_evaluation(p, data_tuple, man, plot_info, dataset, 
                        model, loss_func_tuple, device, eval_type):
     (tv_id, frames, data_file) = plot_info
     

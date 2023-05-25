@@ -40,7 +40,9 @@ def deploy_top_func(p, model_deploy_func, model, de_dataset, device):
 def eval_top_func(p, model_eval_func, model_kpi_func, model, loss_func_tuple, te_dataset, device, tensorboard = None):
     model = model.to(device)
     
-    te_loader = utils_data.DataLoader(dataset = te_dataset, shuffle = True, batch_size = p.BATCH_SIZE, drop_last= True, pin_memory= True, num_workers= 12)
+    te_loader = utils_data.DataLoader(dataset = te_dataset, shuffle = True, 
+                                      batch_size = p.BATCH_SIZE, drop_last= True, 
+                                      pin_memory= True, num_workers= 0)
 
     vis_data_path = p.VIS_DIR + p.experiment_tag + '.pickle'
     best_model_path = p.WEIGHTS_DIR + p.experiment_tag + '.pt'
@@ -66,12 +68,12 @@ def train_top_func(p, model_train_func, model_eval_func, model_kpi_func,
                                       shuffle = True, 
                                       batch_size = p.BATCH_SIZE,
                                       drop_last= True,
-                                      num_workers= 12)
+                                      num_workers= 0)
     val_loader = utils_data.DataLoader(dataset = val_dataset, 
                                        shuffle = True, 
                                        batch_size = p.BATCH_SIZE, 
                                        drop_last= True, 
-                                       num_workers= 12)
+                                       num_workers= 0)
     
     
     
@@ -213,10 +215,16 @@ def train_step(p, model_train_func, model, loss_func_tuple,
         lr = lr/math.sqrt(p.LR_WU_BATCHES)
         for g in optimizer.param_groups:
             g['lr'] = lr
-    else:
+    elif p.LR_DECAY== 'inv-sqrt':
         lr = p.LR/math.sqrt(itr)
         for g in optimizer.param_groups:
             g['lr'] = lr
+    elif p.LR_DECAY== 'none':
+        lr = p.LR
+        for g in optimizer.param_groups:
+            g['lr'] = lr
+    else:
+        raise(ValueError('Unkown value for lr decay'))
         
     optimizer.step()
     
