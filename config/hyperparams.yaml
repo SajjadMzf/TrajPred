@@ -10,13 +10,13 @@ experiment:
 
 training:
   batch_size: 2000
-  lr: 0.025*math.sqrt(5e+4) # 0.001 #0.0015 #0.000001 0.01#0.00001
-  lr_wu: True #True
-  lr_wu_batches: 5e+4
+  lr: 1e-4 # 0.001*math.sqrt(1e+4) # 0.001 #0.0015 #0.000001 0.01#0.00001
+  lr_wu: False #True
+  lr_wu_batches: 1e+4
   lr_wu_current_batch: 0
   traj2class_loss_ratio: 1
-  lr_decay: 'inv-sqrt' # 'inv-sqrt' or 'none'
-  num_itrs: 1e+6
+  lr_decay: 'none' #'inv-sqrt' # 'inv-sqrt' or 'none'
+  num_itrs: 1e+5
   val_freq: 100
   max_val_itr: 100
   skip_validation_itrs: 0
@@ -33,7 +33,7 @@ model:
 
 problem:
   FPS: 5
-  MIN_IN_SEQ_LEN: 2
+  MIN_IN_SEQ_LEN: 15
   MAX_IN_SEQ_LEN: 15
   TGT_SEQ_LEN: 25
   SKIP_SEQ_LEN: 0 # This is to skip final X frame of a track because manouvre labelling depends on future trajectory of a vehicle
