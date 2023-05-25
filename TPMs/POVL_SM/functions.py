@@ -112,7 +112,7 @@ def POVL_SM_deploy(p, data_tuple, plot_info, dataset, model, device):
 
     return batch_export_dict
 
-def POVL_SM_evaluation(p, data_tuple, man_data, plot_info, dataset, 
+def POVL_SM_evaluation(p, data_tuple, man_data,plot_info, dataset, 
                        model, loss_func_tuple, device, eval_type):
     (tv_id, frames, data_file) = plot_info
     

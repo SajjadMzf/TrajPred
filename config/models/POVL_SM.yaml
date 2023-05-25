@@ -1,7 +1,7 @@
 name: POVL_SM #Multi-Modal Manouvre and Trajectory Prediction
 ref: TPMs.POVL_SM.model.POVL_SM
 hyperparams:
-  layer number: 1
+  layer number: 2
   model dim: 512
   feedforward dim: 128
   classifier dim: 256

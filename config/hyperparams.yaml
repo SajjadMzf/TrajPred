@@ -6,17 +6,17 @@ experiment:
   group: 'povl_sm'
   cuda: True
   debug_mode: False
-  multi_modal_eval: True
+  multi_modal_eval: False
 
 training:
-  batch_size: 1000
-  lr: 0.001*math.sqrt(1e+3) # 0.001 #0.0015 #0.000001 0.01#0.00001
+  batch_size: 2000
+  lr: 0.025*math.sqrt(5e+4) # 0.001 #0.0015 #0.000001 0.01#0.00001
   lr_wu: True #True
-  lr_wu_batches: 1e+3
+  lr_wu_batches: 5e+4
   lr_wu_current_batch: 0
   traj2class_loss_ratio: 1
   lr_decay: 'inv-sqrt' # 'inv-sqrt' or 'none'
-  num_itrs: 1e+4
+  num_itrs: 1e+6
   val_freq: 100
   max_val_itr: 100
   skip_validation_itrs: 0

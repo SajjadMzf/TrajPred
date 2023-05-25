@@ -34,13 +34,17 @@ def deploy_top_func(p, model_deploy_func, model, de_dataset, device):
     figure_name =  p.experiment_tag
     if p.SELECTED_MODEL != 'CONSTANT_PARAMETER':
         model.load_state_dict(torch.load(best_model_path))
-    export_dict = deploy_model(p, model, model_deploy_func, de_loader, de_dataset, device, vis_data_path = vis_data_path, figure_name=figure_name)
+    export_dict = deploy_model(p, model, model_deploy_func, de_loader, de_dataset,
+                                device, vis_data_path = vis_data_path, figure_name=figure_name)
     return export_dict
 
-def eval_top_func(p, model_eval_func, model_kpi_func, model, loss_func_tuple, te_dataset, device, tensorboard = None):
+def eval_top_func(p, model_eval_func, model_kpi_func, model, loss_func_tuple,
+                   te_dataset, device, tensorboard = None):
     model = model.to(device)
     
-    te_loader = utils_data.DataLoader(dataset = te_dataset, shuffle = True, batch_size = p.BATCH_SIZE, drop_last= True, pin_memory= True, num_workers= 12)
+    te_loader = utils_data.DataLoader(dataset = te_dataset, shuffle = True, 
+                                      batch_size = p.BATCH_SIZE, drop_last= True,
+                                        pin_memory= True, num_workers= 0)
 
     vis_data_path = p.VIS_DIR + p.experiment_tag + '.pickle'
     best_model_path = p.WEIGHTS_DIR + p.experiment_tag + '.pt'
@@ -49,7 +53,10 @@ def eval_top_func(p, model_eval_func, model_kpi_func, model, loss_func_tuple, te
     if p.SELECTED_MODEL != 'CONSTANT_PARAMETER':
         model.load_state_dict(torch.load(best_model_path))
     
-    print_dict, kpi_dict = eval_model(p, tensorboard, model_eval_func, model_kpi_func, model, loss_func_tuple, te_loader, te_dataset, ' N/A', device, eval_type = 'Test', vis_data_path = vis_data_path, figure_name=figure_name)
+    print_dict, kpi_dict = eval_model(p, tensorboard, model_eval_func, 
+                                      model_kpi_func, model, loss_func_tuple, te_loader, te_dataset,
+                                        ' N/A', device, eval_type = 'Test', 
+                                        vis_data_path = vis_data_path, figure_name=figure_name)
     
     print(' ************ TEST KPIs  ************ :\n'+ ''.join(['{}:{}\n'.format(k, print_dict[k]) for k in print_dict]))
     for k in kpi_dict:
@@ -66,12 +73,12 @@ def train_top_func(p, model_train_func, model_eval_func, model_kpi_func,
                                       shuffle = True, 
                                       batch_size = p.BATCH_SIZE,
                                       drop_last= True,
-                                      num_workers= 12)
+                                      num_workers= 0)
     val_loader = utils_data.DataLoader(dataset = val_dataset, 
                                        shuffle = True, 
                                        batch_size = p.BATCH_SIZE, 
                                        drop_last= True, 
-                                       num_workers= 12)
+                                       num_workers= 0)
     
     
     
