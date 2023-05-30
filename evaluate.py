@@ -79,7 +79,7 @@ def test_model_dict(p):
 
 if __name__ == '__main__':
 
-    
+    '''
     p = params.ParametersHandler('Constant_Parameter.yaml', 'exid_train.yaml', './config', # POVL_SM.yaml
                                   seperate_test_dataset='exid_test.yaml',
                                   seperate_deploy_dataset='exid_deploy.yaml')
@@ -88,24 +88,18 @@ if __name__ == '__main__':
 
     
     exit()
-    
+    '''
     
     p = params.ParametersHandler('POVL_SM.yaml', 'exid_train.yaml', './config', # POVL_SM.yaml
                                   seperate_test_dataset='exid_test.yaml',
                                   seperate_deploy_dataset='exid_deploy.yaml')
     
-    experiment_file = 'POVL_SM_exid_train_2023-05-02 16:24:19.527042' # POVL_SM_exid_train_2023-04-23 11:49:31.851129' # POVL_SM_exid_train_2023-04-01 16:35:41.320395'
+    experiment_file = 'experiments/POVL_SM_exid_train_2023-05-25 18:00:47.363048' # POVL_SM_exid_train_2023-04-23 11:49:31.851129' # POVL_SM_exid_train_2023-04-01 16:35:41.320395'
     #'experiments/DMTP_exid_train_2023-02-22 11:38:01.533814' 
     # # DMTP_exid_train_2023-02-21 18:56:42.572922' # mode 1
-    p.experiment_file = experiment_file
-    p.experiment_tag = experiment_file
-    #p.import_experiment(experiment_file)
-    p.hyperparams['training']['batch_size'] = 1000
-    p.hyperparams['experiment']['debug_mode'] = False
-    p.hyperparams['dataset']['ablation'] = False
-    p.hyperparams['experiment']['multi_modal_eval'] = False
-    p.hyperparams['model']['use_map_features'] = False
-    p.hyperparams['dataset']['balanced'] = False
+    #p.experiment_file = experiment_file
+    #p.experiment_tag = experiment_file
+    p.import_experiment(experiment_file)
     p.match_parameters()
     test_model_dict(p)
 
