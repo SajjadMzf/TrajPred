@@ -99,16 +99,16 @@ def train_top_func(p, model_train_func, model_eval_func, model_kpi_func,
     
     
     for itr in range(prev_itr, p.NUM_ITRS):
-        print('ITR:{}/{}'.format(itr, p.NUM_ITRS))
         start = time()
         tr_print_dict, lr = train_step(p, model_train_func, model, 
                                     loss_func_tuple, optimizer, 
                                     tr_dataset, tr_loader,itr, device)
         
-        print('Training Metrics:\n'+ ''.join(['{}:{}\n'.format(k,tr_print_dict[k])\
-                                               for k in tr_print_dict if 'histogram' not in k]))
-            
-        print('LR:{}'.format(lr))
+        if itr%100==0:
+            print('ITR:{}/{}'.format(itr, p.NUM_ITRS))
+            print('Training Metrics:\n'+ ''.join(['{}:{}\n'.format(k,tr_print_dict[k])\
+                                                for k in tr_print_dict if 'histogram' not in k]))        
+            print('LR:{}'.format(lr))
         
         if itr%p.VAL_FREQ==0 or p.DEBUG_MODE == True:
             print("Validating at itr {}/{} ...".format(itr, p.NUM_ITRS))

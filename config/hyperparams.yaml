@@ -3,7 +3,7 @@ dataset:
   ablation: False
 
 experiment:
-  group: 'povl_sm'
+  group: 'povl'
   cuda: True
   debug_mode: False
   multi_modal_eval: False
@@ -17,7 +17,7 @@ training:
   traj2class_loss_ratio: 1
   lr_decay: 'none' #'inv-sqrt' # 'inv-sqrt' or 'none'
   num_itrs: 1e+5
-  val_freq: 100
+  val_freq: 1000
   max_val_itr: 100
   skip_validation_itrs: 0
   tr_jump_step: 1  
@@ -25,15 +25,15 @@ training:
 
 model:
   man_dec_in: False # If True Manouvre will be inputted to Trajectory decoders
-  man_dec_out: False # True means the model can predict manouvre, and manouvre prediction will be considered in loss function calculation
-  multi_modal: False
+  man_dec_out: True # True means the model can predict manouvre, and manouvre prediction will be considered in loss function calculation
+  multi_modal: True
   use_map_features: False
   validation_score: 'rmse' #'Traj Loss'
   lower_better_val_score: True
 
 problem:
   FPS: 5
-  MIN_IN_SEQ_LEN: 15
+  MIN_IN_SEQ_LEN: 2
   MAX_IN_SEQ_LEN: 15
   TGT_SEQ_LEN: 25
   SKIP_SEQ_LEN: 0 # This is to skip final X frame of a track because manouvre labelling depends on future trajectory of a vehicle

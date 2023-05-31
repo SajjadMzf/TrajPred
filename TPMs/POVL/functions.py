@@ -37,7 +37,9 @@ def POVL_training(p, data_tuple, man_data, model, dataset, loss_func_tuple, devi
     map_data = data_tuple[2]
 
     #start_model.record()
-    output_dict = model(x = feature_data, y = decoder_input, map = map_data, input_padding_mask = input_padding_mask, y_mask = utils.get_y_mask(p.TGT_SEQ_LEN).to(device))
+    output_dict = model(x = feature_data, y = decoder_input, map = map_data, 
+                        input_padding_mask = input_padding_mask, 
+                        y_mask = utils.get_y_mask(p.TGT_SEQ_LEN).to(device))
     traj_pred = output_dict['traj_pred']
     man_pred = output_dict['man_pred']
     #end_model.record()
@@ -80,7 +82,9 @@ def POVL_training(p, data_tuple, man_data, model, dataset, loss_func_tuple, devi
             traj_loss_ol[o_len-1] = np.sum(mse_traj_loss_np[ovl_index])/(n_samples_ol[o_len-1])
     '''
     if p.MAN_DEC_OUT:
-        man_loss, mode_ploss, man_ploss, time_ploss, time_bar_pred = man_loss_func(p, man_pred, man_gt, n_mode = model.n_mode, man_per_mode = model.man_per_mode, device = device)
+        man_loss, mode_ploss, man_ploss, time_ploss, time_bar_pred =\
+              man_loss_func(p, man_pred, man_gt, n_mode = model.n_mode,
+                             man_per_mode = model.man_per_mode, device = device)
     else:
         man_loss = 0
     
@@ -114,11 +118,13 @@ def POVL_deploy(p, data_tuple, plot_info, dataset, model, device):
     
     traj_data = data_tuple[-1]
     traj_initial_input = traj_data[:,(p.MAX_IN_SEQ_LEN-1):p.MAX_IN_SEQ_LEN] 
+    traj_gt = traj_data[:,p.MAX_IN_SEQ_LEN:]
     feature_data = data_tuple[0]
     input_padding_mask = data_tuple[1]
     map_data = data_tuple[2]
     with torch.no_grad():
-        encoder_out, map_out = model.encoder_forward(x = feature_data, map = map_data, input_padding_mask = input_padding_mask)
+        encoder_out, map_out = \
+            model.encoder_forward(x = feature_data, map = map_data, input_padding_mask = input_padding_mask)
         man_pred = model.man_decoder_forward(encoder_out, map_out, input_padding_mask)
     mode_prob, man_vectors = utils.calc_man_vectors(man_pred, model.n_mode, model.man_per_mode, p.TGT_SEQ_LEN, device)
     mode_prob = F.softmax(mode_prob,dim = 1)
@@ -126,7 +132,8 @@ def POVL_deploy(p, data_tuple, plot_info, dataset, model, device):
     BM_man_vector = utils.sel_high_prob_man(man_pred, model.n_mode, model.man_per_mode, p.TGT_SEQ_LEN, device)
     decoder_input = traj_initial_input
     decoder_input = torch.stack([decoder_input,decoder_input,decoder_input], dim = 1) #multi-modal
-    BM_predicted_data_dist, BM_traj_pred = POVL_trajectory_inference(p, model, device, decoder_input, input_padding_mask, encoder_out, BM_man_vector)
+    BM_predicted_data_dist, BM_traj_pred =\
+          POVL_trajectory_inference(p, model, device, decoder_input, input_padding_mask, encoder_out, BM_man_vector)
 
     
     # Trajectory inference for all modes!
@@ -137,7 +144,8 @@ def POVL_deploy(p, data_tuple, plot_info, dataset, model, device):
             man_pred_vector = man_vectors[:,mode_itr]
             decoder_input = traj_initial_input
             decoder_input = torch.stack([decoder_input,decoder_input,decoder_input], dim = 1) #multi-modal
-            predicted_data_dist, traj_pred = POVL_trajectory_inference(p, model, device, decoder_input, input_padding_mask, encoder_out, man_pred_vector)
+            predicted_data_dist, traj_pred =\
+                  POVL_trajectory_inference(p, model, device, decoder_input, input_padding_mask, encoder_out, man_pred_vector)
             traj_preds.append(traj_pred)
             data_dist_preds.append(predicted_data_dist)
         traj_preds = torch.stack(traj_preds, dim = 1)
@@ -153,11 +161,15 @@ def POVL_deploy(p, data_tuple, plot_info, dataset, model, device):
     traj_min = dataset.output_states_max
     unnormalised_traj_pred = unnormalised_traj_pred*(traj_max-traj_min) + traj_min 
     unnormalised_traj_pred = np.cumsum(unnormalised_traj_pred, axis = 2)
+    traj_gt = traj_gt.cpu().data.numpy()
+    unnormalised_traj_gt = traj_gt*(traj_max-traj_min) + traj_min
+    unnormalised_traj_gt = np.cumsum(unnormalised_traj_gt, axis = 1)
     batch_export_dict = {    
         'data_file': data_file,
         'tv': tv_id.numpy(),
         'frames': frames.numpy(),
         'traj_pred': unnormalised_traj_pred,
+        'traj_gt': unnormalised_traj_gt,
         'mode_prob': F.softmax(mode_prob, dim = -1).detach().cpu().data.numpy(),
     }
 
@@ -188,19 +200,24 @@ def POVL_evaluation(p, data_tuple,man_data, plot_info, dataset, model, loss_func
     input_padding_mask = data_tuple[1]
     map_data = data_tuple[2]
     with torch.no_grad():
-        encoder_out, map_out = model.encoder_forward(x = feature_data, map = map_data, input_padding_mask = input_padding_mask)
+        encoder_out, map_out =\
+              model.encoder_forward(x = feature_data, map = map_data, input_padding_mask = input_padding_mask)
         man_pred = model.man_decoder_forward(encoder_out, map_out, input_padding_mask)
-    mode_prob, man_vectors = utils.calc_man_vectors(man_pred, model.n_mode, model.man_per_mode, p.TGT_SEQ_LEN, device)
+    mode_prob, man_vectors = \
+        utils.calc_man_vectors(man_pred, model.n_mode, model.man_per_mode, p.TGT_SEQ_LEN, device)
     mode_prob = F.softmax(mode_prob,dim = 1)
 
     BM_man_vector = utils.sel_high_prob_man(man_pred, model.n_mode, model.man_per_mode, p.TGT_SEQ_LEN, device)
     decoder_input = traj_initial_input
     decoder_input = torch.stack([decoder_input,decoder_input,decoder_input], dim = 1) #multi-modal
-    BM_predicted_data_dist, BM_traj_pred = POVL_trajectory_inference(p, model, device, decoder_input,input_padding_mask, encoder_out, BM_man_vector)
+    BM_predicted_data_dist, BM_traj_pred = \
+        POVL_trajectory_inference(p, model, device, decoder_input,input_padding_mask, encoder_out, BM_man_vector)
 
     traj_loss = traj_loss_func(BM_predicted_data_dist, traj_gt)
     if p.MAN_DEC_OUT:
-        man_loss, mode_ploss, man_ploss,time_ploss, time_bar_pred = man_loss_func(p, man_pred, man_gt, n_mode = model.n_mode, man_per_mode = model.man_per_mode, device = device, test_phase = True)
+        man_loss, mode_ploss, man_ploss,time_ploss, time_bar_pred = \
+            man_loss_func(p, man_pred, man_gt, n_mode = model.n_mode,
+                           man_per_mode = model.man_per_mode, device = device, test_phase = True)
     else:
         man_loss = 0
         mode_ploss = 0
@@ -217,7 +234,9 @@ def POVL_evaluation(p, data_tuple,man_data, plot_info, dataset, model, loss_func
             man_pred_vector = man_vectors[:,mode_itr]
             decoder_input = traj_initial_input
             decoder_input = torch.stack([decoder_input,decoder_input,decoder_input], dim = 1) #multi-modal
-            predicted_data_dist, traj_pred = POVL_trajectory_inference(p, model, device, decoder_input,input_padding_mask, encoder_out, man_pred_vector)
+            predicted_data_dist, traj_pred = \
+                POVL_trajectory_inference(p, model, device, 
+                                          decoder_input,input_padding_mask, encoder_out, man_pred_vector)
             traj_preds.append(traj_pred)
             data_dist_preds.append(predicted_data_dist)
         traj_preds = torch.stack(traj_preds, dim = 1)
@@ -275,7 +294,8 @@ def POVL_trajectory_inference(p, model, device, decoder_input, input_padding_mas
             manouvre_index = torch.zeros_like(current_man_pred[:,0] )
         #print_shape('current_traj_pred', current_traj_pred)
         #print_shape('manouvre_index', manouvre_index)
-        current_traj_pred = current_traj_pred[np.arange(current_traj_pred.shape[0]),manouvre_index,:,:2] #only the muX and muY [batch, modal, sequence, feature]
+        current_traj_pred = \
+            current_traj_pred[np.arange(current_traj_pred.shape[0]),manouvre_index,:,:2] #only the muX and muY [batch, modal, sequence, feature]
         current_man_pred = F.one_hot(current_man_pred, num_classes = 3) 
         
         #print_shape('current_traj_pred', current_traj_pred)
@@ -283,14 +303,18 @@ def POVL_trajectory_inference(p, model, device, decoder_input, input_padding_mas
         
         current_decoder_input = current_traj_pred 
         current_decoder_input = torch.unsqueeze(current_decoder_input, dim = 1)
-        current_decoder_input = torch.cat([current_decoder_input, current_decoder_input, current_decoder_input], dim = 1)
+        current_decoder_input = \
+            torch.cat([current_decoder_input, current_decoder_input, current_decoder_input], dim = 1)
         
         decoder_input = torch.cat((decoder_input, current_decoder_input), dim = 2)
         
         if out_seq_itr ==0:
-            predicted_data_dist = traj_pred[np.arange(traj_pred.shape[0]),manouvre_index, out_seq_itr:(out_seq_itr+1)]
+            predicted_data_dist =\
+                  traj_pred[np.arange(traj_pred.shape[0]),manouvre_index, out_seq_itr:(out_seq_itr+1)]
         else:
-            predicted_data_dist = torch.cat((predicted_data_dist, traj_pred[np.arange(traj_pred.shape[0]),manouvre_index, out_seq_itr:(out_seq_itr+1)]), dim=1)
+            predicted_data_dist = \
+                torch.cat((predicted_data_dist, traj_pred[np.arange(traj_pred.shape[0]),
+                                                          manouvre_index, out_seq_itr:(out_seq_itr+1)]), dim=1)
         #print_shape('predicted_data_dist', predicted_data_dist)
     traj_pred = decoder_input[:,:,1:,:2]
     #print(traj_pred)
@@ -346,7 +370,9 @@ def MTPM_loss(p, man_pred, man_vec_gt, n_mode, man_per_mode, device, test_phase 
         
         man_loss_list.append(torch.sum(loss_func_no_r(man_pr[:,mode_itr], man_gt), dim = 1)) 
         if time_reg:
-            mode_time_loss = torch.sum(torch.mul(reg_loss_func_no_r(time_pr[:,mode_itr], time_gt.float()), (time_gt!=-1).float()), dim = -1)
+            mode_time_loss = \
+                torch.sum(torch.mul(reg_loss_func_no_r(time_pr[:,mode_itr], time_gt.float()), 
+                                    (time_gt!=-1).float()), dim = -1)
         else:
             mode_time_loss = 0
             for i, mode_time_pr in enumerate(time_pr_list):
