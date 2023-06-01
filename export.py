@@ -17,7 +17,7 @@ def export_results(scenarios, eval_type = 'De', export_cart = True):
         data = data_df.to_numpy()
         main_ref, merge_ref, merge_s_bias = get_reference_path()
                 
-    in_seq_len = scenarios['frames'][0][0].shape[0]
+    in_seq_len = 15#scenarios['frames'][0][0].shape[0]
     file_tv_pairs = []
     sorted_scenarios_dict = []
     for batch_grp in range(len(scenarios['tv'])):
@@ -39,6 +39,7 @@ def export_results(scenarios, eval_type = 'De', export_cart = True):
             sorted_scenarios_dict[sorted_index]['mode_prob'].append(scenarios['mode_prob'][batch_grp][batch_itr])
             sorted_scenarios_dict[sorted_index]['traj_pred'].append(scenarios['traj_pred'][batch_grp][batch_itr])
             sorted_scenarios_dict[sorted_index]['traj_gt'].append(scenarios['traj_gt'][batch_grp][batch_itr])
+            
             sorted_scenarios_dict[sorted_index]['frames'].append(scenarios['frames'][batch_grp][batch_itr])
             
     # sort frames order in each sorted scenarios
@@ -54,7 +55,7 @@ def export_results(scenarios, eval_type = 'De', export_cart = True):
         sorted_scenarios_dict[i]['frames'] = [sorted_scenarios_dict[i]['frames'][indx] for indx in sorted_indxs]
     
     results_mat = np.empty((total_times,16), dtype = object)
-    results_csv = np.empty((total_times+1,16), dtype = object)
+    results_csv = np.empty((total_times+1,18), dtype = object)
     start_index = 0
     for i, scenario in enumerate(sorted_scenarios_dict):
         scenario_len = len(scenario['times'])
@@ -119,10 +120,14 @@ def export_results(scenarios, eval_type = 'De', export_cart = True):
             results_csv[j+1,13] = ';'.join(map(str, traj_cart1[:,1].tolist()))
             results_csv[j+1,14] = ';'.join(map(str, traj_cart2[:,0].tolist()))
             results_csv[j+1,15] = ';'.join(map(str, traj_cart2[:,1].tolist()))
+            results_csv[j+1,16] = ';'.join(map(str, scenario['traj_gt'][scene_index][:,1].tolist()))
+            results_csv[j+1,17] = ';'.join(map(str, scenario['traj_gt'][scene_index][:,0].tolist()))
+
 
         start_index += scenario_len
     
-    columns = ["file","id", "frame", "mode_prob", "pr1X", "pr1Y", "pr2X", "pr2Y","pr3X", "pr3Y"]
+    columns = ["file","id", "frame", "mode_prob", "pr1X", "pr1Y", "pr2X", "pr2Y","pr3X", "pr3Y"
+               ,"Cpr1X", "Cpr1Y", "Cpr2X", "Cpr2Y","Cpr3X", "Cpr3Y", 'gtX', 'gtY']
     for i, column in enumerate(columns):
         results_csv[0,i] = column
     file_dir = os.path.join(PREDICTION_DIR, 'predictionMM')
@@ -143,7 +148,7 @@ def list2str(x):
 def get_xy(data, tv_id, frame):
     tv_data = data[np.logical_and(data[:,0]==tv_id, data[:,1]==frame)]
     return tv_data[:,2:4]
-def export_results_SM(scenarios, eval_type, export_cart = True):
+def export_results_SM(scenarios, eval_type, export_cart = False):
     if export_cart:
         data_dir = '../../Dataset/exid/Tracks/39_tracks.csv'
         data_df = pd.read_csv(data_dir)
@@ -151,7 +156,9 @@ def export_results_SM(scenarios, eval_type, export_cart = True):
         data_df = data_df.sort_values(by=['id', 'frame'])
         data = data_df.to_numpy()
         main_ref, merge_ref, merge_s_bias = get_reference_path()
-    in_seq_len = scenarios['frames'][0][0].shape[0]
+    in_seq_len = 15 # scenarios['frames'][0][0].shape[0]
+    #print(in_seq_len)
+    #exit()
     file_tv_pairs = []
     sorted_scenarios_dict = []
     for batch_grp in range(len(scenarios['tv'])):
@@ -170,11 +177,15 @@ def export_results_SM(scenarios, eval_type, export_cart = True):
             
             
             sorted_index = file_tv_pairs.index(((data_file,tv_id)))
-            sorted_scenarios_dict[sorted_index]['times'].append(scenarios['frames'][batch_grp][batch_itr][in_seq_len-1])# time is frame number at the end of obs
+            sorted_scenarios_dict[sorted_index]['times']\
+                .append(scenarios['frames'][batch_grp][batch_itr][in_seq_len-1])# time is frame number at the end of obs
             
-            sorted_scenarios_dict[sorted_index]['traj_gt'].append(scenarios['traj_gt'][batch_grp][batch_itr])
-            sorted_scenarios_dict[sorted_index]['traj_pred'].append(scenarios['traj_pred'][batch_grp][batch_itr])
-            sorted_scenarios_dict[sorted_index]['frames'].append(scenarios['frames'][batch_grp][batch_itr])
+            sorted_scenarios_dict[sorted_index]['traj_gt']\
+                .append(scenarios['traj_gt'][batch_grp][batch_itr])
+            sorted_scenarios_dict[sorted_index]['traj_pred']\
+                .append(scenarios['traj_pred'][batch_grp][batch_itr])
+            sorted_scenarios_dict[sorted_index]['frames']\
+                .append(scenarios['frames'][batch_grp][batch_itr])
             
             
     # sort frames order in each sorted scenarios
@@ -183,10 +194,14 @@ def export_results_SM(scenarios, eval_type, export_cart = True):
         times_array = np.array(sorted_scenarios_dict[i]['times'])
         total_times += len(times_array)
         sorted_indxs = np.argsort(times_array).astype(int)
-        sorted_scenarios_dict[i]['times'] = [sorted_scenarios_dict[i]['times'][indx] for indx in sorted_indxs]
-        sorted_scenarios_dict[i]['traj_pred'] = [sorted_scenarios_dict[i]['traj_pred'][indx] for indx in sorted_indxs]
-        sorted_scenarios_dict[i]['traj_gt'] = [sorted_scenarios_dict[i]['traj_gt'][indx] for indx in sorted_indxs]
-        sorted_scenarios_dict[i]['frames'] = [sorted_scenarios_dict[i]['frames'][indx] for indx in sorted_indxs]
+        sorted_scenarios_dict[i]['times'] = \
+            [sorted_scenarios_dict[i]['times'][indx] for indx in sorted_indxs]
+        sorted_scenarios_dict[i]['traj_pred'] = \
+            [sorted_scenarios_dict[i]['traj_pred'][indx] for indx in sorted_indxs]
+        sorted_scenarios_dict[i]['traj_gt'] = \
+            [sorted_scenarios_dict[i]['traj_gt'][indx] for indx in sorted_indxs]
+        sorted_scenarios_dict[i]['frames'] = \
+            [sorted_scenarios_dict[i]['frames'][indx] for indx in sorted_indxs]
     
     
     results_mat = np.empty((total_times,7), dtype = object)
@@ -221,16 +236,17 @@ def export_results_SM(scenarios, eval_type, export_cart = True):
             results_csv[j+1,2] = str(scenario['times'][scene_index])
             results_csv[j+1,3] = ';'.join(map(str, scenario['traj_pred'][scene_index][:,1].tolist()))
             results_csv[j+1,4] = ';'.join(map(str, scenario['traj_pred'][scene_index][:,0].tolist()))
-            results_csv[j+1,5] = ';'.join(map(str, scenario['traj_gt'][scene_index][:,1].tolist()))
-            results_csv[j+1,6] = ';'.join(map(str, scenario['traj_gt'][scene_index][:,0].tolist()))
-            results_csv[j+1,7] = ';'.join(map(str, traj_cart[:,0].tolist()))
-            results_csv[j+1,8] = ';'.join(map(str, traj_cart[:,1].tolist()))
+            results_csv[j+1,5] = ';'.join(map(str, traj_cart[:,0].tolist()))
+            results_csv[j+1,6] = ';'.join(map(str, traj_cart[:,1].tolist()))
+            results_csv[j+1,7] = ';'.join(map(str, scenario['traj_gt'][scene_index][:,1].tolist()))
+            results_csv[j+1,8] = ';'.join(map(str, scenario['traj_gt'][scene_index][:,0].tolist()))
             
 
         start_index += scenario_len
     
     columns = ["file","id", "frame", "pr1X", "pr1Y"]
-    columns_csv = ["file","id", "frame", "pr1X", "pr1Y", 'gtX', 'gtY']
+    columns_csv = ["file","id", "frame", "pr1X", 
+                   "pr1Y", "Cpr1X", "Cpr1Y", 'gtX', 'gtY']
     
     for i, column in enumerate(columns_csv):
         results_csv[0,i] = column

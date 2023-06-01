@@ -1,6 +1,7 @@
 import torch
 import torch.nn.functional as F
 import numpy as np
+import pdb
 from time import time
 
 from . import utils
@@ -15,7 +16,6 @@ def POVL_training(p, data_tuple, man_data, model, dataset, loss_func_tuple, devi
 
     start_loss = torch.cuda.Event(enable_timing=True)
     end_loss = torch.cuda.Event(enable_timing=True)
-
 
     start_all.record()
     '''
@@ -157,13 +157,14 @@ def POVL_deploy(p, data_tuple, plot_info, dataset, model, device):
         data_dist_preds = torch.stack(data_dist_preds, dim =1)
     unnormalised_traj_pred = data_dist_preds.cpu().data.numpy()
     unnormalised_traj_pred = unnormalised_traj_pred[:,:,:,:2]
-    traj_max = dataset.output_states_min
-    traj_min = dataset.output_states_max
+    traj_min = dataset.output_states_min
+    traj_max = dataset.output_states_max
     unnormalised_traj_pred = unnormalised_traj_pred*(traj_max-traj_min) + traj_min 
     unnormalised_traj_pred = np.cumsum(unnormalised_traj_pred, axis = 2)
     traj_gt = traj_gt.cpu().data.numpy()
     unnormalised_traj_gt = traj_gt*(traj_max-traj_min) + traj_min
     unnormalised_traj_gt = np.cumsum(unnormalised_traj_gt, axis = 1)
+    
     batch_export_dict = {    
         'data_file': data_file,
         'tv': tv_id.numpy(),

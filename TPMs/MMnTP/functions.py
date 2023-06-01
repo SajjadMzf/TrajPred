@@ -119,8 +119,8 @@ def MMnTP_deploy(p, data_tuple, plot_info, dataset, model, device):
         data_dist_preds = torch.stack(data_dist_preds, dim =1)
     unnormalised_traj_pred = data_dist_preds.cpu().data.numpy()
     unnormalised_traj_pred = unnormalised_traj_pred[:,:,:,:2]
-    traj_max = dataset.output_states_min
-    traj_min = dataset.output_states_max
+    traj_max = dataset.output_states_max
+    traj_min = dataset.output_states_min
     unnormalised_traj_pred = unnormalised_traj_pred*(traj_max-traj_min) + traj_min 
     unnormalised_traj_pred = np.cumsum(unnormalised_traj_pred, axis = 2)
     batch_export_dict = {    
