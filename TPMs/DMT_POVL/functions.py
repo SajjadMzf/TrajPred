@@ -6,7 +6,7 @@ from time import time
 from . import utils
 
 
-def DMTPOVL_training(p, data_tuple, model, 
+def DMTPOVL_training(p, data_tuple, man_data, model, 
                      dataset, loss_func_tuple, device):
     traj_loss_func = loss_func_tuple[0]
     mode_loss_func = loss_func_tuple[1]
@@ -65,7 +65,7 @@ def DMTPOVL_training(p, data_tuple, model,
 
 
 
-def DMTPOVL_evaluation(p, data_tuple, plot_info, dataset, 
+def DMTPOVL_evaluation(p, data_tuple, man_data, plot_info, dataset, 
                     model, loss_func_tuple, device, eval_type):
     
     (tv_id, frames, data_file) = plot_info

@@ -94,9 +94,11 @@ if __name__ == '__main__':
                                   seperate_test_dataset='exid_test.yaml',
                                   seperate_deploy_dataset='exid_deploy.yaml')
     
-    experiment_file = 'experiments/POVL_exid_train_2023-05-30 12:50:58.887277' # POVL_SM_exid_train_2023-04-23 11:49:31.851129' # POVL_SM_exid_train_2023-04-01 16:35:41.320395'
+    experiment_file = 'experiments/POVL_exid_train_2023-05-30 12:50:58.887277'
+     # POVL_SM_exid_train_2023-04-23 11:49:31.851129' # POVL_SM_exid_train_2023-04-01 16:35:41.320395'
     p.import_experiment(experiment_file)
     p.hyperparams['experiment']['debug_mode'] = True
+    p.hyperparams['experiment']['multi_modal_eval'] = True
     p.hyperparams['experiment']['multi_modal_eval'] = True
     
     p.match_parameters()
