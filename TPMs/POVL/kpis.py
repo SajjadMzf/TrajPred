@@ -402,7 +402,8 @@ def calc_ovl_minRMSE(p, traj_pred, mode_prob, traj_gt, ovl_index):
         rmse[:,i] = np.sqrt(np.sum(np.sum((traj_pred[:,i]-traj_gt)**2, axis=-1), axis = -1)/(n_samples*seq_len))
     best_mode = np.argmin(rmse, axis = 1)
     best_traj_pred = traj_pred[np.arange(n_samples), best_mode]
-    rmse = np.sqrt(np.sum((best_traj_pred-traj_gt)**2)/n_samples)
+    rmse = np.sqrt(np.sum((best_traj_pred-traj_gt)**2)/(n_samples*seq_len))
+    pdb.set_trace()
     return rmse_df, rmse_table, rmse, n_sample_ovl
 
 

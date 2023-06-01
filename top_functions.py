@@ -159,7 +159,7 @@ def train_top_func(p, model_train_func, model_eval_func, model_kpi_func,
                 elif 'rmse_table' in k:
                     for i in range(p.MAX_IN_SEQ_LEN):
                         tensorboard.add_scalar('Validation_' + k + str(i), val_kpi_dict[k][0,i], itr)
-                elif ('group' not in k) and ('min' not in k) and('mnll' not in k) and ('list' not in k) :
+                elif ('group' not in k) and ('min' not in k) and ('max' not in k) and('mnll' not in k) and ('list' not in k) :
                     tensorboard.add_scalar('Validation_' + k, val_kpi_dict[k], itr)
             
             print('************ Timings ************:\n')
