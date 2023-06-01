@@ -222,10 +222,10 @@ class LCDataset(Dataset):
             te_samples = int(n_tracks*self.te_ratio)
             de_samples = int(n_tracks*self.de_ratio)
             index_groups = ['Tr', 'Val', 'AbbTe', 'Te', 'AbbTr', 'AbbVal', 'De']
-            unbalanced_inds = ['U']#, 'B']
+            unbalanced_inds = ['U', 'B']
             
             start_indexes = {}
-            #start_indexes['B'] = {}
+            start_indexes['B'] = {}
             start_indexes['U'] = {}
             
             start_indexes['U']['Tr'] = samples_start_index[:tr_samples]
@@ -247,15 +247,15 @@ class LCDataset(Dataset):
                 #print(len(start_indexes['U'][index_group]))
                 if len(start_indexes['U'][index_group]) == 0:
                     start_indexes['U'][index_group] = np.array([])
-                    #start_indexes['B'][index_group] = np.array([])
+                    start_indexes['B'][index_group] = np.array([])
                 else:
                     #print(index_group)
                     #print(start_indexes['U'][index_group])
                     start_indexes['U'][index_group] = \
                         np.concatenate(start_indexes['U'][index_group] , axis = 0)
-                    #start_indexes['B'][index_group] = \
-                    #    self.balance_dataset(start_indexes['U'][index_group]) \
-                    #        if index_group != 'De' else np.array([])
+                    start_indexes['B'][index_group] = \
+                        self.balance_dataset(start_indexes['U'][index_group]) \
+                            if index_group != 'De' else np.array([])
             
             for ub_ind in unbalanced_inds:
                 index_file = modify_index_file(self.index_file, unbalanced_ind = ub_ind)
@@ -282,21 +282,26 @@ class LCDataset(Dataset):
         lc_count_in_lc_scenarios = 0
         lk_count_in_lc_scenarios = 0
         balanced_scenarios = np.zeros((len(start_index)))
+        label_data_arr = []
+        for dataset_dir in self.dataset_dirs:
+            with h5py.File(dataset_dir, 'r') as f:
+                labels_data = f['labels']
+                labels_data = labels_data[:]
+                label_data_arr.append(labels_data)
+        
         for itr in range(len(start_index)):
             print('{}/{}'.format(itr, len(start_index)), end = '\r')
             file_itr = start_index[itr, 0]
-            with h5py.File(self.dataset_dirs[file_itr], 'r') as f: 
-                #TODO you may save all labels in an array before this loop
-                labels_data = f['labels']
-                start_itr = start_index[itr,1]
-                in_seq_len = start_index[itr,2]
-                label = abs(labels_data[(start_itr+in_seq_len):(start_itr + in_seq_len + self.out_seq_len)])    
-                balanced_scenarios[itr] = np.any(label)*2 \
-                    # 2 is lc scenario, if there is a lc man at any time-step 
-                    # of sample, considered it in balanced dataset
-                if np.any(label):
-                    lc_count_in_lc_scenarios += np.count_nonzero(label>0)
-                    lk_count_in_lc_scenarios += np.count_nonzero(label==0)
+            labels_data = label_data_arr[file_itr]
+            start_itr = start_index[itr,1]
+            in_seq_len = start_index[itr,2]
+            label = abs(labels_data[(start_itr+in_seq_len):(start_itr + in_seq_len + self.out_seq_len)])    
+            balanced_scenarios[itr] = np.any(label)*2 \
+                # 2 is lc scenario, if there is a lc man at any time-step 
+                # of sample, considered it in balanced dataset
+            if np.any(label):
+                lc_count_in_lc_scenarios += np.count_nonzero(label>0)
+                lk_count_in_lc_scenarios += np.count_nonzero(label==0)
                   
         if lc_count_in_lc_scenarios> lk_count_in_lc_scenarios + self.out_seq_len:
             lk_balanced_count = int((lc_count_in_lc_scenarios-lk_count_in_lc_scenarios)/self.out_seq_len)
