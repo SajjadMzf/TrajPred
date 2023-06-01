@@ -107,7 +107,6 @@ class LCDataset(Dataset):
             self.unbalanced_status = index_data[4]
             if index_data[4] == 'B':
                 self.unbalanced = False
-                raise(ValueError('Balancing not supported'))
             elif index_data[4] == 'U':
                 self.unbalanced = True
             else: 
