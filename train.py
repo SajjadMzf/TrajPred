@@ -143,8 +143,8 @@ if __name__ == '__main__':
     p.match_parameters()
     p.export_experiment()
     #1
-    prev_best_model = p.WEIGHTS_DIR + 'POVL_exid_train_2023-05-30 23:59:54.127204' + '.pt'
-    train_model_dict(p, prev_best_model =prev_best_model, prev_itr = 50000)
+    #prev_best_model = p.WEIGHTS_DIR + 'POVL_exid_train_2023-05-30 23:59:54.127204' + '.pt'
+    train_model_dict(p) #, prev_best_model =prev_best_model, prev_itr = 50000)
     p.hyperparams['experiment']['multi_modal_eval'] = True
     p.match_parameters()
     test_model_dict(p)
