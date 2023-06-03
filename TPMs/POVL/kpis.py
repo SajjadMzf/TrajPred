@@ -172,15 +172,16 @@ def POVL_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
         kbest_modes_probs = np.divide(kbest_modes_probs, np.sum(kbest_modes_probs, axis = 1).reshape(total_samples,1)) 
         kbest_man_preds = man_preds[index_array, kbest_modes]
         maxACC[key] = calc_man_acc(p, kbest_man_preds, man_gt)
-        
-        minRMSE_ovl[key],rmse_table, rmse[key], n_samples_ovl = calc_ovl_minRMSE(p, kbest_traj_pred, kbest_modes_probs, traj_gt, ovl_index)
+        minRMSE[key], rmse[key] = calc_minRMSE(p, kbest_traj_pred, kbest_modes_probs,traj_gt)
     
+    minRMSE_ovl[key],_, _, n_samples_ovl = calc_ovl_minRMSE(p, kbest_traj_pred, kbest_modes_probs, traj_gt, ovl_index)
+        
     return {
         'mnlld': mnlld,
         'mnll': mnll,
         'maxACC':maxACC,
+        'minRMSE':minRMSE,
         'minRMSE_ovl': minRMSE_ovl,
-        'rmse_table':rmse_table,
         'n_samples_ovl_list': n_samples_ovl,
         'rmse': rmse['K=1'] # minRMSE K=1 max pred horizon
     }
@@ -403,7 +404,6 @@ def calc_ovl_minRMSE(p, traj_pred, mode_prob, traj_gt, ovl_index):
     best_mode = np.argmin(rmse, axis = 1)
     best_traj_pred = traj_pred[np.arange(n_samples), best_mode]
     rmse = np.sqrt(np.sum((best_traj_pred-traj_gt)**2)/(n_samples*seq_len))
-    pdb.set_trace()
     return rmse_df, rmse_table, rmse, n_sample_ovl
 
 

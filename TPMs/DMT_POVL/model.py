@@ -93,7 +93,7 @@ class DMT_POVL(nn.Module):
     
     def mode_decoder_forward(self, encoder_out, input_padding_mask):
         input_padding_mask = torch.unsqueeze(input_padding_mask, dim = -1)
-        encoder_out = torch.mul(encoder_out, input_padding_mask)
+        encoder_out = torch.mul(encoder_out, torch.logical_not(input_padding_mask))
         encoder_out_flattened = \
             encoder_out.reshape(self.batch_size, self.max_in_seq_len*self.model_dim)
         mode_prob_pred = \

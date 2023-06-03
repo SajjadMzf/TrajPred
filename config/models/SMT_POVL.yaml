@@ -1,0 +1,21 @@
+name: SMT_POVL #Static Multi-modal Trajectory Prediction
+ref: TPMs.SMT_POVL.model.SMT_POVL
+hyperparams:
+  layer number: 2
+  model dim: 512
+  feedforward dim: 128
+  classifier dim: 256
+  head number: 8
+  probabilistic output: True
+  number of modes: 3
+  manouvre per mode: 1
+
+optimizer: torch.optim.Adam
+man loss function: torch.nn.CrossEntropyLoss # This is the loss function to evaluate mode prob estimation
+traj loss function: torch.nn.MSELoss
+model training function: TPMs.SMT_POVL.functions.SMTPOVL_training
+model evaluation function: TPMs.SMT_POVL.functions.SMTPOVL_evaluation
+model deploy function: TPMs.SMT_POVL.functions.SMTPOVL_deploy # TODO: deploy model needs to be modified for DMTP
+model kpi function: TPMs.SMT_POVL.kpis.SMTPOVL_kpis
+data type: 'state'
+state type: 'povl'

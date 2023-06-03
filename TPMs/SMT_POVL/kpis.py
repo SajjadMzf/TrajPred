@@ -24,7 +24,7 @@ matplotlib.rc('font', **font)
 import pdb
 
 
-def DMTPOVL_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
+def SMTPOVL_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
     '''
     1. NLL (TBD)
     2. error based 
