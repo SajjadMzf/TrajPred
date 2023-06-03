@@ -90,16 +90,18 @@ if __name__ == '__main__':
     exit()
     '''
     
-    p = params.ParametersHandler('POVL_SM.yaml', 'exid_train.yaml', './config', # POVL_SM.yaml
+    p = params.ParametersHandler('POVL.yaml', 'exid_train.yaml', './config', # POVL_SM.yaml
                                   seperate_test_dataset='exid_test.yaml',
                                   seperate_deploy_dataset='exid_deploy.yaml')
     
-    experiment_file = 'experiments/POVL_SM_exid_train_2023-05-25 18:00:47.363048' # POVL_SM_exid_train_2023-04-23 11:49:31.851129' # POVL_SM_exid_train_2023-04-01 16:35:41.320395'
-    #'experiments/DMTP_exid_train_2023-02-22 11:38:01.533814' 
-    # # DMTP_exid_train_2023-02-21 18:56:42.572922' # mode 1
-    #p.experiment_file = experiment_file
-    #p.experiment_tag = experiment_file
+    experiment_file = 'experiments/POVL_exid_train_2023-05-30 12:50:58.887277'
+     # POVL_SM_exid_train_2023-04-23 11:49:31.851129' # POVL_SM_exid_train_2023-04-01 16:35:41.320395'
     p.import_experiment(experiment_file)
+    p.hyperparams['experiment']['debug_mode'] = True
+    p.hyperparams['dataset']['balanced'] = False
+    p.hyperparams['training']['batch_size'] = 10
+    p.hyperparams['experiment']['multi_modal_eval'] = True
+    
     p.match_parameters()
     test_model_dict(p)
 

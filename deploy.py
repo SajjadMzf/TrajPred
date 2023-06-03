@@ -95,7 +95,7 @@ def deploy_model_dict(p):
     
     else:
         export.export_results_SM(de_export_dict, 'De')
-    #    export.export_results_SM(te_export_dict, 'Te')
+        #export.export_results_SM(te_export_dict, 'Te')
         
 if __name__ == '__main__':
 
@@ -121,6 +121,7 @@ if __name__ == '__main__':
                                   seperate_test_dataset='exid_test.yaml',
                                   seperate_deploy_dataset='exid_deploy.yaml')
     experiment_file = 'experiments/POVL_exid_train_2023-05-30 12:50:58.887277'
+    #experiment_file = 'experiments/POVL_SM_exid_train_2023-05-04 10:49:00.060446'
     '''
     Constant Parameters
     'experiments/POVL_SM_exid_train_2023-05-04 10:49:00.060446'

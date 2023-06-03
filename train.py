@@ -134,17 +134,19 @@ if __name__ == '__main__':
     train_model_dict(p)
     '''
     # with map MM
-    p = params.ParametersHandler('POVL.yaml', 'exid_train.yaml', './config', seperate_test_dataset='exid_test.yaml',seperate_deploy_dataset='exid_deploy.yaml')
+    p = params.ParametersHandler('DMT_POVL.yaml', 'exid_train.yaml', './config', seperate_test_dataset='exid_test.yaml',seperate_deploy_dataset='exid_deploy.yaml')
     #p = params.ParametersHandler('POVL_SM.yaml', 'highD.yaml', './config')
     
-    p.hyperparams['experiment']['group'] = 'povl_mm'
+    p.hyperparams['experiment']['group'] = 'dmt_povl'
+    p.hyperparams['experiment']['debug_mode'] = False
     p.hyperparams['experiment']['multi_modal_eval'] = False
-    
+    p.hyperparams['dataset']['balanced'] = True
     p.match_parameters()
     p.export_experiment()
     #1
-    #prev_best_model = p.WEIGHTS_DIR + 'POVL_exid_train_2023-05-30 23:59:54.127204' + '.pt'
-    train_model_dict(p) #, prev_best_model =prev_best_model, prev_itr = 50000)
+    ##prev_best_model = p.WEIGHTS_DIR + 'POVL_exid_train_2023-05-30 23:59:54.127204' + '.pt'
+    train_model_dict(p) #)#, prev_best_model =prev_best_model, prev_itr = 50000)
     p.hyperparams['experiment']['multi_modal_eval'] = True
+    p.hyperparams['dataset']['balanced'] = False
     p.match_parameters()
     test_model_dict(p)

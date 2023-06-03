@@ -154,7 +154,7 @@ def POVL_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
     minRMSE = {}
     minRMSE_ovl ={}
     #minMR = {}
-    minACC = {}
+    maxACC = {}
     #minTimeACC = {}
     minTimeMAE = {}
     rmse = {}
@@ -170,12 +170,15 @@ def POVL_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
         kbest_traj_pred = traj_pred[index_array, kbest_modes]
         kbest_modes_probs = mode_prob[index_array, kbest_modes]
         kbest_modes_probs = np.divide(kbest_modes_probs, np.sum(kbest_modes_probs, axis = 1).reshape(total_samples,1)) 
+        kbest_man_preds = man_preds[index_array, kbest_modes]
+        maxACC[key] = calc_man_acc(p, kbest_man_preds, man_gt)
         
         minRMSE_ovl[key],rmse_table, rmse[key], n_samples_ovl = calc_ovl_minRMSE(p, kbest_traj_pred, kbest_modes_probs, traj_gt, ovl_index)
     
     return {
         'mnlld': mnlld,
         'mnll': mnll,
+        'maxACC':maxACC,
         'minRMSE_ovl': minRMSE_ovl,
         'rmse_table':rmse_table,
         'n_samples_ovl_list': n_samples_ovl,
@@ -290,6 +293,20 @@ def MMnTP_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
     }
 
 
+
+def calc_man_acc(p, man_pred, man_gt ):
+    # takes maneouvre vector as input
+    total_samples = man_pred.shape[0]
+    n_mode = man_pred.shape[1]
+    tgt_seq_len = man_pred.shape[2]
+    acc = np.zeros((total_samples, n_mode))
+    for i in range(n_mode):
+        acc[:,i] = np.sum(man_pred[:,i] == man_gt, axis = -1)/tgt_seq_len
+    best_mode = np.argmax(acc, axis = 1)
+    acc = acc[np.arange(total_samples), best_mode]
+    minACC = np.sum(acc)/total_samples
+    return minACC
+
 def calc_time_acc(p, time_pred, time_gt ):
     # takes maneouvre vector as input
     
@@ -385,7 +402,8 @@ def calc_ovl_minRMSE(p, traj_pred, mode_prob, traj_gt, ovl_index):
         rmse[:,i] = np.sqrt(np.sum(np.sum((traj_pred[:,i]-traj_gt)**2, axis=-1), axis = -1)/(n_samples*seq_len))
     best_mode = np.argmin(rmse, axis = 1)
     best_traj_pred = traj_pred[np.arange(n_samples), best_mode]
-    rmse = np.sqrt(np.sum((best_traj_pred-traj_gt)**2)/n_samples)
+    rmse = np.sqrt(np.sum((best_traj_pred-traj_gt)**2)/(n_samples*seq_len))
+    pdb.set_trace()
     return rmse_df, rmse_table, rmse, n_sample_ovl
 
 
