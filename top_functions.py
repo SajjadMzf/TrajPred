@@ -16,6 +16,7 @@ from sklearn import metrics
 import pandas as pd
 import matplotlib
 from matplotlib.backends.backend_pdf import PdfPages
+import pdb
 
 import kpis
 import export
@@ -82,10 +83,12 @@ def train_top_func(p, model_train_func, model_eval_func, model_kpi_func,
     
     
     
+    best_model_path = p.WEIGHTS_DIR + p.experiment_tag + '.pt'
     if prev_best_model is not None:
         model.load_state_dict(torch.load(prev_best_model, map_location = device))
     
-    best_model_path = p.WEIGHTS_DIR + p.experiment_tag + '.pt'
+        
+    
 
     if p.LOWER_BETTER_VAL_SCORE:
         best_val_score = float("inf")

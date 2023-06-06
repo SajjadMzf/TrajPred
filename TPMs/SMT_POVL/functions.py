@@ -8,7 +8,7 @@ def SMTPOVL_training(p, data_tuple, label_tuple, model,
                      dataset, loss_func_tuple, device):
     traj_loss_func = loss_func_tuple[0]
     mode_loss_func = loss_func_tuple[1]
-    man_data = label_tuple[0]
+    man_data = label_tuple
     #man_data_onehot = F.one_hot(man_data, num_classes= 3)
     #man_input = man_data_onehot[:,(p.MAX_IN_SEQ_LEN-1):(p.MAX_IN_SEQ_LEN-1+p.TGT_SEQ_LEN)]
     man_gt = man_data[:, p.MAX_IN_SEQ_LEN:(p.MAX_IN_SEQ_LEN+p.TGT_SEQ_LEN)]
@@ -51,7 +51,6 @@ def SMTPOVL_evaluation(p, data_tuple, man_data, plot_info, dataset,
     traj_loss_func = loss_func_tuple[0]
     mode_loss_func = loss_func_tuple[1]
 
-    man_data = man_data[0]
     man_gt = man_data[:, p.MAX_IN_SEQ_LEN:(p.MAX_IN_SEQ_LEN+p.TGT_SEQ_LEN)]
     mode_gt = utils.static_mode_from_man(man_gt.cpu().detach().numpy())
     mode_gt = torch.from_numpy(mode_gt).to(device)

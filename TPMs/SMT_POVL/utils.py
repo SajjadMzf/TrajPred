@@ -161,5 +161,5 @@ def get_y_mask(size) -> torch.tensor:
     return mask
 
 def static_mode_from_man(man):
-    m = stats.mode(man, axis = 1)
+    m = stats.mode(man, axis = 1, keepdims = True)
     return m[0][:,0]

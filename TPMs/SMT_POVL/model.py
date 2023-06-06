@@ -61,17 +61,13 @@ class SMT_POVL(nn.Module):
         self.decoder_embedding = nn.Linear(self.decoder_in_dim, self.model_dim)
         self.man_decoder_embedding = nn.Linear(2, self.model_dim)
         
-        lk_decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
-        rlc_decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
-        llc_decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
+        decoder_layers = nn.TransformerDecoderLayer(self.model_dim, self.head_num, self.ff_dim, drop_prob, batch_first = True)
         
-        self.lk_transformer_decoder = nn.TransformerDecoder(lk_decoder_layers, self.layers_num)
-        self.rlc_transformer_decoder = nn.TransformerDecoder(rlc_decoder_layers, self.layers_num)
-        self.llc_transformer_decoder = nn.TransformerDecoder(llc_decoder_layers, self.layers_num)
+        self.transformer_decoder = nn.TransformerDecoder(decoder_layers, self.layers_num)
         ''' 5. Trajectory Output '''
-        self.lk_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
-        self.rlc_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
-        self.llc_trajectory_fc = nn.Linear(self.model_dim, self.output_dim)
+        self.lk_traj_fc = nn.Linear(self.model_dim, self.output_dim)
+        self.rlc_traj_fc = nn.Linear(self.model_dim, self.output_dim)
+        self.llc_traj_fc = nn.Linear(self.model_dim, self.output_dim)
         
         
         ''' 6. Manouvre Output '''
@@ -104,34 +100,25 @@ class SMT_POVL(nn.Module):
         encoder_out_flattened = encoder_out.reshape(self.batch_size, self.max_in_seq_len*self.model_dim)    
         
         #traj decoder
-        lk_y = self.decoder_embedding(y[:,:,:self.decoder_in_dim])
-        lk_y = self.positional_encoder(lk_y)
-        lk_decoder_out = self.lk_transformer_decoder(lk_y, encoder_out, tgt_mask = y_mask,
-                                                     memory_key_padding_mask = input_padding_mask)
+        y = self.decoder_embedding(y[:,:,:self.decoder_in_dim])
+        y = self.positional_encoder(y)
+        decoder_out = self.transformer_decoder(y, encoder_out, tgt_mask = y_mask,
+                                                memory_key_padding_mask = input_padding_mask)
         
-        rlc_y = self.decoder_embedding(y[:,:,:self.decoder_in_dim])
-        rlc_y = self.positional_encoder(rlc_y)
-        rlc_decoder_out = self.rlc_transformer_decoder(rlc_y, encoder_out, tgt_mask = y_mask,
-                                                       memory_key_padding_mask = input_padding_mask)
-        
-        llc_y = self.decoder_embedding(y[:,:,:self.decoder_in_dim])
-        llc_y = self.positional_encoder(llc_y)
-        llc_decoder_out = self.llc_transformer_decoder(llc_y, encoder_out, tgt_mask = y_mask,
-                                                       memory_key_padding_mask = input_padding_mask)
-
         #traj decoder linear layer
         
-        lk_traj_pred = self.lk_trajectory_fc(lk_decoder_out)
-        rlc_traj_pred = self.rlc_trajectory_fc(rlc_decoder_out)
-        llc_traj_pred = self.llc_trajectory_fc(llc_decoder_out)
+        lk_traj_pred = self.lk_traj_fc(decoder_out)
+        rlc_traj_pred = self.rlc_traj_fc(decoder_out)
+        llc_traj_pred = self.llc_traj_fc(decoder_out)
 
         if self.prob_output:
             lk_traj_pred = utils.prob_activation_func(lk_traj_pred)
             rlc_traj_pred = utils.prob_activation_func(rlc_traj_pred)
             llc_traj_pred = utils.prob_activation_func(llc_traj_pred) 
-        
-        traj_pred = torch.stack([lk_traj_pred, rlc_traj_pred, llc_traj_pred], dim=1) # lk =0, rlc=1, llc=2
-            
+        if self.multi_modal:
+            traj_pred = torch.stack([lk_traj_pred, rlc_traj_pred, llc_traj_pred], dim=1) # lk =0, rlc=1, llc=2
+        else:
+            traj_pred = torch.stack([lk_traj_pred, lk_traj_pred, lk_traj_pred], dim=1)    
         return traj_pred 
 
 class PositionalEncoding(nn.Module):
