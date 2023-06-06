@@ -8,7 +8,7 @@ from numpy.linalg import norm
 import pdb
 
 PREDICTION_DIR = "../../Dataset/Prediction_exid"
-def export_results(scenarios, eval_type = 'De', export_cart = True):
+def export_results(scenarios, eval_type = 'De', export_cart = False):
     if export_cart:
         data_dir = '../../Dataset/exid/Tracks/39_tracks.csv'
         data_df = pd.read_csv(data_dir)

@@ -33,7 +33,7 @@ def deploy_top_func(p, model_deploy_func, model, de_dataset, device):
     best_model_path = p.WEIGHTS_DIR + p.experiment_tag + '.pt'
     figure_name =  p.experiment_tag
     if p.SELECTED_MODEL != 'CONSTANT_PARAMETER':
-        model.load_state_dict(torch.load(best_model_path))
+        model.load_state_dict(torch.load(best_model_path, map_location = device))
     export_dict = deploy_model(p, model, model_deploy_func, de_loader, de_dataset,
                                 device, vis_data_path = vis_data_path, figure_name=figure_name)
     return export_dict
@@ -51,7 +51,7 @@ def eval_top_func(p, model_eval_func, model_kpi_func, model, loss_func_tuple,
     figure_name =  p.experiment_tag
     
     if p.SELECTED_MODEL != 'CONSTANT_PARAMETER':
-        model.load_state_dict(torch.load(best_model_path))
+        model.load_state_dict(torch.load(best_model_path, map_location = device))
     
     print_dict, kpi_dict = eval_model(p, tensorboard, model_eval_func, 
                                       model_kpi_func, model, loss_func_tuple, te_loader, te_dataset,
@@ -83,7 +83,7 @@ def train_top_func(p, model_train_func, model_eval_func, model_kpi_func,
     
     
     if prev_best_model is not None:
-        model.load_state_dict(torch.load(prev_best_model))
+        model.load_state_dict(torch.load(prev_best_model, map_location = device))
     
     best_model_path = p.WEIGHTS_DIR + p.experiment_tag + '.pt'
 

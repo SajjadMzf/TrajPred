@@ -117,10 +117,10 @@ if __name__ == '__main__':
     
     exit()
     '''
-    p = params.ParametersHandler('POVL.yaml', 'exid_train.yaml', './config',
+    p = params.ParametersHandler('DMT_POVL.yaml', 'exid_train.yaml', './config',
                                   seperate_test_dataset='exid_test.yaml',
                                   seperate_deploy_dataset='exid_deploy.yaml')
-    experiment_file = 'experiments/POVL_exid_train_2023-05-30 12:50:58.887277'
+    experiment_file = 'experiments/smt'
     #experiment_file = 'experiments/POVL_SM_exid_train_2023-05-04 10:49:00.060446'
     '''
     Constant Parameters
@@ -132,7 +132,7 @@ if __name__ == '__main__':
     p.import_experiment(experiment_file)
     p.hyperparams['experiment']['debug_mode'] = False
     p.hyperparams['dataset']['balanced'] = False
-    p.hyperparams['training']['batch_size'] = 1000
+    p.hyperparams['training']['batch_size'] = 1
     p.hyperparams['experiment']['multi_modal_eval'] = True
     p.hyperparams['model']['multi_modal'] = True
     # make sure to use following function to update hyperparameters
