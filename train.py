@@ -134,11 +134,11 @@ if __name__ == '__main__':
     train_model_dict(p)
     '''
     # with map MM
-    p = params.ParametersHandler('SMT_POVL.yaml', 'exid_train.yaml', './config', seperate_test_dataset='exid_test.yaml',seperate_deploy_dataset='exid_deploy.yaml')
+    p = params.ParametersHandler('POVL.yaml', 'exid_train.yaml', './config', seperate_test_dataset='exid_test.yaml',seperate_deploy_dataset='exid_deploy.yaml')
     #p = params.ParametersHandler('POVL_SM.yaml', 'highD.yaml', './config')
     
-    p.hyperparams['experiment']['group'] = 'smt_povl'
-    p.hyperparams['experiment']['debug_mode'] = True
+    p.hyperparams['experiment']['group'] = 'povl'
+    p.hyperparams['experiment']['debug_mode'] = False
     p.hyperparams['experiment']['multi_modal_eval'] = False
     p.hyperparams['dataset']['balanced'] = True
     p.match_parameters()
