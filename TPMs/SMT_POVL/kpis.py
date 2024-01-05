@@ -86,7 +86,8 @@ def SMTPOVL_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
     minRMSE_ovl ={}
     minRMSE = {}
     rmse = {}
-
+    minMR = {}
+    minDI = {}
     for K in range(1,min(10,mode_prob.shape[1])+1):
         if K>1 and p.MULTI_MODAL_EVAL == False:
             break
@@ -99,7 +100,7 @@ def SMTPOVL_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
         kbest_modes_probs = mode_prob[index_array, kbest_modes]
         kbest_modes_probs = np.divide(kbest_modes_probs, np.sum(kbest_modes_probs, axis = 1).reshape(total_samples,1)) 
         minRMSE[key], rmse[key] = calc_minRMSE(p, kbest_traj_pred, kbest_modes_probs,traj_gt)
-        
+        minMR[key], minDI[key] = calc_minMRDI(p, kbest_traj_pred, kbest_modes_probs, traj_gt)
     minRMSE_ovl[key],_, _, n_samples_ovl = calc_ovl_minRMSE(p, kbest_traj_pred, kbest_modes_probs, traj_gt, ovl_index)
     
     return {
@@ -108,10 +109,42 @@ def SMTPOVL_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
         'minRMSE':minRMSE,
         'minRMSE_ovl': minRMSE_ovl,
         'n_samples_ovl_list': n_samples_ovl,
+        'minDI': minDI,
+        'minMR': minMR,
         'rmse': rmse['K=1'] # minRMSE K=1 max pred horizon
     }
 
 
+def calc_minMRDI(p, traj_pred, mode_prob, traj_gt):
+    long_lim = 5
+    lat_lim = 2
+    n_samples = traj_pred.shape[0]
+    seq_len = traj_pred.shape[2]
+    n_mode = traj_pred.shape[1]
+    miss = np.ones((n_samples))
+    
+    for i in range(n_mode):
+        miss_long = np.where(np.abs(traj_pred[:,i,-1,1]-traj_gt[:,-1,1])>long_lim, True, False)
+        miss_lat = np.where(np.abs(traj_pred[:,i,-1,0]-traj_gt[:,-1,0])>lat_lim, True, False)
+        miss = np.logical_and(np.logical_or(miss_long, miss_lat), miss)
+    minMR = np.average(miss)
+    
+    if n_mode>1:
+        di_arr = np.zeros((n_mode, n_mode))
+        for i in range(n_mode):
+            for j in range(i+1,n_mode):
+                di_long = \
+                    np.where(np.abs(traj_pred[:,i,-1,1]-traj_pred[:,j,-1,1])>long_lim,\
+                            True, False)
+                di_lat = \
+                    np.where(np.abs(traj_pred[:,i,-1,0]-traj_pred[:,j,-1,0])>lat_lim,\
+                            True, False)
+                di = np.logical_or(di_long, di_lat)
+                di_arr[i,j] = np.average(di)
+        minDI = 2*np.sum(di_arr)/ (n_mode*(n_mode-1))
+    else:
+        minDI = 0
+    return minMR, minDI
 
 
 def calc_ovl_minRMSE(p, traj_pred, mode_prob, traj_gt, ovl_index):

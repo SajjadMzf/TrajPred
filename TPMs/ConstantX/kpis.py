@@ -73,7 +73,6 @@ def ConstantX_kpis(p, kpi_input_dict, traj_min, traj_max, figure_name):
     #from diff to actual
     traj_pred = np.cumsum(dtraj_pred[:,:,:2], axis = 1)
     traj_gt = np.cumsum(dtraj_gt, axis = 1)
-    
     rmse_ol, n_samples_ovl = calc_ovl_rmse(p, traj_pred, traj_gt, ovl_index)
     rmse_time, rmse = calc_rmse(p, traj_pred, traj_gt)
     return {

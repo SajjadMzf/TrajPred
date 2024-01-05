@@ -24,7 +24,7 @@ import kpis
 import matplotlib.colors as mcolors
 import export
 import TPMs
-def deploy_model_dict(p):
+def deploy_model_dict(p, export_file_name):
     # Set Random Seeds:
     if torch.cuda.is_available() and p.CUDA:
             device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -84,18 +84,18 @@ def deploy_model_dict(p):
     
 
 
-    de_export_dict = top_functions.deploy_top_func(p, model_deploy_func, model,
-                                                  de_dataset, device)
+    #de_export_dict = top_functions.deploy_top_func(p, model_deploy_func, model,
+    #                                              de_dataset, device)
     
-    #te_export_dict = top_functions.deploy_top_func(p, model_deploy_func, model,
-    #                                             te_dataset, device)
+    te_export_dict = top_functions.deploy_top_func(p, model_deploy_func, model,
+                                                 te_dataset, device)
     if p.MULTI_MODAL:
-        export.export_results(de_export_dict, 'De')     
-    #    export.export_results(te_export_dict, 'Te')     
+        #export.export_results(export_file_name, de_export_dict, 'De')     
+        export.export_results(export_file_name, te_export_dict, 'Te')     
     
     else:
-        export.export_results_SM(de_export_dict, 'De')
-        #export.export_results_SM(te_export_dict, 'Te')
+        #export.export_results_SM(export_file_name, de_export_dict, 'De')
+        export.export_results_SM(export_file_name, te_export_dict, 'Te')
         
 if __name__ == '__main__':
 
@@ -117,10 +117,11 @@ if __name__ == '__main__':
     
     exit()
     '''
-    p = params.ParametersHandler('DMT_POVL.yaml', 'exid_train.yaml', './config',
+    p = params.ParametersHandler('POVL.yaml', 'exid_train.yaml', './config',
                                   seperate_test_dataset='exid_test.yaml',
                                   seperate_deploy_dataset='exid_deploy.yaml')
-    experiment_file = 'experiments/smt'
+    experiment_file = 'experiments/MMnTPfixed' # DMTfixed, MMnTPfixed
+    export_file_name = 'MMnTPfixed'
     #experiment_file = 'experiments/POVL_SM_exid_train_2023-05-04 10:49:00.060446'
     '''
     Constant Parameters
@@ -132,12 +133,12 @@ if __name__ == '__main__':
     p.import_experiment(experiment_file)
     p.hyperparams['experiment']['debug_mode'] = False
     p.hyperparams['dataset']['balanced'] = False
-    p.hyperparams['training']['batch_size'] = 1
+    p.hyperparams['training']['batch_size'] = 1000
     p.hyperparams['experiment']['multi_modal_eval'] = True
     p.hyperparams['model']['multi_modal'] = True
     # make sure to use following function to update hyperparameters
     p.match_parameters()
-    deploy_model_dict(p)
+    deploy_model_dict(p, export_file_name)
     
    
 

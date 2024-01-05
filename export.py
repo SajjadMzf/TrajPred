@@ -8,7 +8,7 @@ from numpy.linalg import norm
 import pdb
 
 PREDICTION_DIR = "../../Dataset/Prediction_exid"
-def export_results(scenarios, eval_type = 'De', export_cart = False):
+def export_results(export_file_name, scenarios, eval_type = 'De', export_cart = False):
     if export_cart:
         data_dir = '../../Dataset/exid/Tracks/39_tracks.csv'
         data_df = pd.read_csv(data_dir)
@@ -130,11 +130,11 @@ def export_results(scenarios, eval_type = 'De', export_cart = False):
                ,"Cpr1X", "Cpr1Y", "Cpr2X", "Cpr2Y","Cpr3X", "Cpr3Y", 'gtX', 'gtY']
     for i, column in enumerate(columns):
         results_csv[0,i] = column
-    file_dir = os.path.join(PREDICTION_DIR, 'predictionMM')
+    file_dir = os.path.join(PREDICTION_DIR, export_file_name)
     np.savetxt("{}_{}.csv".format(file_dir, eval_type), results_csv, delimiter=",", fmt="%s")
     files = np.unique(results_mat[:,0])
     for file_i in files:
-        file_dir = os.path.join(PREDICTION_DIR, 'predictionMM_{}'.format(file_i))
+        file_dir = os.path.join(PREDICTION_DIR, export_file_name + '_{}'.format(file_i))
         print('Export file: {}'.format(file_i))
         cur_mat = results_mat[results_mat[:,0]==file_i]
         savemat('{}_{}.mat'.format(file_dir, eval_type),{'prediction':cur_mat})
@@ -148,7 +148,7 @@ def list2str(x):
 def get_xy(data, tv_id, frame):
     tv_data = data[np.logical_and(data[:,0]==tv_id, data[:,1]==frame)]
     return tv_data[:,2:4]
-def export_results_SM(scenarios, eval_type, export_cart = False):
+def export_results_SM(export_file_name, scenarios, eval_type, export_cart = False):
     if export_cart:
         data_dir = '../../Dataset/exid/Tracks/39_tracks.csv'
         data_df = pd.read_csv(data_dir)
@@ -250,12 +250,12 @@ def export_results_SM(scenarios, eval_type, export_cart = False):
     
     for i, column in enumerate(columns_csv):
         results_csv[0,i] = column
-    file_dir = os.path.join(PREDICTION_DIR, 'predictionSM')
+    file_dir = os.path.join(PREDICTION_DIR, export_file_name)
     np.savetxt("{}_{}.csv".format(file_dir, eval_type), results_csv, delimiter=",", fmt="%s")
 
     files = np.unique(results_mat[:,0])
     for file_i in files:
-        file_dir = os.path.join(PREDICTION_DIR, 'predictionSM_{}'.format(file_i))
+        file_dir = os.path.join(PREDICTION_DIR, export_file_name+ '_{}'.format(file_i))
         print('Export file: {}'.format(file_i))
         cur_mat = results_mat[results_mat[:,0]==file_i]
         savemat('{}_{}.mat'.format(file_dir, eval_type),{'prediction':cur_mat})
