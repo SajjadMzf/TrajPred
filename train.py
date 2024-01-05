@@ -139,8 +139,8 @@ if __name__ == '__main__':
                                  seperate_deploy_dataset='exid_deploy.yaml')
     #p = params.ParametersHandler('POVL_SM.yaml', 'highD.yaml', './config')
     
-    p.hyperparams['experiment']['group'] = 'smt_povl'
-    p.hyperparams['experiment']['debug_mode'] = True
+    p.hyperparams['experiment']['group'] = 'povl'
+    p.hyperparams['experiment']['debug_mode'] = False
     p.hyperparams['experiment']['multi_modal_eval'] = False
     p.hyperparams['dataset']['balanced'] = True
     p.match_parameters()

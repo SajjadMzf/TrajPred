@@ -33,7 +33,7 @@ model:
 
 problem:
   FPS: 5
-  MIN_IN_SEQ_LEN: 2
+  MIN_IN_SEQ_LEN: 15
   MAX_IN_SEQ_LEN: 15
   TGT_SEQ_LEN: 25
   SKIP_SEQ_LEN: 0 # This is to skip final X frame of a track because manouvre labelling depends on future trajectory of a vehicle
