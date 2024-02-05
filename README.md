@@ -1,4 +1,4 @@
-# Trajectory Prediction Models and Train/Test Functiions 
+# Trajectory Prediction Models and Train/Test Functions 
 
 This repo is part of Vehicle Trajectory Prediction Library (TPL): https://github.com/SajjadMzf/TPL
 
