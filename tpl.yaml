@@ -1,0 +1,21 @@
+name: tpl
+channels:
+ - pytorch
+ - nvidia
+ - conda-forge
+ - defaults
+
+dependencies:
+  - pytorch
+  - torchvision
+  - torchaudio
+  - pytorch-cuda=11.8
+  - yaml
+  - pandas
+  - matplotlib
+  - scikit-learn
+  - tensorboard
+  - h5py
+  - pyyaml
+  - pyproj
+  - conda-forge::opencv

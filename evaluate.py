@@ -20,7 +20,7 @@ import top_functions
 
 import torch.multiprocessing
 torch.multiprocessing.set_sharing_strategy('file_system')
-
+import pdb 
 import kpis
 import matplotlib.colors as mcolors
 import TPMs
@@ -80,11 +80,11 @@ def test_model_dict(p):
 if __name__ == '__main__':
 
     '''
-    p = params.ParametersHandler('Constant_Parameter.yaml', 'exid_train.yaml', './config', # POVL_SM.yaml
-                                  seperate_test_dataset='exid_test.yaml',
-                                  seperate_deploy_dataset='exid_deploy.yaml')
+    p = params.ParametersHandler('Constant_Parameter.yaml', 'm40_train.yaml', './config', # POVL_SM.yaml
+                                  seperate_test_dataset='m40_test.yaml',
+                                  seperate_deploy_dataset='m40_deploy.yaml')
     
-    p = params.ParametersHandler('Constant_Parameter.yaml', 'highD.yaml', './config')
+    #p = params.ParametersHandler('Constant_Parameter.yaml', 'highD.yaml', './config')
     
     p.hyperparams['experiment']['multi_modal_eval'] = False
     p.hyperparams['model']['multi_modal'] = False
@@ -100,19 +100,18 @@ if __name__ == '__main__':
     exit()
     '''
     
-    p = params.ParametersHandler('POVL.yaml', 'exid_train.yaml', './config', # POVL_SM.yaml
-                                  seperate_test_dataset='exid_test.yaml',
-                                  seperate_deploy_dataset='exid_deploy.yaml')
+    p = params.ParametersHandler('POVL_SM.yaml', 'm40_train.yaml', './config', # POVL_SM.yaml
+                                  seperate_test_dataset='m40_test.yaml',
+                                  seperate_deploy_dataset='m40_deploy.yaml')
     
-    experiment_file = 'experiments/mmntp'# 'experiments/POVL_exid_train_2023-05-30 12:50:58.887277'
-     # POVL_SM_exid_train_2023-04-23 11:49:31.851129' # POVL_SM_exid_train_2023-04-01 16:35:41.320395'
+    experiment_file = 'experiments/POVL_SM_m40_train_2024-02-04 12:56:38.408576'
     p.import_experiment(experiment_file)
-    p.hyperparams['experiment']['debug_mode'] = False
-    p.hyperparams['dataset']['balanced'] = True
+    p.hyperparams['experiment']['debug_mode'] = True
+    p.hyperparams['dataset']['balanced'] = False
     p.hyperparams['training']['batch_size'] = 2000
-    p.hyperparams['experiment']['multi_modal_eval'] = True
-    
+    p.hyperparams['experiment']['multi_modal_eval'] = False
     p.match_parameters()
+    print(p.TE.DATASET_DIR)
     test_model_dict(p)
 
 

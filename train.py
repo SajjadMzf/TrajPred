@@ -49,6 +49,11 @@ def train_model_dict(p, prev_best_model = None, prev_itr = 1):
     # Instantiate Model:
    
     model = p.model_dictionary['ref'](p.BATCH_SIZE, device, p.model_dictionary['hyperparams'], p)
+    if p.TRANSFER_LEARNING == 'OnlyFC':
+        for param in model.parameters():
+            param.requires_grad = False
+        for param in model.trajectory_fc.parameters():
+            param.requires_grad = True
     model = model.to(device)
     optimizer = p.model_dictionary['optimizer'](params = model.parameters(), lr = p.LR)
     man_loss_func = p.model_dictionary['man loss function']
@@ -134,21 +139,21 @@ if __name__ == '__main__':
     train_model_dict(p)
     '''
     # with map MM
-    p = params.ParametersHandler('SMT_POVL.yaml', 'exid_train.yaml', './config', 
-                                 seperate_test_dataset='exid_test.yaml',
-                                 seperate_deploy_dataset='exid_deploy.yaml')
+    p = params.ParametersHandler('POVL_SM.yaml', 'm40_train.yaml', './config', 
+                                 seperate_test_dataset='m40_test.yaml',
+                                 seperate_deploy_dataset='m40_deploy.yaml')
     #p = params.ParametersHandler('POVL_SM.yaml', 'highD.yaml', './config')
     
-    p.hyperparams['experiment']['group'] = 'povl'
-    p.hyperparams['experiment']['debug_mode'] = False
+    p.hyperparams['experiment']['group'] = 'povl_sm'
+    p.hyperparams['experiment']['debug_mode'] = True
     p.hyperparams['experiment']['multi_modal_eval'] = False
-    p.hyperparams['dataset']['balanced'] = True
+    p.hyperparams['dataset']['balanced'] = False
     p.match_parameters()
     p.export_experiment()
     #1
     ##prev_best_model = p.WEIGHTS_DIR + 'POVL_exid_train_2023-05-30 23:59:54.127204' + '.pt'
     train_model_dict(p) #)#, prev_best_model =prev_best_model, prev_itr = 50000)
-    p.hyperparams['experiment']['multi_modal_eval'] = True
+    p.hyperparams['experiment']['multi_modal_eval'] = False
     p.hyperparams['dataset']['balanced'] = False
     p.match_parameters()
     test_model_dict(p)

@@ -117,11 +117,11 @@ if __name__ == '__main__':
     
     exit()
     '''
-    p = params.ParametersHandler('POVL.yaml', 'exid_train.yaml', './config',
-                                  seperate_test_dataset='exid_test.yaml',
-                                  seperate_deploy_dataset='exid_deploy.yaml')
-    experiment_file = 'experiments/MMnTPfixed' # DMTfixed, MMnTPfixed
-    export_file_name = 'MMnTPfixed'
+    p = params.ParametersHandler('POVL_SM.yaml', 'exid_train.yaml', './config',
+                                  seperate_test_dataset='m40_test.yaml',
+                                  seperate_deploy_dataset='m40_deploy.yaml')
+    experiment_file = 'experiments/POVL_SM_exid_train_2024-01-07 15:11:00.606801'
+    export_file_name = 'NoTL_POVL_SM_M40_train'
     #experiment_file = 'experiments/POVL_SM_exid_train_2023-05-04 10:49:00.060446'
     '''
     Constant Parameters

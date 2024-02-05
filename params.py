@@ -21,6 +21,8 @@ class ParametersHandler:
         self.constants_file = os.path.join(parameters_dir, constants_file)
         self.model_dataset = '{}_{}'.format(model.split('.')[0], dataset.split('.')[0])
         self.experiments_dir = experiments_dir
+        self.seperate_test_dataset = seperate_test_dataset
+        self.seperate_deploy_dataset = seperate_deploy_dataset
         if os.path.exists(self.experiments_dir)== False:
             os.makedirs(self.experiments_dir)
         
@@ -93,6 +95,7 @@ class ParametersHandler:
         self.DEBUG_MODE = self.hyperparams['experiment']['debug_mode']
         self.experiment_group = self.hyperparams['experiment']['group']
         self.MULTI_MODAL_EVAL = self.hyperparams['experiment']['multi_modal_eval']
+        self.TRANSFER_LEARNING = self.hyperparams['experiment']['transfer_learning']
         self.MAN_DEC_IN = self.hyperparams['model']['man_dec_in']
         self.MAN_DEC_OUT = self.hyperparams['model']['man_dec_out']
         self.MULTI_MODAL = self.hyperparams['model']['multi_modal']
@@ -192,8 +195,10 @@ class ParametersHandler:
             self.hyperparams = experiment_list[1]
             self.model = experiment_list[2]
             self.tr_dataset = experiment_list[3]
-            self.te_dataset = experiment_list[4]
-            #self.de_dataset = experiment_list[5]
+            if not self.seperate_test_dataset:
+                self.te_dataset = experiment_list[4]
+            if not self.seperate_deploy_dataset:
+                self.de_dataset = experiment_list[5]
         self.latest_experiment_file = name_dict['experiment file name']
         self.experiment_file = self.latest_experiment_file.split('/')[-1]
         print('Experiment file is: ', self.latest_experiment_file)

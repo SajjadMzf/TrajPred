@@ -6,11 +6,11 @@ test: 0.
 deploy: 1.0
 image_width: 200
 image_height: 80
-dataset_dir: '../../Dataset/Processed_exid/RenderedDataset/'
+dataset_dir: '../../Datasets/Processed_exid/RenderedDataset/'
 map_dirs :
-  - '../../Dataset/Processed_exid/Map/39-52.pickle'
-  - '../../Dataset/Processed_exid/Map/53-60.pickle'
-  - '../../Dataset/Processed_exid/Map/61-72.pickle'
-  - '../../Dataset/Processed_exid/Map/78-92.pickle'
+  - '../Datasets/Processed_exid/Map/39-52.pickle'
+  - '../Datasets/Processed_exid/Map/53-60.pickle'
+  - '../Datasets/Processed_exid/Map/61-72.pickle'
+  - '../Datasets/Processed_exid/Map/78-92.pickle'
 dataset_ind: '[39]'
 map_ind : '[0]'

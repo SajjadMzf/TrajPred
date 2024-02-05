@@ -1,0 +1,12 @@
+name: m40_train
+train: 0.9
+abblation_val: 0.1
+val: 0.1
+test: 0.0
+deploy: 0.0
+image_width: 200 # outdated
+image_height: 80 # outdated
+dataset_dir: '../Datasets/Processed_m40/RenderedDataset/'
+dataset_ind: 'list(range(1, 157))' # 207
+map_dirs : 'None'
+map_ind : 'None'
